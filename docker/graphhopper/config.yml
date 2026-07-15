@@ -1,0 +1,42 @@
+graphhopper:
+  datareader.file: /osm/switzerland-latest.osm.pbf
+  graph.location: /graph-cache
+
+  profiles:
+    - name: hike
+      custom_model_files: [hike.json]
+    - name: foot
+      custom_model_files: [foot.json]
+
+  profiles_ch: []
+  profiles_lm: []
+
+  graph.encoded_values: |
+    country, road_class, road_environment, foot_access, foot_priority,
+    foot_network, foot_average_speed, foot_road_access, hike_rating,
+    mtb_rating, ferry_speed, smoothness
+
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  routing.snap_preventions_default: tunnel, bridge, ferry
+  routing.non_ch.max_waypoint_distance: 1000000
+  import.osm.ignored_highways: ''
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 0.0.0.0
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 0.0.0.0
+  request_log:
+    appenders: []
+
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

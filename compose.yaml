@@ -1,0 +1,44 @@
+services:
+  graphhopper:
+    image: israelhikingmap/graphhopper@sha256:3e79eb33862028cfc58f9d6c162630b68638d6aad790b5a698c854dbbaa7fe32
+    command:
+      - --config
+      - /config/config.yml
+      - --graph-cache
+      - /graph-cache
+    volumes:
+      - ./docker/graphhopper:/config:ro
+      - ./data/osm:/osm:ro
+      - ./data/graphhopper:/graph-cache
+    ports:
+      - "8989:8989"
+
+  backend:
+    image: python:3.13-slim
+    working_dir: /app/backend
+    volumes:
+      - .:/app
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GRAPHHOPPER_BASE_URL: http://graphhopper:8989
+      GRAPHHOPPER_PROFILE: hike
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+    command: sh -c "pip install uv && uv sync && uv run python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      graphhopper:
+        condition: service_healthy
+
+  frontend:
+    image: node:24-bookworm-slim
+    working_dir: /app/frontend
+    volumes:
+      - .:/app
+    environment:
+      VITE_DEV_PROXY_TARGET: http://backend:8000
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"

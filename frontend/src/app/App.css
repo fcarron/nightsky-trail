@@ -1,0 +1,570 @@
+:root {
+  color: #e8eef2;
+  background: #0b1117;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.appShell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: 48px 1fr;
+  background: #0b1117;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #1d2a36;
+  background: #0f1720;
+  padding: 8px 16px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.brand strong {
+  color: #f4f8fb;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.brand span,
+.status {
+  color: #8fa1ad;
+  font-size: 12px;
+}
+
+.plannerLayout {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(300px, 344px) 1fr;
+}
+
+.sidebar {
+  overflow: auto;
+  border-right: 1px solid #1d2a36;
+  background: #101923;
+  padding: 14px;
+}
+
+.sidebarHeader {
+  margin-bottom: 12px;
+}
+
+.sidebarHeader h1 {
+  margin: 0;
+  color: #f4f8fb;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.sidebarHeader p {
+  margin: 5px 0 0;
+  color: #8fa1ad;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.summaryGrid div,
+.waypointEndpoints div,
+.elevationStats div {
+  border: 1px solid #263545;
+  border-radius: 8px;
+  background: #15212c;
+  padding: 9px;
+}
+
+.summaryGrid dt,
+.waypointEndpoints dt,
+.elevationStats dt {
+  color: #8fa1ad;
+  font-size: 11px;
+}
+
+.summaryGrid dd,
+.waypointEndpoints dd,
+.elevationStats dd {
+  margin: 3px 0 0;
+  color: #f4f8fb;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.toolbar button,
+.segmentList button {
+  min-height: 34px;
+  border: 1px solid #334657;
+  border-radius: 7px;
+  background: #172532;
+  color: #dce7ee;
+  padding: 0 10px;
+}
+
+.toolbar button:hover:not(:disabled),
+.segmentList button:hover,
+.waypointDots button:hover {
+  border-color: #4f8cff;
+  background: #1d3146;
+}
+
+.toolbar button:disabled {
+  color: #647783;
+  opacity: 0.65;
+}
+
+.routeStatus {
+  margin-top: 10px;
+  border: 1px solid #263545;
+  border-radius: 8px;
+  background: #0d141c;
+  color: #a8c7ff;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.routeWarnings {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #ffd18a;
+  font-size: 12px;
+}
+
+.waypointPanel,
+.segmentPanel,
+.elevationPanel {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  border-top: 1px solid #1d2a36;
+  padding-top: 12px;
+}
+
+.sectionHeader,
+.panelHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sectionHeader h2,
+.panelHeader h2 {
+  margin: 0;
+  color: #f4f8fb;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.sectionHeader span,
+.panelHeader span,
+.panelEmpty,
+.emptyState {
+  color: #8fa1ad;
+  font-size: 12px;
+}
+
+.emptyState,
+.panelEmpty {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.waypointEndpoints {
+  display: grid;
+  grid-template-columns: 1fr 52px 1fr;
+  gap: 7px;
+  margin: 0;
+}
+
+.waypointEndpoints dd {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waypointEndpoints div:nth-child(2) dd {
+  font-size: 15px;
+  text-align: center;
+}
+
+.waypointDots,
+.segmentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.waypointDots li,
+.segmentList li {
+  list-style: none;
+}
+
+.waypointDots button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #334657;
+  border-radius: 999px;
+  background: #182634;
+  color: #dce7ee;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.waypointDots .selectedWaypoint {
+  border-color: #ff5c7a;
+  background: #ff5c7a;
+  color: #230811;
+}
+
+.segmentList li {
+  display: grid;
+  min-width: 96px;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 5px;
+}
+
+.segmentList span {
+  color: #8fa1ad;
+  font-size: 12px;
+  text-align: center;
+}
+
+.segmentList button {
+  width: 100%;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.debugToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dce7ee;
+  font-size: 12px;
+}
+
+.debugToggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #ff4fd8;
+}
+
+.debugToggle:has(input:disabled) {
+  color: #647783;
+}
+
+.debugSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.debugSummary div {
+  border: 1px solid #3e294b;
+  border-radius: 7px;
+  background: #1b1424;
+  padding: 7px;
+}
+
+.debugSummary dt {
+  color: #c08bd8;
+  font-size: 10px;
+}
+
+.debugSummary dd {
+  margin: 2px 0 0;
+  color: #ffd6f5;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.routeLegend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: #8fa1ad;
+  font-size: 12px;
+}
+
+.legendLine {
+  width: 28px;
+  height: 0;
+  border-top: 4px solid #4f8cff;
+}
+
+.legendLineStraight {
+  border-top-style: dashed;
+}
+
+.legendLineRouted {
+  border-top-style: solid;
+}
+
+.elevationStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.elevationStats dd {
+  font-size: 13px;
+}
+
+.elevationChart {
+  width: 100%;
+  height: 154px;
+  border: 1px solid #263545;
+  border-radius: 8px;
+  background: #0d141c;
+}
+
+.gradientStrip {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  height: 14px;
+  border: 1px solid #263545;
+  border-radius: 999px;
+  background: #0d141c;
+}
+
+.gradientStrip span {
+  min-width: 2px;
+}
+
+.gradientLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.gradientLegend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #8fa1ad;
+  font-size: 11px;
+  list-style: none;
+}
+
+.gradientSwatch {
+  width: 12px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.mapSurface {
+  position: relative;
+  min-height: 0;
+  background: #0d141c;
+}
+
+.mapTarget {
+  position: absolute;
+  inset: 0;
+}
+
+.mapNotice,
+.mapLayerSelector,
+.osmDebugPanel {
+  position: absolute;
+  border: 1px solid #263545;
+  border-radius: 8px;
+  background: rgba(13, 20, 28, 0.92);
+  color: #dce7ee;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+}
+
+.mapNotice {
+  left: 14px;
+  top: 14px;
+  max-width: 360px;
+  padding: 12px;
+  line-height: 1.4;
+}
+
+.mapLayerSelector {
+  right: 12px;
+  top: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(150px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.mapLayerSelector label {
+  color: #8fa1ad;
+}
+
+.mapLayerSelector select {
+  min-height: 30px;
+  border: 1px solid #334657;
+  border-radius: 6px;
+  background: #101923;
+  color: #f4f8fb;
+}
+
+.mapOverlayToggle {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #dce7ee;
+}
+
+.mapOverlayToggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #4f8cff;
+}
+
+.osmDebugPanel {
+  right: 12px;
+  top: 126px;
+  display: grid;
+  width: min(320px, calc(100vw - 370px));
+  max-height: min(420px, calc(100vh - 190px));
+  gap: 8px;
+  overflow: auto;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.osmDebugPanel strong {
+  color: #ffd166;
+  font-size: 13px;
+}
+
+.osmDebugPanel span,
+.osmDebugPanel div {
+  color: #8fa1ad;
+}
+
+.osmDebugPanel dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.osmDebugPanel dl div {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) 1fr;
+  gap: 8px;
+  border-top: 1px solid #263545;
+  padding-top: 6px;
+}
+
+.osmDebugPanel dt {
+  color: #8fa1ad;
+}
+
+.osmDebugPanel dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #f4f8fb;
+  font-weight: 650;
+}
+
+.attribution {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  border-radius: 6px;
+  background: rgba(13, 20, 28, 0.74);
+  color: #c7d2da;
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .appShell {
+    grid-template-rows: auto 1fr;
+  }
+
+  .topBar {
+    min-height: 48px;
+  }
+
+  .plannerLayout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    max-height: 46vh;
+    border-right: 0;
+    border-bottom: 1px solid #1d2a36;
+  }
+
+  .osmDebugPanel {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 42px;
+    width: auto;
+    max-height: 30vh;
+  }
+}
