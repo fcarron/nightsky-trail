@@ -80,6 +80,9 @@ export function App() {
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(
     null,
   );
+  const [elevationHoverPoint, setElevationHoverPoint] = useState<LonLat | null>(
+    null,
+  );
   const [routeComputeState, dispatchRouteCompute] = useReducer(
     routeComputeReducer,
     initialRouteComputeState,
@@ -553,6 +556,7 @@ export function App() {
             profile={elevationState.profile}
             status={elevationState.status}
             message={elevationState.message}
+            onHoverPointChange={setElevationHoverPoint}
           />
         </aside>
 
@@ -561,6 +565,7 @@ export function App() {
           segments={history.present.segments}
           computedSegments={effectiveComputedRoute?.segments ?? null}
           graphhopperDebugVisible={ENABLE_DEV_TOOLS && graphhopperDebugVisible}
+          elevationHoverPoint={elevationHoverPoint}
           selectedWaypointId={selectedWaypointId}
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}

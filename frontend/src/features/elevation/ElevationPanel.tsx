@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { LineChart } from "echarts/charts";
+import { BarChart, LineChart } from "echarts/charts";
 import {
+  DataZoomComponent,
   GridComponent,
-  LegendComponent,
   TooltipComponent,
 } from "echarts/components";
 import * as echarts from "echarts/core";
@@ -12,128 +12,219 @@ import { CanvasRenderer } from "echarts/renderers";
 import { formatDistance } from "../route/routeGeometry";
 import type { ElevationProfile } from "./elevationModel";
 import {
-  GRADIENT_GROUPS,
   formatElevationMeters,
   formatGradientPercent,
+  gradientGroupForPercent,
 } from "./elevationModel";
 
 echarts.use([
+  BarChart,
   LineChart,
+  DataZoomComponent,
   GridComponent,
-  LegendComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
+
+type ElevationPanelSize = "compact" | "large";
+
+interface ElevationHoverPoint {
+  lon: number;
+  lat: number;
+}
 
 interface ElevationPanelProps {
   profile: ElevationProfile | null;
   status: "idle" | "loading" | "ready" | "error";
   message: string | null;
+  onHoverPointChange?: (point: ElevationHoverPoint | null) => void;
 }
 
 export function ElevationPanel({
   profile,
   status,
   message,
+  onHoverPointChange,
 }: ElevationPanelProps) {
   const chartRef = useRef<HTMLDivElement | null>(null);
+  const [panelSize, setPanelSize] = useState<ElevationPanelSize>("compact");
+  const elevationFloor = useMemo(() => {
+    if (!profile) {
+      return 0;
+    }
+    return Math.floor(profile.minElevationMeters / 50) * 50;
+  }, [profile]);
 
   useEffect(() => {
     if (!chartRef.current || !profile || profile.points.length === 0) {
+      onHoverPointChange?.(null);
       return;
     }
 
     const chart = echarts.init(chartRef.current);
+    const elevationRange = Math.max(
+      80,
+      profile.maxElevationMeters - elevationFloor,
+    );
     chart.setOption({
       animation: false,
       backgroundColor: "transparent",
-      color: ["#4f8cff", "#ff5c7a"],
       grid: {
-        left: 38,
-        right: 20,
-        top: 22,
-        bottom: 30,
-      },
-      legend: {
-        bottom: 0,
-        itemWidth: 18,
-        itemHeight: 8,
-        textStyle: { color: "#8fa1ad", fontSize: 11 },
+        left: 44,
+        right: 14,
+        top: 18,
+        bottom: 42,
       },
       tooltip: {
         backgroundColor: "#101923",
         borderColor: "#334657",
+        borderWidth: 1,
+        confine: true,
+        formatter: (params: unknown) => formatElevationTooltip(params, profile),
         textStyle: { color: "#f4f8fb" },
         trigger: "axis",
-        valueFormatter: (value: unknown) =>
-          typeof value === "number" ? value.toFixed(1) : String(value),
       },
+      dataZoom: [
+        {
+          filterMode: "none",
+          moveOnMouseMove: true,
+          moveOnMouseWheel: true,
+          show: false,
+          type: "inside",
+          zoomLock: false,
+          zoomOnMouseWheel: true,
+        },
+        {
+          bottom: 0,
+          borderColor: "rgba(143, 161, 173, 0.18)",
+          brushSelect: true,
+          dataBackground: {
+            areaStyle: { color: "rgba(79, 140, 255, 0.1)" },
+            lineStyle: { color: "rgba(244, 248, 251, 0.25)" },
+          },
+          fillerColor: "rgba(79, 140, 255, 0.16)",
+          handleStyle: { color: "#8fa1ad" },
+          height: 16,
+          labelFormatter: (value: number) => `${value.toFixed(1)} km`,
+          selectedDataBackground: {
+            areaStyle: { color: "rgba(79, 140, 255, 0.18)" },
+            lineStyle: { color: "rgba(244, 248, 251, 0.35)" },
+          },
+          textStyle: { color: "#8fa1ad" },
+          type: "slider",
+        },
+      ],
       xAxis: {
         axisLabel: {
           color: "#8fa1ad",
           formatter: (value: number) => `${value.toFixed(1)} km`,
         },
         axisLine: { lineStyle: { color: "#334657" } },
-        splitLine: { lineStyle: { color: "#223140" } },
+        splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.14)" } },
         type: "value",
       },
-      yAxis: [
-        {
-          axisLabel: { color: "#8fa1ad" },
-          axisLine: { lineStyle: { color: "#334657" } },
-          name: "m",
-          nameTextStyle: { color: "#8fa1ad" },
-          scale: true,
-          splitLine: { lineStyle: { color: "#223140" } },
-          type: "value",
+      yAxis: {
+        axisLabel: {
+          color: "#8fa1ad",
+          formatter: (value: number) => `${Math.round(value)} m`,
         },
-        {
-          axisLabel: { color: "#8fa1ad" },
-          axisLine: { lineStyle: { color: "#334657" } },
-          name: "%",
-          nameTextStyle: { color: "#8fa1ad" },
-          scale: true,
-          splitLine: { show: false },
-          type: "value",
-        },
-      ],
+        axisLine: { lineStyle: { color: "#334657" } },
+        max: Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) * 20,
+        min: elevationFloor,
+        splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.16)" } },
+        type: "value",
+      },
       series: [
+        {
+          data: profile.points.map((point) => [
+            point.distanceMeters / 1000,
+            elevationFloor,
+          ]),
+          itemStyle: { color: "rgba(0, 0, 0, 0)" },
+          name: "Basis",
+          stack: "profile",
+          type: "bar",
+          tooltip: { show: false },
+        },
+        {
+          data: profile.points.map((point) => [
+            point.distanceMeters / 1000,
+            point.smoothedElevationMeters - elevationFloor,
+          ]),
+          barCategoryGap: "0%",
+          barGap: "0%",
+          barMinWidth: 1,
+          barWidth: gradientBarWidth(profile),
+          barMaxWidth: gradientBarWidth(profile),
+          coordinateSystem: "cartesian2d",
+          encode: { x: 0, y: 1 },
+          itemStyle: {
+            color: (params: { dataIndex: number }) =>
+              gradientGroupForPercent(
+                profile.points[params.dataIndex]?.gradientPercent ?? 0,
+              ).color,
+            opacity: 0.94,
+          },
+          name: "Steigung",
+          showBackground: false,
+          stack: "profile",
+          type: "bar",
+        },
         {
           data: profile.points.map((point) => [
             point.distanceMeters / 1000,
             point.smoothedElevationMeters,
           ]),
-          lineStyle: { width: 2 },
+          lineStyle: { color: "rgba(244, 248, 251, 0.82)", width: 1.5 },
           name: "Höhe",
           showSymbol: false,
-          smooth: true,
+          silent: true,
+          smooth: 0.15,
           type: "line",
-        },
-        {
-          data: profile.points.map((point) => [
-            point.distanceMeters / 1000,
-            point.gradientPercent,
-          ]),
-          lineStyle: { width: 1.5 },
-          name: "Gradient",
-          showSymbol: false,
-          type: "line",
-          yAxisIndex: 1,
         },
       ],
     });
+
+    const handleMouseMove = (event: { offsetX: number; offsetY: number }) => {
+      if (!chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])) {
+        onHoverPointChange?.(null);
+        return;
+      }
+      const value = chart.convertFromPixel({ gridIndex: 0 }, [
+        event.offsetX,
+        event.offsetY,
+      ]);
+      if (!Array.isArray(value) || typeof value[0] !== "number") {
+        onHoverPointChange?.(null);
+        return;
+      }
+      const point = nearestElevationPoint(profile, value[0] * 1000);
+      onHoverPointChange?.({
+        lon: point.longitude,
+        lat: point.latitude,
+      });
+    };
+    const handleMouseOut = () => onHoverPointChange?.(null);
+    chart.getZr().on("mousemove", handleMouseMove);
+    chart.getZr().on("mouseout", handleMouseOut);
 
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(chartRef.current);
 
     return () => {
+      chart.getZr().off("mousemove", handleMouseMove);
+      chart.getZr().off("mouseout", handleMouseOut);
       resizeObserver.disconnect();
       chart.dispose();
+      onHoverPointChange?.(null);
     };
-  }, [profile]);
+  }, [elevationFloor, onHoverPointChange, profile, panelSize]);
 
   return (
-    <section className="elevationPanel" aria-label="Höhenprofil">
+    <section
+      className={`elevationPanel elevationPanel-${panelSize}`}
+      aria-label="Höhenprofil"
+    >
       <div className="panelHeader">
         <h2>Höhenprofil</h2>
         <span aria-live="polite">
@@ -174,36 +265,23 @@ export function ElevationPanel({
               <dd>{formatGradientPercent(profile.maxAbsGradientPercent)}</dd>
             </div>
           </dl>
-          <div ref={chartRef} className="elevationChart" />
-          <div className="gradientStrip" aria-label="Steigungsklassen">
-            {profile.gradientBands.map((band) => (
-              <span
-                key={`${band.startDistanceMeters}-${band.endDistanceMeters}`}
-                style={{
-                  backgroundColor: band.group.color,
-                  flexGrow: Math.max(
-                    1,
-                    band.endDistanceMeters - band.startDistanceMeters,
-                  ),
-                }}
-                title={`${formatDistance(band.startDistanceMeters)}-${formatDistance(
-                  band.endDistanceMeters,
-                )}: ${formatGradientPercent(band.gradientPercent)}`}
-              />
-            ))}
+          <div className="elevationPanelControls" aria-label="Profilgrösse">
+            <button
+              type="button"
+              aria-pressed={panelSize === "compact"}
+              onClick={() => setPanelSize("compact")}
+            >
+              Klein
+            </button>
+            <button
+              type="button"
+              aria-pressed={panelSize === "large"}
+              onClick={() => setPanelSize("large")}
+            >
+              Gross
+            </button>
           </div>
-          <ol className="gradientLegend" aria-label="Steigungslegende">
-            {GRADIENT_GROUPS.map((group) => (
-              <li key={group.id}>
-                <span
-                  className="gradientSwatch"
-                  style={{ backgroundColor: group.color }}
-                  aria-hidden="true"
-                />
-                {group.label}
-              </li>
-            ))}
-          </ol>
+          <div ref={chartRef} className="elevationChart" />
         </>
       ) : (
         <p className="panelEmpty">
@@ -213,4 +291,54 @@ export function ElevationPanel({
       )}
     </section>
   );
+}
+
+function gradientBarWidth(profile: ElevationProfile): number {
+  if (profile.points.length < 2) {
+    return 2;
+  }
+  return Math.max(2.8, Math.min(12, 840 / profile.points.length));
+}
+
+function nearestElevationPoint(
+  profile: ElevationProfile,
+  distanceMeters: number,
+) {
+  return profile.points.reduce((nearest, point) =>
+    Math.abs(point.distanceMeters - distanceMeters) <
+    Math.abs(nearest.distanceMeters - distanceMeters)
+      ? point
+      : nearest,
+  );
+}
+
+function formatElevationTooltip(
+  params: unknown,
+  profile: ElevationProfile,
+): string {
+  const point = pointFromTooltipParams(params, profile);
+  if (!point) {
+    return "";
+  }
+  return [
+    `<strong>${formatDistance(point.distanceMeters)}</strong>`,
+    `${formatElevationMeters(point.smoothedElevationMeters)}`,
+    `${formatGradientPercent(point.gradientPercent)}`,
+  ].join("<br />");
+}
+
+function pointFromTooltipParams(
+  params: unknown,
+  profile: ElevationProfile,
+) {
+  const firstParam = Array.isArray(params) ? params[0] : params;
+  if (
+    typeof firstParam === "object" &&
+    firstParam !== null &&
+    "dataIndex" in firstParam &&
+    typeof firstParam.dataIndex === "number"
+  ) {
+    return profile.points[firstParam.dataIndex] ?? null;
+  }
+  return null;
 }

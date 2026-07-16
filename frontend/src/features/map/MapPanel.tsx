@@ -34,6 +34,7 @@ import {
 } from "./mapConstants";
 import {
   difficultyStyle,
+  elevationHoverStyle,
   graphhopperDebugStyle,
   routeStyle,
   waypointStyle,
@@ -63,6 +64,7 @@ interface MapPanelProps {
   segments: RouteSegment[];
   computedSegments: ComputedRouteSegment[] | null;
   graphhopperDebugVisible: boolean;
+  elevationHoverPoint: LonLat | null;
   selectedWaypointId: string | null;
   onAddWaypoint: (position: LonLat) => void;
   onInsertWaypoint: (segmentId: string, position: LonLat) => void;
@@ -75,6 +77,7 @@ export function MapPanel({
   segments,
   computedSegments,
   graphhopperDebugVisible,
+  elevationHoverPoint,
   selectedWaypointId,
   onAddWaypoint,
   onInsertWaypoint,
@@ -94,6 +97,7 @@ export function MapPanel({
   const routeSourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
+  const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultyRequestIdRef = useRef(0);
   const difficultyRequestInFlightRef = useRef(false);
   const difficultyQueuedLoadRef = useRef(false);
@@ -216,6 +220,12 @@ export function MapPanel({
       zIndex: 24,
     });
     difficultyLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const elevationHoverLayer = new VectorLayer({
+      source: elevationHoverSourceRef.current,
+      style: elevationHoverStyle,
+      zIndex: 28,
+    });
+    elevationHoverLayer.set("layerRole", "overlay" satisfies LayerRole);
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
     difficultyLayerRef.current = difficultyLayer;
     standardLayerRef.current = standardLayer;
@@ -244,6 +254,7 @@ export function MapPanel({
     map.addLayer(hikingTrailsLayer);
     map.addLayer(difficultyLayer);
     map.addLayer(routeLayer);
+    map.addLayer(elevationHoverLayer);
     map.addLayer(graphhopperDebugLayer);
     map.addLayer(pointLayer);
     mapRef.current = map;
@@ -418,6 +429,19 @@ export function MapPanel({
   useEffect(() => {
     pointSourceRef.current.changed();
   }, [selectedWaypointId]);
+
+  useEffect(() => {
+    const source = elevationHoverSourceRef.current;
+    source.clear();
+    if (!elevationHoverPoint) {
+      return;
+    }
+    source.addFeature(
+      new Feature(
+        new Point(fromLonLat([elevationHoverPoint.lon, elevationHoverPoint.lat])),
+      ),
+    );
+  }, [elevationHoverPoint]);
 
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);

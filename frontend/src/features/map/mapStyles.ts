@@ -54,6 +54,16 @@ export function graphhopperDebugStyle(feature: FeatureLike): Style {
   return graphhopperDebugLineStyle;
 }
 
+export function elevationHoverStyle(): Style {
+  return new Style({
+    image: new Circle({
+      radius: 7,
+      fill: new Fill({ color: "#f4f8fb" }),
+      stroke: new Stroke({ color: "#05070a", width: 3 }),
+    }),
+  });
+}
+
 export function difficultyStyle(feature: FeatureLike, resolution: number): Style[] {
   if (feature.get("warningOverlay") !== true) {
     const status = matchStatusFromFeature(feature);
