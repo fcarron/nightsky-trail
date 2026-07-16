@@ -48,6 +48,8 @@ import {
   toDifficultySummary,
 } from "./trailDifficulty";
 
+const DIFFICULTY_MIN_ZOOM = 11;
+
 type BaseLayerId = "light" | "standard" | "osm-topo";
 type LayerRole =
   | "base-light"
@@ -121,6 +123,12 @@ export function MapPanel({
     segment: CombinedTrailSegmentDto;
   } | null>(null);
   const trailMatchDebugEnabled = ENABLE_DEV_TOOLS && trailMatchDebugVisible;
+  const showDifficultyPanel =
+    (difficultyVisible || trailMatchDebugEnabled) &&
+    (selectedDifficultyWay !== null ||
+      trailMatchDebugEnabled ||
+      difficultyLimitedToKnown ||
+      isAttentionDifficultyStatus(difficultyStatus));
 
   useEffect(() => {
     callbacksRef.current = {
@@ -462,11 +470,11 @@ export function MapPanel({
       }
 
       const zoom = currentMap.getView().getZoom() ?? 0;
-      if (zoom < 13) {
+      if (zoom < DIFFICULTY_MIN_ZOOM) {
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus("Schwierigkeitshinweise ab Zoom 13");
+        setDifficultyStatus(`Schwierigkeitshinweise ab Zoom ${DIFFICULTY_MIN_ZOOM}`);
         return;
       }
 
@@ -659,7 +667,7 @@ export function MapPanel({
           </label>
         ) : null}
       </div>
-      {difficultyVisible || trailMatchDebugEnabled ? (
+      {showDifficultyPanel ? (
         <DifficultyPanel
           difficultyLimitedToKnown={difficultyLimitedToKnown}
           difficultyStatus={difficultyStatus}
@@ -733,5 +741,16 @@ function isCombinedTrailSegmentRecord(
     "osmWayId" in value &&
     "matchScore" in value &&
     "matchStatus" in value
+  );
+}
+
+function isAttentionDifficultyStatus(status: string): boolean {
+  return (
+    status.includes("lädt") ||
+    status.includes("laden") ||
+    status.includes("vorgemerkt") ||
+    status.includes("nicht verfügbar") ||
+    status.includes("Zoom") ||
+    status.includes("zoomen")
   );
 }

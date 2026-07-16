@@ -25,6 +25,7 @@ from planner.integrations.swisstopo_trails import (
 )
 
 logger = logging.getLogger(__name__)
+TRAILS_MIN_ZOOM = 11
 
 WARNING_RELEVANT_SAC_SCALES = {
     "demanding_mountain_hiking",
@@ -75,7 +76,7 @@ def build_trails_response(
         include_debug = False
         warnings.append("Match Debug is limited to small viewports. Zoom in to enable it.")
 
-    load_osm = include_osm and zoom >= 13 and bbox_area <= 0.02
+    load_osm = include_osm and zoom >= TRAILS_MIN_ZOOM and bbox_area <= 0.02
 
     osm_started_at = perf_counter()
     if load_osm:
@@ -94,8 +95,8 @@ def build_trails_response(
                 settings.OVERPASS_BASE_URL,
                 timeout_seconds=settings.OVERPASS_TIMEOUT_SECONDS,
             ).trails(bbox)
-    elif include_osm and zoom < 13:
-        warnings.append("OSM difficulty loads at zoom level 13 or higher.")
+    elif include_osm and zoom < TRAILS_MIN_ZOOM:
+        warnings.append(f"OSM difficulty loads at zoom level {TRAILS_MIN_ZOOM} or higher.")
     elif include_osm:
         warnings.append("OSM difficulty viewport is too large; zoom in for OSM matching.")
     osm_elapsed_ms = elapsed_ms(osm_started_at)

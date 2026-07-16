@@ -234,7 +234,7 @@ def test_trails_endpoint_skips_low_zoom(monkeypatch: pytest.MonkeyPatch) -> None
 
     response = client.get(
         reverse("trails"),
-        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "12"},
+        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "10"},
     )
 
     assert response.status_code == 200
@@ -286,4 +286,4 @@ class FakeSwisstopoTrailClient:
 
 class ExplodingOverpassClient:
     def __init__(self, *args: object, **kwargs: object) -> None:
-        raise AssertionError("Overpass should not be called below zoom 13.")
+        raise AssertionError("Overpass should not be called below the trail overlay minimum zoom.")
