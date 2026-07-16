@@ -1,12 +1,11 @@
 import "ol/ol.css";
 
 import Feature from "ol/Feature.js";
-import type { FeatureLike } from "ol/Feature.js";
 import Map from "ol/Map.js";
 import { unByKey } from "ol/Observable.js";
 import View from "ol/View.js";
 import { defaults as defaultControls } from "ol/control/defaults.js";
-import { LineString, MultiPoint, Point } from "ol/geom.js";
+import { LineString, Point } from "ol/geom.js";
 import Modify from "ol/interaction/Modify.js";
 import Select from "ol/interaction/Select.js";
 import TileLayer from "ol/layer/Tile.js";
@@ -14,12 +13,12 @@ import VectorLayer from "ol/layer/Vector.js";
 import { fromLonLat, toLonLat, transformExtent } from "ol/proj.js";
 import XYZ from "ol/source/XYZ.js";
 import VectorSource from "ol/source/Vector.js";
-import { Circle, Fill, Stroke, Style, Text } from "ol/style.js";
 import { apply } from "ol-mapbox-style";
 import { useEffect, useRef, useState } from "react";
 
+import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { getTrailDifficultyWays } from "../../services/api";
-import type { CombinedTrailSegmentDto, TrailSummaryDto } from "../../types/api";
+import type { CombinedTrailSegmentDto } from "../../types/api";
 import type {
   ComputedRouteSegment,
   LonLat,
@@ -33,6 +32,21 @@ import {
   SWISSTOPO_STYLE_URL,
   SWITZERLAND_CENTER,
 } from "./mapConstants";
+import {
+  difficultyStyle,
+  graphhopperDebugStyle,
+  routeStyle,
+  waypointStyle,
+} from "./mapStyles";
+import {
+  DifficultyPanel,
+  TrailLegend,
+} from "./TrailOverlayInfo";
+import {
+  EMPTY_DIFFICULTY_SUMMARY,
+  type DifficultySummary,
+  toDifficultySummary,
+} from "./trailDifficulty";
 
 type BaseLayerId = "light" | "standard" | "osm-topo";
 type LayerRole =
@@ -98,7 +112,7 @@ export function MapPanel({
   const [hikingTrailsVisible, setHikingTrailsVisible] = useState(true);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
-  const [difficultyStatus, setDifficultyStatus] = useState("OSM Zusatz aus");
+  const [difficultyStatus, setDifficultyStatus] = useState("Schwierigkeitshinweise aus");
   const [difficultyLimitedToKnown, setDifficultyLimitedToKnown] = useState(false);
   const [difficultySummary, setDifficultySummary] = useState<DifficultySummary>(
     EMPTY_DIFFICULTY_SUMMARY,
@@ -106,6 +120,7 @@ export function MapPanel({
   const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
     segment: CombinedTrailSegmentDto;
   } | null>(null);
+  const trailMatchDebugEnabled = ENABLE_DEV_TOOLS && trailMatchDebugVisible;
 
   useEffect(() => {
     callbacksRef.current = {
@@ -125,8 +140,8 @@ export function MapPanel({
   }, [difficultyVisible]);
 
   useEffect(() => {
-    trailMatchDebugVisibleRef.current = trailMatchDebugVisible;
-  }, [trailMatchDebugVisible]);
+    trailMatchDebugVisibleRef.current = trailMatchDebugEnabled;
+  }, [trailMatchDebugEnabled]);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -407,10 +422,10 @@ export function MapPanel({
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);
     difficultyLayerRef.current?.setVisible(
-      difficultyVisible || trailMatchDebugVisible,
+      difficultyVisible || trailMatchDebugEnabled,
     );
 
-    if (!difficultyVisible && !hikingTrailsVisible && !trailMatchDebugVisible) {
+    if (!difficultyVisible && !hikingTrailsVisible && !trailMatchDebugEnabled) {
       difficultyRequestIdRef.current += 1;
       difficultyRequestInFlightRef.current = false;
       difficultyQueuedLoadRef.current = false;
@@ -418,7 +433,7 @@ export function MapPanel({
       return;
     }
 
-    if (!difficultyVisible && !trailMatchDebugVisible) {
+    if (!difficultyVisible && !trailMatchDebugEnabled) {
       difficultyRequestIdRef.current += 1;
       difficultyRequestInFlightRef.current = false;
       difficultyQueuedLoadRef.current = false;
@@ -451,7 +466,7 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus("OSM Zusatz ab Zoom 13");
+        setDifficultyStatus("Schwierigkeitshinweise ab Zoom 13");
         return;
       }
 
@@ -477,13 +492,13 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus("OSM Zusatz: bitte weiter hineinzoomen");
+        setDifficultyStatus("Schwierigkeitshinweise: bitte weiter hineinzoomen");
         return;
       }
 
       if (difficultyRequestInFlightRef.current) {
         difficultyQueuedLoadRef.current = true;
-        setDifficultyStatus("OSM Zusatz lädt · neuer Ausschnitt vorgemerkt");
+        setDifficultyStatus("Schwierigkeitshinweise laden · neuer Ausschnitt vorgemerkt");
         return;
       }
 
@@ -491,14 +506,14 @@ export function MapPanel({
       difficultyRequestIdRef.current = requestId;
       difficultyRequestInFlightRef.current = true;
       difficultyQueuedLoadRef.current = false;
-      setDifficultyStatus("OSM Zusatz lädt");
+      setDifficultyStatus("Schwierigkeitshinweise laden");
 
       getTrailDifficultyWays(
         bbox,
         zoom,
         true,
         false,
-        trailMatchDebugVisible,
+        trailMatchDebugEnabled,
       )
         .then((response) => {
           if (difficultyRequestIdRef.current !== requestId) {
@@ -514,7 +529,7 @@ export function MapPanel({
           setDifficultyLimitedToKnown(response.warnings.length > 0);
           response.combinedSegments
             .filter(
-              (segment) => segment.warningOverlay || trailMatchDebugVisible,
+              (segment) => segment.warningOverlay || trailMatchDebugEnabled,
             )
             .forEach((segment) => {
               const feature = new Feature(
@@ -529,7 +544,7 @@ export function MapPanel({
               feature.set("warningOverlay", segment.warningOverlay);
               source.addFeature(feature);
             });
-          if (!trailMatchDebugVisible) {
+          if (!trailMatchDebugEnabled) {
             source
               .getFeatures()
               .filter((feature) => feature.get("warningOverlay") !== true)
@@ -554,8 +569,8 @@ export function MapPanel({
 
           setDifficultyStatus(
             difficultySourceRef.current.getFeatures().length
-              ? "OSM Zusatz nicht verfügbar · letzter Stand"
-              : "OSM Zusatz nicht verfügbar",
+              ? "Schwierigkeitshinweise nicht verfügbar · letzter Stand"
+              : "Schwierigkeitshinweise nicht verfügbar",
           );
         })
         .finally(() => {
@@ -587,7 +602,7 @@ export function MapPanel({
       difficultyQueuedLoadRef.current = false;
       unByKey(moveEndListener);
     };
-  }, [difficultyVisible, hikingTrailsVisible, mapReady, trailMatchDebugVisible]);
+  }, [difficultyVisible, hikingTrailsVisible, mapReady, trailMatchDebugEnabled]);
 
   return (
     <section className="mapSurface" aria-label="Karte">
@@ -623,153 +638,41 @@ export function MapPanel({
               setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
               setDifficultyLimitedToKnown(false);
               setDifficultyStatus(
-                enabled ? "OSM Zusatz lädt" : "OSM Zusatz aus",
+                enabled ? "Schwierigkeitshinweise laden" : "Schwierigkeitshinweise aus",
               );
               setDifficultyVisible(enabled);
             }}
           />
-          OSM Zusatz
+          Schwierigkeitshinweise
         </label>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={trailMatchDebugVisible}
-            onChange={(event) => {
-              setSelectedDifficultyWay(null);
-              setTrailMatchDebugVisible(event.target.checked);
-            }}
-          />
-          Match Debug
-        </label>
+        {ENABLE_DEV_TOOLS ? (
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={trailMatchDebugVisible}
+              onChange={(event) => {
+                setSelectedDifficultyWay(null);
+                setTrailMatchDebugVisible(event.target.checked);
+              }}
+            />
+            Match Debug
+          </label>
+        ) : null}
       </div>
-      {difficultyVisible || trailMatchDebugVisible ? (
-        <div className="difficultyPanel" aria-live="polite">
-          <strong>{difficultyStatus}</strong>
-          {selectedDifficultyWay ? (
-            <>
-              <div className="difficultySelectedTitle">
-                {formatOfficialCategory(
-                  selectedDifficultyWay.segment.officialCategory,
-                )}{" "}
-                + OSM {formatSacScale(selectedDifficultyWay.segment.osmSacScale)}
-              </div>
-              <dl>
-                <div>
-                  <dt>Official category</dt>
-                  <dd>
-                    {formatOfficialCategory(
-                      selectedDifficultyWay.segment.officialCategory,
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>OSM difficulty</dt>
-                  <dd>{formatSacScale(selectedDifficultyWay.segment.osmSacScale)}</dd>
-                </div>
-                <div>
-                  <dt>Match quality</dt>
-                  <dd>{formatMatchQuality(selectedDifficultyWay.segment.matchScore)}</dd>
-                </div>
-                <div>
-                  <dt>Match status</dt>
-                  <dd>{selectedDifficultyWay.segment.matchStatus}</dd>
-                </div>
-                <div>
-                  <dt>Quelle</dt>
-                  <dd>OpenStreetMap way {selectedDifficultyWay.segment.osmWayId}</dd>
-                </div>
-              </dl>
-            </>
-          ) : (
-            <>
-              <div className="difficultySummaryGrid" aria-label="OSM T-Level im Ausschnitt">
-                {DIFFICULTY_LEGEND.map((item) => (
-                  <div key={item.label}>
-                    <span
-                      className="difficultySwatch"
-                      style={{ background: item.color }}
-                    />
-                    <span>{item.label}</span>
-                    <strong>{difficultySummary.byLabel[item.label] ?? 0}</strong>
-                  </div>
-                ))}
-              </div>
-              {difficultySummary.commonTags.length ? (
-                <dl>
-                  {difficultySummary.commonTags.map(([key, value], index) => (
-                    <div key={`${key}=${value}:${index}`}>
-                      <dt>{key}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <span>
-                  {difficultyStatus.includes("nicht verfügbar")
-                    ? "OSM-Datenquelle nicht verfügbar."
-                    : difficultyLimitedToKnown
-                      ? "Keine bekannten OSM-Zusatzhinweise im Ausschnitt geladen. Weiter hineinzoomen für OSM-Wege ohne T-Angabe."
-                      : "Keine OSM-Wege im Ausschnitt geladen."}
-                </span>
-              )}
-            </>
-          )}
-        </div>
+      {difficultyVisible || trailMatchDebugEnabled ? (
+        <DifficultyPanel
+          difficultyLimitedToKnown={difficultyLimitedToKnown}
+          difficultyStatus={difficultyStatus}
+          difficultySummary={difficultySummary}
+          selectedDifficultyWay={selectedDifficultyWay}
+        />
       ) : null}
       {hikingTrailsVisible || difficultyVisible ? (
-        <div
-          className="trailLegend"
-          aria-label="Weg- und Zusatzlegende"
-        >
-          {hikingTrailsVisible ? (
-            <section>
-              <strong>swisstopo offiziell</strong>
-              <div>
-                <span className="officialLine officialLineHiking" />
-                Wanderweg
-              </div>
-              <div>
-                <span className="officialLine officialLineMountain" />
-                Bergwanderweg
-              </div>
-              <div>
-                <span className="officialLine officialLineAlpine" />
-                Alpinwanderweg
-              </div>
-            </section>
-          ) : null}
-          {difficultyVisible ? (
-            <section>
-              <strong>OSM Zusatz</strong>
-              {SUPPLEMENT_LEGEND.map((item) => (
-                <div key={item.label}>
-                  <span
-                    className="difficultySwatch"
-                    style={{ background: item.color }}
-                  />
-                  {item.label}
-                </div>
-              ))}
-            </section>
-          ) : null}
-          {trailMatchDebugVisible ? (
-            <section>
-              <strong>Match Debug</strong>
-              <div>
-                <span className="debugLine debugLineMatched" />
-                matched
-              </div>
-              <div>
-                <span className="debugLine debugLineAmbiguous" />
-                ambiguous
-              </div>
-              <div>
-                <span className="debugLine debugLineOsmOnly" />
-                osm_only
-              </div>
-            </section>
-          ) : null}
-        </div>
+        <TrailLegend
+          difficultyVisible={difficultyVisible}
+          hikingTrailsVisible={hikingTrailsVisible}
+          trailMatchDebugEnabled={trailMatchDebugEnabled}
+        />
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
       <div className="attribution">
@@ -815,195 +718,10 @@ function toBaseLayerId(value: string): BaseLayerId {
   return value === "standard" ? "standard" : "light";
 }
 
-const routedRouteStyle = new Style({
-  stroke: new Stroke({
-    color: "#1967d2",
-    width: 4,
-  }),
-});
-
-const straightRouteStyle = new Style({
-  stroke: new Stroke({
-    color: "#1967d2",
-    lineDash: [10, 10],
-    width: 4,
-  }),
-});
-
-function graphhopperDebugStyle(feature: FeatureLike): Style {
-  if (feature.get("debugKind") === "graphhopper-point") {
-    return graphhopperDebugPointStyle;
-  }
-  return graphhopperDebugLineStyle;
-}
-
-function difficultyStyle(feature: FeatureLike, resolution: number): Style[] {
-  if (feature.get("warningOverlay") !== true) {
-    const segment = feature.get("combinedSegment");
-    const status = isCombinedTrailSegmentRecord(segment)
-      ? segment.matchStatus
-      : "unknown";
-    return [
-      new Style({
-        stroke: new Stroke({
-          color: debugMatchColor(status),
-          lineCap: "round",
-          lineDash: status === "matched" ? undefined : [6, 8],
-          width: 2,
-        }),
-      }),
-    ];
-  }
-
-  return [
-    new Style({
-      geometry: (styleFeature) =>
-        warningPlusMarkerGeometry(styleFeature, resolution),
-      text: new Text({
-        fill: new Fill({ color: "rgba(5, 7, 10, 0.78)" }),
-        font: "700 13px sans-serif",
-        stroke: new Stroke({ color: "rgba(255, 255, 255, 0.55)", width: 2 }),
-        text: "+",
-      }),
-    }),
-  ];
-}
-
-function warningPlusMarkerGeometry(
-  feature: FeatureLike,
-  resolution: number,
-): MultiPoint {
-  const geometry = feature.getGeometry();
-  if (!(geometry instanceof LineString)) {
-    return new MultiPoint([]);
-  }
-
-  const length = geometry.getLength();
-  if (length <= 0) {
-    return new MultiPoint([]);
-  }
-
-  const spacing = Math.max(26 * resolution, 14);
-  const coordinates = [];
-  for (let distance = spacing / 2; distance < length; distance += spacing) {
-    coordinates.push(geometry.getCoordinateAt(distance / length));
-  }
-  return new MultiPoint(coordinates);
-}
-
-function debugMatchColor(status: string): string {
-  if (status === "matched") {
-    return "rgba(22, 163, 74, 0.72)";
-  }
-  if (status === "ambiguous") {
-    return "rgba(245, 158, 11, 0.82)";
-  }
-  if (status === "osm_only") {
-    return "rgba(168, 85, 247, 0.72)";
-  }
-  return "rgba(148, 163, 184, 0.72)";
-}
-
-const graphhopperDebugLineStyle = new Style({
-  stroke: new Stroke({
-    color: "#ff4fd8",
-    lineDash: [4, 8],
-    width: 3,
-  }),
-});
-
-const graphhopperDebugPointStyle = new Style({
-  image: new Circle({
-    radius: 3,
-    fill: new Fill({ color: "#ff4fd8" }),
-    stroke: new Stroke({ color: "#250018", width: 1 }),
-  }),
-});
-
-function routeStyle(mode: "straight" | "routed"): Style {
-  return mode === "routed" ? routedRouteStyle : straightRouteStyle;
-}
-
-function waypointStyle(selected: boolean): Style {
-  return new Style({
-    image: new Circle({
-      radius: selected ? 8 : 6,
-      fill: new Fill({ color: selected ? "#d93025" : "#1967d2" }),
-      stroke: new Stroke({ color: "#ffffff", width: 2 }),
-    }),
-  });
-}
-
 function isComputedRouteSegment(
   segment: RouteSegment | ComputedRouteSegment,
 ): segment is ComputedRouteSegment {
   return "geometry" in segment;
-}
-
-interface DifficultySummary {
-  byLabel: Record<string, number>;
-  commonTags: [string, string][];
-}
-
-const EMPTY_DIFFICULTY_SUMMARY: DifficultySummary = {
-  byLabel: {},
-  commonTags: [],
-};
-
-const DIFFICULTY_LEGEND = [
-  { label: "?", color: "#6b7280" },
-  { label: "<T1", color: "#6b7280" },
-  { label: "T1", color: "#6b7280" },
-  { label: "T2", color: "#6b7280" },
-  { label: "T3", color: "#05070a" },
-  { label: "T4", color: "#6b7280" },
-  { label: "T5", color: "#05070a" },
-  { label: "T6", color: "#05070a" },
-];
-
-const SUPPLEMENT_LEGEND = [
-  { label: "T3 auf rot", color: "#05070a" },
-  { label: "T5/T6 auf blau", color: "#05070a" },
-];
-
-const SAC_SCALE_BY_OSM_VALUE: Record<string, { label: string }> = {
-  strolling: { label: "<T1" },
-  hiking: { label: "T1" },
-  mountain_hiking: { label: "T2" },
-  demanding_mountain_hiking: { label: "T3" },
-  alpine_hiking: { label: "T4" },
-  demanding_alpine_hiking: { label: "T5" },
-  difficult_alpine_hiking: { label: "T6" },
-};
-
-function formatSacScale(value: string | null | undefined): string {
-  if (!value) {
-    return "?";
-  }
-  return SAC_SCALE_BY_OSM_VALUE[value]?.label ?? value;
-}
-
-function formatOfficialCategory(category: string | null): string {
-  if (category === "hiking_trail") {
-    return "Wanderweg";
-  }
-  if (category === "mountain_hiking_trail") {
-    return "Bergwanderweg";
-  }
-  if (category === "alpine_hiking_trail") {
-    return "Alpinwanderweg";
-  }
-  return "Unbekannt";
-}
-
-function formatMatchQuality(score: number): string {
-  if (score >= 0.9) {
-    return "high";
-  }
-  if (score >= 0.78) {
-    return "medium";
-  }
-  return "low";
 }
 
 function isCombinedTrailSegmentRecord(
@@ -1016,11 +734,4 @@ function isCombinedTrailSegmentRecord(
     "matchScore" in value &&
     "matchStatus" in value
   );
-}
-
-function toDifficultySummary(summary: TrailSummaryDto): DifficultySummary {
-  return {
-    byLabel: summary.byLabel,
-    commonTags: summary.commonTags.map((tag) => [tag.key, tag.value]),
-  };
 }

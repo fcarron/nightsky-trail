@@ -45,6 +45,7 @@ services:
       - .:/app
     environment:
       VITE_DEV_PROXY_TARGET: http://backend:8000
+      VITE_DEV_TOOLS: "false"
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     ports:
       - "5173:5173"

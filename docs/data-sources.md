@@ -112,7 +112,7 @@ The current OSM difficulty layer uses:
 GET /api/v1/trails?bbox=minLon,minLat,maxLon,maxLat&zoom=14
 ```
 
-It loads relevant OSM foot and trail ways through Django and returns normalized OSM metadata plus combined matching segments. The normal frontend request sets `include_official=false` and `include_debug=false`, so only black warning-overlay geometries are sent. Match Debug sets `include_debug=true` to inspect all matched, ambiguous, and OSM-only segments. Ways without `sac_scale` are shown as unknown (`?`) rather than hidden or treated as T1. This is a difficulty visualization layer, not a routing source.
+It loads relevant OSM foot and trail ways through Django and returns normalized summary counts plus combined matching segments. The normal frontend request sets `include_official=false` and `include_debug=false`, so only compact black warning-overlay marker geometries are sent. Match Debug sets `include_debug=true` to inspect all matched, ambiguous, and OSM-only segments; it is intended for development, hidden unless `VITE_DEV_TOOLS=true`, and limited by `TRAILS_DEBUG_MIN_ZOOM` plus `TRAILS_DEBUG_MAX_BBOX_AREA`. Ways without `sac_scale` are counted as unknown (`?`) rather than hidden or treated as T1. This is a difficulty visualization layer, not a routing source.
 
 The official swisstopo hiking trail layer remains visible through the fast swisstopo WMTS layer as the source for Swiss hiking categories such as hiking trail, mountain hiking trail, and alpine hiking trail. The backend still reads the official GeoPackage for spatial matching, but does not send the complete official network to the browser during normal use. These official categories are related to, but not identical with, OSM `sac_scale`, so the UI presents them as separate visual dimensions.
 
@@ -139,3 +139,5 @@ Alpinwanderweg + T5 -> warning overlay
 Alpinwanderweg + T6 -> warning overlay
 all other cases     -> no warning overlay
 ```
+
+The warning overlay is rendered as small black `+` markers along the affected OSM segment so the official swisstopo colour remains visible underneath.

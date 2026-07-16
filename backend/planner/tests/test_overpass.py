@@ -147,13 +147,13 @@ def test_overpass_client_falls_back_to_known_difficulty_query(
 @pytest.mark.django_db
 def test_trails_endpoint_returns_debug_ways(monkeypatch: pytest.MonkeyPatch) -> None:
     client = APIClient()
-    monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
-    monkeypatch.setattr("planner.api.views.OverpassClient", FakeOverpassClient)
-    monkeypatch.setattr("planner.api.views.SwisstopoTrailClient", FakeSwisstopoTrailClient)
+    monkeypatch.setattr("planner.services.trails.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
+    monkeypatch.setattr("planner.services.trails.OverpassClient", FakeOverpassClient)
+    monkeypatch.setattr("planner.services.trails.SwisstopoTrailClient", FakeSwisstopoTrailClient)
 
     response = client.get(
         reverse("trails"),
-        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "14", "include_debug": "true"},
+        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "15", "include_debug": "true"},
     )
 
     assert response.status_code == 200
@@ -169,13 +169,32 @@ def test_trails_endpoint_returns_debug_ways(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.django_db
+def test_trails_endpoint_limits_match_debug_viewport(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = APIClient()
+    monkeypatch.setattr("planner.services.trails.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
+    monkeypatch.setattr("planner.services.trails.OverpassClient", FakeOverpassClient)
+    monkeypatch.setattr("planner.services.trails.SwisstopoTrailClient", FakeSwisstopoTrailClient)
+
+    response = client.get(
+        reverse("trails"),
+        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "14", "include_debug": "true"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ways"] == []
+    assert payload["combinedSegments"] == []
+    assert "Match Debug is limited" in payload["warnings"][0]
+
+
+@pytest.mark.django_db
 def test_trails_endpoint_can_omit_official_and_non_warning_segments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = APIClient()
-    monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
-    monkeypatch.setattr("planner.api.views.OverpassClient", FakeOverpassClient)
-    monkeypatch.setattr("planner.api.views.SwisstopoTrailClient", FakeSwisstopoTrailClient)
+    monkeypatch.setattr("planner.services.trails.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
+    monkeypatch.setattr("planner.services.trails.OverpassClient", FakeOverpassClient)
+    monkeypatch.setattr("planner.services.trails.SwisstopoTrailClient", FakeSwisstopoTrailClient)
 
     response = client.get(
         reverse("trails"),
@@ -211,7 +230,7 @@ def test_trails_endpoint_rejects_large_bbox() -> None:
 @pytest.mark.django_db
 def test_trails_endpoint_skips_low_zoom(monkeypatch: pytest.MonkeyPatch) -> None:
     client = APIClient()
-    monkeypatch.setattr("planner.api.views.OverpassClient", ExplodingOverpassClient)
+    monkeypatch.setattr("planner.services.trails.OverpassClient", ExplodingOverpassClient)
 
     response = client.get(
         reverse("trails"),

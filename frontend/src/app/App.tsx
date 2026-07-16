@@ -33,6 +33,7 @@ import {
   getHealth,
 } from "../services/api";
 import "./App.css";
+import { ENABLE_DEV_TOOLS } from "./config";
 
 type HealthState = "checking" | "ok" | "unavailable";
 type RouteComputeStatus = "idle" | "loading" | "ready" | "error";
@@ -491,32 +492,36 @@ export function App() {
                 <h2>Abschnitte</h2>
                 <span>{history.present.segments.length}</span>
               </div>
-              <label className="debugToggle">
-                <input
-                  type="checkbox"
-                  checked={graphhopperDebugVisible}
-                  disabled={!graphhopperDebugSummary.routedSegmentCount}
-                  onChange={(event) =>
-                    setGraphhopperDebugVisible(event.target.checked)
-                  }
-                />
-                GraphHopper anzeigen
-              </label>
-              {graphhopperDebugSummary.routedSegmentCount ? (
-                <dl className="debugSummary" aria-label="GraphHopper Debug">
-                  <div>
-                    <dt>Routed</dt>
-                    <dd>{graphhopperDebugSummary.routedSegmentCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Stützpunkte</dt>
-                    <dd>{graphhopperDebugSummary.geometryPointCount}</dd>
-                  </div>
-                  <div>
-                    <dt>hike_rating</dt>
-                    <dd>{graphhopperDebugSummary.hikeRatingCount}</dd>
-                  </div>
-                </dl>
+              {ENABLE_DEV_TOOLS ? (
+                <>
+                  <label className="debugToggle">
+                    <input
+                      type="checkbox"
+                      checked={graphhopperDebugVisible}
+                      disabled={!graphhopperDebugSummary.routedSegmentCount}
+                      onChange={(event) =>
+                        setGraphhopperDebugVisible(event.target.checked)
+                      }
+                    />
+                    GraphHopper anzeigen
+                  </label>
+                  {graphhopperDebugSummary.routedSegmentCount ? (
+                    <dl className="debugSummary" aria-label="GraphHopper Debug">
+                      <div>
+                        <dt>Routed</dt>
+                        <dd>{graphhopperDebugSummary.routedSegmentCount}</dd>
+                      </div>
+                      <div>
+                        <dt>Stützpunkte</dt>
+                        <dd>{graphhopperDebugSummary.geometryPointCount}</dd>
+                      </div>
+                      <div>
+                        <dt>hike_rating</dt>
+                        <dd>{graphhopperDebugSummary.hikeRatingCount}</dd>
+                      </div>
+                    </dl>
+                  ) : null}
+                </>
               ) : null}
               <ol className="segmentList">
                 {history.present.segments.map((segment, index) => (
@@ -555,7 +560,7 @@ export function App() {
           waypoints={history.present.waypoints}
           segments={history.present.segments}
           computedSegments={effectiveComputedRoute?.segments ?? null}
-          graphhopperDebugVisible={graphhopperDebugVisible}
+          graphhopperDebugVisible={ENABLE_DEV_TOOLS && graphhopperDebugVisible}
           selectedWaypointId={selectedWaypointId}
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}
