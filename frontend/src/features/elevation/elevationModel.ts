@@ -52,12 +52,92 @@ export function toElevationProfileRequest(
   return {
     geometry: {
       type: "LineString",
-      coordinates: route.geometry.map((coordinate) => [
+      coordinates: resampleGeometryForElevation(route.geometry).map((coordinate) => [
         coordinate.lon,
         coordinate.lat,
       ]),
     },
   };
+}
+
+const ELEVATION_GEOMETRY_TARGET_SPACING_METERS = 30;
+const ELEVATION_GEOMETRY_MAX_POINTS = 800;
+const EARTH_RADIUS_METERS = 6_371_000;
+
+export function resampleGeometryForElevation(
+  geometry: ComputedRoute["geometry"],
+): ComputedRoute["geometry"] {
+  if (geometry.length <= 2) {
+    return geometry;
+  }
+
+  const distances = cumulativeDistances(geometry);
+  const totalDistance = distances[distances.length - 1] ?? 0;
+  if (totalDistance <= 0) {
+    return [geometry[0], geometry[geometry.length - 1]];
+  }
+
+  const targetPointCount = Math.min(
+    ELEVATION_GEOMETRY_MAX_POINTS,
+    Math.max(2, Math.ceil(totalDistance / ELEVATION_GEOMETRY_TARGET_SPACING_METERS) + 1),
+  );
+  const spacing = totalDistance / (targetPointCount - 1);
+
+  const sampled = [];
+  let segmentIndex = 1;
+  for (let index = 0; index < targetPointCount; index += 1) {
+    const targetDistance = index === targetPointCount - 1 ? totalDistance : index * spacing;
+    while (
+      segmentIndex < distances.length - 1 &&
+      distances[segmentIndex] < targetDistance
+    ) {
+      segmentIndex += 1;
+    }
+
+    const before = geometry[segmentIndex - 1];
+    const after = geometry[segmentIndex];
+    const beforeDistance = distances[segmentIndex - 1];
+    const afterDistance = distances[segmentIndex];
+    const ratio =
+      afterDistance > beforeDistance
+        ? (targetDistance - beforeDistance) / (afterDistance - beforeDistance)
+        : 0;
+
+    sampled.push({
+      lon: before.lon + (after.lon - before.lon) * ratio,
+      lat: before.lat + (after.lat - before.lat) * ratio,
+    });
+  }
+
+  return sampled;
+}
+
+function cumulativeDistances(geometry: ComputedRoute["geometry"]): number[] {
+  const distances = [0];
+  for (let index = 1; index < geometry.length; index += 1) {
+    distances.push(
+      distances[index - 1] + distanceMeters(geometry[index - 1], geometry[index]),
+    );
+  }
+  return distances;
+}
+
+function distanceMeters(
+  first: ComputedRoute["geometry"][number],
+  second: ComputedRoute["geometry"][number],
+): number {
+  const firstLat = toRadians(first.lat);
+  const secondLat = toRadians(second.lat);
+  const latDelta = toRadians(second.lat - first.lat);
+  const lonDelta = toRadians(second.lon - first.lon);
+  const a =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(firstLat) * Math.cos(secondLat) * Math.sin(lonDelta / 2) ** 2;
+  return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
 }
 
 export function toElevationProfile(

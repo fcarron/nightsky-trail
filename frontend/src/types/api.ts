@@ -41,13 +41,46 @@ export interface ElevationProfileResponse {
 
 export interface TrailsResponse {
   ways: OsmWayDto[];
+  trailSummary: TrailSummaryDto;
+  officialSegments: OfficialTrailSegmentDto[];
+  combinedSegments: CombinedTrailSegmentDto[];
   warnings: string[];
+}
+
+export interface TrailSummaryDto {
+  totalWays: number;
+  byLabel: Record<string, number>;
+  commonTags: TrailSummaryTagDto[];
+}
+
+export interface TrailSummaryTagDto {
+  key: string;
+  value: string;
+  count: number;
 }
 
 export interface OsmWayDto {
   id: number;
   geometry: LineStringGeometryDto;
   tags: Record<string, string>;
+}
+
+export interface OfficialTrailSegmentDto {
+  id: string;
+  officialCategory: string;
+  geometry: LineStringGeometryDto;
+}
+
+export interface CombinedTrailSegmentDto {
+  osmWayId: number;
+  swisstopoId: string | null;
+  officialCategory: string | null;
+  osmSacScale: string | null;
+  tLevel: number | null;
+  matchScore: number;
+  matchStatus: "matched" | "ambiguous" | "osm_only" | "swisstopo_only" | "unknown";
+  warningOverlay: boolean;
+  geometry: LineStringGeometryDto;
 }
 
 export interface ElevationProfilePointDto {

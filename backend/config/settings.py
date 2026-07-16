@@ -71,3 +71,39 @@ OSM_PBF_PATH = Path(
 OSM_TRAIL_INDEX_PATH = Path(
     os.environ.get("OSM_TRAIL_INDEX_PATH", BASE_DIR.parent / "data/osm/trails.sqlite3")
 )
+SWISSTOPO_TRAILS_URL = os.environ.get(
+    "SWISSTOPO_TRAILS_URL",
+    "https://data.geo.admin.ch/ch.swisstopo.swisstlm3d-wanderwege/swisstlm3d-wanderwege/swisstlm3d-wanderwege_2056_5728.gpkg.zip",
+)
+SWISSTOPO_TRAILS_ZIP_PATH = Path(
+    os.environ.get(
+        "SWISSTOPO_TRAILS_ZIP_PATH",
+        BASE_DIR.parent / "data/swisstopo/swisstlm3d-wanderwege_2056_5728.gpkg.zip",
+    )
+)
+SWISSTOPO_TRAILS_GPKG_PATH = Path(
+    os.environ.get(
+        "SWISSTOPO_TRAILS_GPKG_PATH",
+        BASE_DIR.parent / "data/swisstopo/swisstlm3d-wanderwege_2056_5728.gpkg",
+    )
+)
+SWISSTOPO_TRAILS_TIMEOUT_SECONDS = float(os.environ.get("SWISSTOPO_TRAILS_TIMEOUT_SECONDS", "60"))
+TRAILS_CACHE_TIMEOUT_SECONDS = int(os.environ.get("TRAILS_CACHE_TIMEOUT_SECONDS", "300"))
+TRAILS_CACHE_BBOX_DECIMALS = int(os.environ.get("TRAILS_CACHE_BBOX_DECIMALS", "3"))
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "planner": {
+            "handlers": ["console"],
+            "level": os.environ.get("PLANNER_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+    },
+}

@@ -50,6 +50,9 @@ class ElevationProfileRequestSerializer(serializers.Serializer):
 class TrailsQuerySerializer(serializers.Serializer):
     bbox = serializers.CharField()
     zoom = serializers.IntegerField(min_value=0, max_value=22)
+    include_osm = serializers.BooleanField(default=True)
+    include_official = serializers.BooleanField(default=True)
+    include_debug = serializers.BooleanField(default=False)
 
     def validate_bbox(self, value: str) -> tuple[float, float, float, float]:
         parts = value.split(",")
@@ -72,7 +75,7 @@ class TrailsQuerySerializer(serializers.Serializer):
                 "BBox is outside the supported Switzerland planning area."
             )
 
-        if (max_lon - min_lon) * (max_lat - min_lat) > 0.02:
-            raise serializers.ValidationError("BBox is too large for OSM difficulty loading.")
+        if (max_lon - min_lon) * (max_lat - min_lat) > 0.08:
+            raise serializers.ValidationError("BBox is too large for trail overlay loading.")
 
         return min_lon, min_lat, max_lon, max_lat

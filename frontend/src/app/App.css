@@ -603,6 +603,22 @@ button:disabled {
   border-radius: 999px;
 }
 
+.debugLine {
+  width: 30px;
+  height: 0;
+  border-top: 2px solid rgba(22, 163, 74, 0.72);
+}
+
+.debugLineAmbiguous {
+  border-top-color: rgba(245, 158, 11, 0.82);
+  border-top-style: dashed;
+}
+
+.debugLineOsmOnly {
+  border-top-color: rgba(168, 85, 247, 0.72);
+  border-top-style: dashed;
+}
+
 .attribution {
   position: absolute;
   right: 12px;

@@ -97,12 +97,45 @@ The trail difficulty overlay is served through Django. The preferred local devel
 
 If the local extract is missing or the index cannot be built, the backend falls back to Overpass. Overpass is only a development or low-volume fallback and remains bounded by zoom, bbox area, timeout, and response validation.
 
+Official hiking-trail categories are read from the swisstopo OGD GeoPackage for `ch.swisstopo.swisstlm3d-wanderwege`, configured by `SWISSTOPO_TRAILS_URL`, `SWISSTOPO_TRAILS_ZIP_PATH`, and `SWISSTOPO_TRAILS_GPKG_PATH`. The relevant field is `wanderwege`; values are normalized to:
+
+```text
+Wanderweg       -> hiking_trail
+Bergwanderweg  -> mountain_hiking_trail
+Alpinwanderweg -> alpine_hiking_trail
+other/null      -> unknown/other
+```
+
 The current OSM difficulty layer uses:
 
 ```http
 GET /api/v1/trails?bbox=minLon,minLat,maxLon,maxLat&zoom=14
 ```
 
-It loads relevant OSM foot and trail ways through Django and returns only normalized geometry plus selected tags such as `highway`, `foot`, `access`, `sac_scale`, `trail_visibility`, `informal`, `bridge`, `ford`, `surface`, and `incline`. The frontend displays known `sac_scale` values as a T-level overlay on top of the official swisstopo hiking trail layer. Ways without `sac_scale` are shown as unknown (`?`) rather than hidden or treated as T1. This is a difficulty visualization layer, not a routing source.
+It loads relevant OSM foot and trail ways through Django and returns normalized OSM metadata plus combined matching segments. The normal frontend request sets `include_official=false` and `include_debug=false`, so only black warning-overlay geometries are sent. Match Debug sets `include_debug=true` to inspect all matched, ambiguous, and OSM-only segments. Ways without `sac_scale` are shown as unknown (`?`) rather than hidden or treated as T1. This is a difficulty visualization layer, not a routing source.
 
-The official swisstopo hiking trail layer remains visible as the source for Swiss hiking categories such as hiking trail, mountain hiking trail, and alpine hiking trail. These official categories are related to, but not identical with, OSM `sac_scale`, so the UI presents them as separate visual dimensions.
+The official swisstopo hiking trail layer remains visible through the fast swisstopo WMTS layer as the source for Swiss hiking categories such as hiking trail, mountain hiking trail, and alpine hiking trail. The backend still reads the official GeoPackage for spatial matching, but does not send the complete official network to the browser during normal use. These official categories are related to, but not identical with, OSM `sac_scale`, so the UI presents them as separate visual dimensions.
+
+## Trail Matching
+
+The API splits OSM ways into short matching segments and matches each segment against nearby official swisstopo hiking-trail geometries in EPSG:2056. Difficulty is never propagated to a complete swisstopo feature.
+
+Initial thresholds are centralized in `TrailMatchingThresholds`:
+
+```text
+candidate distance: 12 m
+OSM matching segment length: 35 m
+minimum reliable match score: 0.72
+ambiguity score delta: 0.08
+```
+
+The match score combines covered or parallel length, average distance, and direction similarity. Ambiguous or unmatched OSM segments do not produce warning overlays.
+
+Warning rules are intentionally limited:
+
+```text
+Bergwanderweg + T3  -> warning overlay
+Alpinwanderweg + T5 -> warning overlay
+Alpinwanderweg + T6 -> warning overlay
+all other cases     -> no warning overlay
+```

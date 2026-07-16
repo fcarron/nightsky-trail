@@ -4,7 +4,10 @@ import httpx
 import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
+from shapely.geometry import LineString
 
+from planner.domain.coordinates import wgs84_to_lv95
+from planner.domain.trail_matching import OFFICIAL_CATEGORY_BERGWANDERWEG, OfficialTrail
 from planner.integrations.local_osm import LocalOsmUnavailableError
 from planner.integrations.overpass import (
     OsmWay,
@@ -146,26 +149,50 @@ def test_trails_endpoint_returns_debug_ways(monkeypatch: pytest.MonkeyPatch) -> 
     client = APIClient()
     monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
     monkeypatch.setattr("planner.api.views.OverpassClient", FakeOverpassClient)
+    monkeypatch.setattr("planner.api.views.SwisstopoTrailClient", FakeSwisstopoTrailClient)
 
     response = client.get(
         reverse("trails"),
-        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "14"},
+        {"bbox": "7.44,46.94,7.46,46.96", "zoom": "14", "include_debug": "true"},
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "ways": [
-            {
-                "id": 123,
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": [[7.4474, 46.948], [7.45, 46.95]],
-                },
-                "tags": {"highway": "path", "sac_scale": "mountain_hiking"},
-            }
-        ],
-        "warnings": [],
-    }
+    payload = response.json()
+    assert payload["ways"][0]["id"] == 123
+    assert payload["trailSummary"]["totalWays"] == 1
+    assert payload["trailSummary"]["byLabel"] == {"T2": 1}
+    assert payload["officialSegments"][0]["officialCategory"] == "mountain_hiking_trail"
+    assert payload["combinedSegments"][0]["matchStatus"] == "matched"
+    assert payload["combinedSegments"][0]["tLevel"] == 2
+    assert payload["combinedSegments"][0]["warningOverlay"] is False
+    assert payload["warnings"] == []
+
+
+@pytest.mark.django_db
+def test_trails_endpoint_can_omit_official_and_non_warning_segments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = APIClient()
+    monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
+    monkeypatch.setattr("planner.api.views.OverpassClient", FakeOverpassClient)
+    monkeypatch.setattr("planner.api.views.SwisstopoTrailClient", FakeSwisstopoTrailClient)
+
+    response = client.get(
+        reverse("trails"),
+        {
+            "bbox": "7.44,46.94,7.46,46.96",
+            "include_official": "false",
+            "zoom": "14",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ways"] == []
+    assert payload["trailSummary"]["totalWays"] == 1
+    assert payload["trailSummary"]["byLabel"] == {"T2": 1}
+    assert payload["officialSegments"] == []
+    assert payload["combinedSegments"] == []
 
 
 @pytest.mark.django_db
@@ -193,6 +220,7 @@ def test_trails_endpoint_skips_low_zoom(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert response.status_code == 200
     assert response.json()["ways"] == []
+    assert response.json()["trailSummary"]["totalWays"] == 0
 
 
 class FakeOverpassClient:
@@ -216,6 +244,25 @@ class MissingLocalOsmTrailIndex:
 
     def trails(self, bbox: tuple[float, float, float, float]) -> list[OsmWay]:
         raise LocalOsmUnavailableError("No local index in this test.")
+
+
+class FakeSwisstopoTrailClient:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def trails(self, bbox: tuple[float, float, float, float]) -> list[OfficialTrail]:
+        return [
+            OfficialTrail(
+                id="official-1",
+                category=OFFICIAL_CATEGORY_BERGWANDERWEG,
+                geometry=LineString(
+                    [
+                        wgs84_to_lv95(7.4474, 46.948),
+                        wgs84_to_lv95(7.45, 46.95),
+                    ]
+                ),
+            )
+        ]
 
 
 class ExplodingOverpassClient:

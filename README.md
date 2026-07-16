@@ -64,7 +64,7 @@ GRAPHHOPPER_BASE_URL=http://localhost:8989
 
 When running the backend through Docker Compose, `compose.yaml` points the backend at `http://graphhopper:8989`.
 
-The OSM difficulty overlay also uses `data/osm/switzerland-latest.osm.pbf`. On the first `/api/v1/trails` request, the backend builds `data/osm/trails.sqlite3`; later viewport requests use that local SQLite index. If the local extract is unavailable, the backend falls back to Overpass.
+The official hiking-trail display uses the fast swisstopo WMTS layer. The OSM supplement uses `data/osm/switzerland-latest.osm.pbf`; on the first `/api/v1/trails` request, the backend builds `data/osm/trails.sqlite3`, then viewport requests use that local SQLite index. Official swisstopo hiking-trail categories are also read from the `ch.swisstopo.swisstlm3d-wanderwege` GeoPackage cached under `data/swisstopo/`, but only inside the backend matching process. The normal API response emits the small black warning-overlay geometries only; Match Debug can request all matched/ambiguous/OSM-only segments.
 
 Elevation uses the public swisstopo profile service by default:
 

@@ -11,7 +11,7 @@ Implemented endpoints:
 - `GET /api/v1/health` returns API health.
 - `POST /api/v1/route/compute` validates a route and returns normalized segment geometry and distance. `straight` segments are calculated locally; `routed` segments call GraphHopper through the backend.
 - `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, and smoothed gradient points.
-- `GET /api/v1/trails` validates a viewport bbox and returns normalized OSM trail ways with selected public tags for the difficulty overlay.
+- `GET /api/v1/trails` validates a viewport bbox and returns normalized OSM trail ways plus combined OSM/swisstopo matching segments for the warning overlay. Official swisstopo trail geometries are used internally for matching and are returned only when explicitly requested for debugging.
 
 - `config/` contains Django settings, WSGI, and root URLs.
 - `planner/api/` contains thin HTTP views, serializers, URL routing, and API error handling.
@@ -19,7 +19,11 @@ Implemented endpoints:
 - `planner/services/` coordinates domain code and adapters.
 - `planner/integrations/` contains external API clients and upstream response formats.
 
-External services are never called directly from React components. GraphHopper access goes through `planner/integrations/graphhopper.py` with a fixed configurable base URL, timeout, response validation, normalized exceptions, and fixture-based tests. swisstopo profile access follows the same adapter boundary in `planner/integrations/swisstopo.py`. OSM trail difficulty is served primarily from `planner/integrations/local_osm.py`, which builds a SQLite index from the configured Switzerland PBF extract. `planner/integrations/overpass.py` remains a bounded fallback when the local extract is unavailable.
+External services are never called directly from React components. GraphHopper access goes through `planner/integrations/graphhopper.py` with a fixed configurable base URL, timeout, response validation, normalized exceptions, and fixture-based tests. swisstopo profile access follows the same adapter boundary in `planner/integrations/swisstopo.py`. OSM trail difficulty is served primarily from `planner/integrations/local_osm.py`, which builds a SQLite index from the configured Switzerland PBF extract. Official swisstopo hiking-trail categories are read through `planner/integrations/swisstopo_trails.py` from the configured GeoPackage. `planner/integrations/overpass.py` remains a bounded fallback when the local OSM extract is unavailable.
+
+The segment-level combination lives in `planner/domain/trail_matching.py`. OSM ways are split into short segments, matched to candidate swisstopo trail geometries in EPSG:2056, scored by coverage, distance, and direction, and then normalized to `matched`, `ambiguous`, or `osm_only`. The user-facing map displays official hiking trails through the fast swisstopo WMTS layer; backend GeoPackage geometries are not sent for that base display. Warning overlays are emitted only for the explicit configured combinations and only on the matched OSM segment geometry.
+
+The frontend's Match Debug toggle requests and renders matched, ambiguous, and OSM-only combined segments with their score/status available on click. The normal user-facing overlay stays limited to the black dashed warning geometry.
 
 ## Frontend
 
@@ -46,4 +50,4 @@ The elevation implementation uses swisstopo profile data as the source of truth.
 
 ## Caching
 
-Use Django's cache interface first. Planned cache keys include elevation by geometry hash. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. Redis is not part of the scaffold.
+Use Django's cache interface first. Planned cache keys include elevation by geometry hash. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. The official swisstopo GeoPackage is cached under `data/swisstopo/`. Redis is not part of the scaffold.

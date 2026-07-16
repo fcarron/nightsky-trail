@@ -1,11 +1,13 @@
 import type {
   ApiErrorResponse,
+  CombinedTrailSegmentDto,
   ComputedRouteSegmentDto,
   ElevationProfilePointDto,
   ElevationProfileRequest,
   ElevationProfileResponse,
   HealthResponse,
   LineStringGeometryDto,
+  OfficialTrailSegmentDto,
   OsmWayDto,
   RouteComputeRequest,
   RouteComputeResponse,
@@ -98,10 +100,16 @@ export async function computeElevationProfile(
 export async function getTrailDifficultyWays(
   bbox: [number, number, number, number],
   zoom: number,
+  includeOsm: boolean,
+  includeOfficial: boolean,
+  includeDebug: boolean,
   signal?: AbortSignal,
 ): Promise<TrailsResponse> {
   const params = new URLSearchParams({
     bbox: bbox.map((value) => value.toFixed(7)).join(","),
+    include_debug: includeDebug ? "true" : "false",
+    include_official: includeOfficial ? "true" : "false",
+    include_osm: includeOsm ? "true" : "false",
     zoom: String(Math.round(zoom)),
   });
   const response = await fetch(`${API_BASE_URL}/api/v1/trails?${params}`, {
@@ -189,8 +197,34 @@ function isTrailsResponse(payload: unknown): payload is TrailsResponse {
     isRecord(payload) &&
     Array.isArray(payload.ways) &&
     payload.ways.every(isOsmWay) &&
+    isTrailSummary(payload.trailSummary) &&
+    Array.isArray(payload.officialSegments) &&
+    payload.officialSegments.every(isOfficialTrailSegment) &&
+    Array.isArray(payload.combinedSegments) &&
+    payload.combinedSegments.every(isCombinedTrailSegment) &&
     Array.isArray(payload.warnings) &&
     payload.warnings.every((warning) => typeof warning === "string")
+  );
+}
+
+function isTrailSummary(payload: unknown): payload is TrailsResponse["trailSummary"] {
+  return (
+    isRecord(payload) &&
+    typeof payload.totalWays === "number" &&
+    Number.isFinite(payload.totalWays) &&
+    isNumberRecord(payload.byLabel) &&
+    Array.isArray(payload.commonTags) &&
+    payload.commonTags.every(isTrailSummaryTag)
+  );
+}
+
+function isTrailSummaryTag(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
+    typeof payload.key === "string" &&
+    typeof payload.value === "string" &&
+    typeof payload.count === "number" &&
+    Number.isFinite(payload.count)
   );
 }
 
@@ -201,6 +235,32 @@ function isOsmWay(payload: unknown): payload is OsmWayDto {
     Number.isFinite(payload.id) &&
     isLineStringGeometry(payload.geometry) &&
     isStringRecord(payload.tags)
+  );
+}
+
+function isOfficialTrailSegment(payload: unknown): payload is OfficialTrailSegmentDto {
+  return (
+    isRecord(payload) &&
+    typeof payload.id === "string" &&
+    typeof payload.officialCategory === "string" &&
+    isLineStringGeometry(payload.geometry)
+  );
+}
+
+function isCombinedTrailSegment(payload: unknown): payload is CombinedTrailSegmentDto {
+  return (
+    isRecord(payload) &&
+    typeof payload.osmWayId === "number" &&
+    Number.isFinite(payload.osmWayId) &&
+    (typeof payload.swisstopoId === "string" || payload.swisstopoId === null) &&
+    (typeof payload.officialCategory === "string" || payload.officialCategory === null) &&
+    (typeof payload.osmSacScale === "string" || payload.osmSacScale === null) &&
+    (typeof payload.tLevel === "number" || payload.tLevel === null) &&
+    typeof payload.matchScore === "number" &&
+    Number.isFinite(payload.matchScore) &&
+    typeof payload.matchStatus === "string" &&
+    typeof payload.warningOverlay === "boolean" &&
+    isLineStringGeometry(payload.geometry)
   );
 }
 
@@ -275,5 +335,14 @@ function isStringRecord(payload: unknown): payload is Record<string, string> {
   return (
     isRecord(payload) &&
     Object.values(payload).every((value) => typeof value === "string")
+  );
+}
+
+function isNumberRecord(payload: unknown): payload is Record<string, number> {
+  return (
+    isRecord(payload) &&
+    Object.values(payload).every(
+      (value) => typeof value === "number" && Number.isFinite(value),
+    )
   );
 }
