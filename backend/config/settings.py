@@ -65,3 +65,9 @@ SWISSTOPO_BASE_URL = os.environ.get("SWISSTOPO_BASE_URL", "https://api3.geo.admi
 SWISSTOPO_TIMEOUT_SECONDS = float(os.environ.get("SWISSTOPO_TIMEOUT_SECONDS", "10"))
 OVERPASS_BASE_URL = os.environ.get("OVERPASS_BASE_URL", "https://overpass-api.de/api")
 OVERPASS_TIMEOUT_SECONDS = float(os.environ.get("OVERPASS_TIMEOUT_SECONDS", "12"))
+OSM_PBF_PATH = Path(
+    os.environ.get("OSM_PBF_PATH", BASE_DIR.parent / "data/osm/switzerland-latest.osm.pbf")
+)
+OSM_TRAIL_INDEX_PATH = Path(
+    os.environ.get("OSM_TRAIL_INDEX_PATH", BASE_DIR.parent / "data/osm/trails.sqlite3")
+)

@@ -73,6 +73,6 @@ class TrailsQuerySerializer(serializers.Serializer):
             )
 
         if (max_lon - min_lon) * (max_lat - min_lat) > 0.02:
-            raise serializers.ValidationError("BBox is too large for OSM debug loading.")
+            raise serializers.ValidationError("BBox is too large for OSM difficulty loading.")
 
         return min_lon, min_lat, max_lon, max_lat

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import httpx
 
 DEFAULT_TIMEOUT_SECONDS = 12.0
-DEBUG_HIGHWAY_PATTERN = "^(path|footway|track|steps|pedestrian|bridleway|cycleway)$"
+BROAD_TRAIL_QUERY_MAX_AREA = 0.004
+TRAIL_HIGHWAY_PATTERN = "^(path|footway|track|steps|pedestrian|bridleway)$"
 OVERPASS_TAGS = [
     "name",
     "highway",
@@ -59,60 +60,96 @@ class OverpassClient:
     def trails(self, bbox: tuple[float, float, float, float]) -> list[OsmWay]:
         min_lon, min_lat, max_lon, max_lat = bbox
         query = build_trails_query(min_lon, min_lat, max_lon, max_lat)
+        try:
+            return self._query(query)
+        except OverpassUnavailableError:
+            if not includes_unknown_difficulty_ways(bbox):
+                raise
 
+        return self._query(build_known_difficulty_query(min_lon, min_lat, max_lon, max_lat))
+
+    def _query(self, query: str) -> list[OsmWay]:
         try:
             response = httpx.post(
                 f"{self.base_url}/interpreter",
                 data={"data": query},
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "SwissRoutePlanner/0.1 OSM debug mode",
+                    "User-Agent": "SwissRoutePlanner/0.1 trail difficulty layer",
                 },
                 timeout=self.timeout,
             )
         except httpx.TimeoutException as error:
-            raise OverpassUnavailableError("The OSM debug service timed out.") from error
+            raise OverpassUnavailableError("The OSM difficulty service timed out.") from error
         except httpx.HTTPError as error:
             raise OverpassUnavailableError(
-                "The OSM debug service is currently unavailable."
+                "The OSM difficulty service is currently unavailable."
             ) from error
 
         return parse_overpass_response(response)
 
 
 def build_trails_query(min_lon: float, min_lat: float, max_lon: float, max_lat: float) -> str:
-    bbox = f"{min_lat:.7f},{min_lon:.7f},{max_lat:.7f},{max_lon:.7f}"
+    if not includes_unknown_difficulty_ways((min_lon, min_lat, max_lon, max_lat)):
+        return build_known_difficulty_query(min_lon, min_lat, max_lon, max_lat)
+
+    bbox = format_overpass_bbox(min_lon, min_lat, max_lon, max_lat)
     return f"""
 [out:json][timeout:10][maxsize:8388608];
 (
-  way["highway"~"{DEBUG_HIGHWAY_PATTERN}"]({bbox});
+  way["highway"~"{TRAIL_HIGHWAY_PATTERN}"]({bbox});
   way["route"~"^(hiking|foot)$"]({bbox});
+  way["sac_scale"]({bbox});
 );
 out tags geom;
 """.strip()
 
 
+def build_known_difficulty_query(
+    min_lon: float, min_lat: float, max_lon: float, max_lat: float
+) -> str:
+    bbox = format_overpass_bbox(min_lon, min_lat, max_lon, max_lat)
+    return f"""
+[out:json][timeout:10][maxsize:8388608];
+(
+  way["sac_scale"]({bbox});
+);
+out tags geom;
+""".strip()
+
+
+def format_overpass_bbox(min_lon: float, min_lat: float, max_lon: float, max_lat: float) -> str:
+    return f"{min_lat:.7f},{min_lon:.7f},{max_lat:.7f},{max_lon:.7f}"
+
+
+def includes_unknown_difficulty_ways(bbox: tuple[float, float, float, float]) -> bool:
+    min_lon, min_lat, max_lon, max_lat = bbox
+    return (max_lon - min_lon) * (max_lat - min_lat) <= BROAD_TRAIL_QUERY_MAX_AREA
+
+
 def parse_overpass_response(response: httpx.Response) -> list[OsmWay]:
     if response.status_code >= 400:
         raise OverpassUnavailableError(
-            "The OSM debug service is currently unavailable.",
+            "The OSM difficulty service is currently unavailable.",
             {"statusCode": response.status_code},
         )
 
     try:
         payload = response.json()
     except ValueError as error:
-        raise OverpassUnavailableError("The OSM debug service returned invalid JSON.") from error
+        raise OverpassUnavailableError(
+            "The OSM difficulty service returned invalid JSON."
+        ) from error
 
     if not isinstance(payload, dict):
-        raise OverpassUnavailableError("The OSM debug service returned an invalid response.")
+        raise OverpassUnavailableError("The OSM difficulty service returned an invalid response.")
 
     elements = payload.get("elements")
     if not isinstance(elements, list):
-        raise OverpassUnavailableError("The OSM debug service returned invalid elements.")
+        raise OverpassUnavailableError("The OSM difficulty service returned invalid elements.")
     if not elements and isinstance(payload.get("remark"), str):
         raise OverpassUnavailableError(
-            "The OSM debug service could not load this viewport.",
+            "The OSM difficulty service could not load this viewport.",
             {"remark": payload["remark"][:160]},
         )
 

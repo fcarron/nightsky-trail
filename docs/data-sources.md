@@ -91,14 +91,18 @@ Missing difficulty is unknown, never T1.
 
 The UI must display `© OpenStreetMap contributors` and state that OSM data is community-maintained and may be incomplete or incorrect.
 
-## Overpass Prototype
+## OSM Difficulty Overlay
 
-The optional trail overlay may use Overpass only through Django during development or low-volume prototype use. Requests must be debounced, zoom-limited, bounded by area and timeout, and cached by rounded viewport cells.
+The trail difficulty overlay is served through Django. The preferred local development source is the Switzerland OSM PBF extract at `OSM_PBF_PATH`. The backend builds a SQLite cache at `OSM_TRAIL_INDEX_PATH` on the first trail request and then serves viewport queries from that local index. The cache contains relevant foot and trail ways plus selected public tags only.
 
-The current OSM debug mode uses:
+If the local extract is missing or the index cannot be built, the backend falls back to Overpass. Overpass is only a development or low-volume fallback and remains bounded by zoom, bbox area, timeout, and response validation.
+
+The current OSM difficulty layer uses:
 
 ```http
 GET /api/v1/trails?bbox=minLon,minLat,maxLon,maxLat&zoom=14
 ```
 
-It loads path-like OSM ways through Django and returns only normalized geometry plus selected tags such as `highway`, `foot`, `access`, `sac_scale`, `trail_visibility`, `informal`, `bridge`, `ford`, `surface`, and `incline`. It is a diagnostic layer for comparing visible OSM paths with GraphHopper routing, not a routing source.
+It loads relevant OSM foot and trail ways through Django and returns only normalized geometry plus selected tags such as `highway`, `foot`, `access`, `sac_scale`, `trail_visibility`, `informal`, `bridge`, `ford`, `surface`, and `incline`. The frontend displays known `sac_scale` values as a T-level overlay on top of the official swisstopo hiking trail layer. Ways without `sac_scale` are shown as unknown (`?`) rather than hidden or treated as T1. This is a difficulty visualization layer, not a routing source.
+
+The official swisstopo hiking trail layer remains visible as the source for Swiss hiking categories such as hiking trail, mountain hiking trail, and alpine hiking trail. These official categories are related to, but not identical with, OSM `sac_scale`, so the UI presents them as separate visual dimensions.

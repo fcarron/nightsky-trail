@@ -4,13 +4,13 @@ Swiss Route Planner is a focused route-planning web app for Switzerland. The MVP
 
 ## Current Milestone
 
-Milestone 0 is complete. The current app includes Milestone 1 route editing, the first Milestone 2 routing slice, and the first Milestone 3 elevation slice: an OpenLayers map shell using official swisstopo basemaps, waypoint add/move/select/delete controls, undo/redo, keyboard delete/undo/redo, reverse/clear, browser-local route restoration, explicit segment modes, a segment legend, backend-computed distance, and a swisstopo-backed elevation/gradient panel. The frontend calls `/api/v1/route/compute` and `/api/v1/elevation/profile`, ignores stale responses, and keeps the last valid computed route/elevation visible after failures. New segments are routed by default. Clicking an existing route line inserts a waypoint into that segment, then the waypoint can be dragged like any other point. Segments can still be toggled between straight and routed; routed segments call GraphHopper through Django. Straight segments are dashed on the map, routed segments are solid.
+Milestone 0 is complete. The current app includes Milestone 1 route editing, the first Milestone 2 routing slice, the first Milestone 3 elevation slice, and a prototype T-difficulty overlay: an OpenLayers map shell using official swisstopo basemaps, waypoint add/move/select/delete controls, undo/redo, keyboard delete/undo/redo, reverse/clear, browser-local route restoration, explicit segment modes, a segment legend, backend-computed distance, and a swisstopo-backed elevation/gradient panel. The frontend calls `/api/v1/route/compute`, `/api/v1/elevation/profile`, and `/api/v1/trails`, ignores stale responses, and keeps the last valid computed route/elevation visible after failures. New segments are routed by default. Clicking an existing route line inserts a waypoint into that segment, then the waypoint can be dragged like any other point. Segments can still be toggled between straight and routed; routed segments call GraphHopper through Django. Straight segments are dashed on the map, routed segments are solid.
 
 ## Stack
 
 - Backend: Python 3.13-compatible Django 5.2 LTS, Django REST Framework, drf-spectacular, pytest, Ruff.
 - Frontend: React 19, strict TypeScript, Vite 8, ECharts, Vitest, React Testing Library.
-- Maps and route data: swisstopo vector tiles are wired in the frontend; GraphHopper routing and swisstopo elevation profiles go through Django adapters. OSM trail difficulty data is planned for a later milestone.
+- Maps and route data: swisstopo vector tiles are wired in the frontend; GraphHopper routing, swisstopo elevation profiles, and OSM trail difficulty data go through Django adapters.
 
 ## Setup
 
@@ -63,6 +63,8 @@ GRAPHHOPPER_BASE_URL=http://localhost:8989
 ```
 
 When running the backend through Docker Compose, `compose.yaml` points the backend at `http://graphhopper:8989`.
+
+The OSM difficulty overlay also uses `data/osm/switzerland-latest.osm.pbf`. On the first `/api/v1/trails` request, the backend builds `data/osm/trails.sqlite3`; later viewport requests use that local SQLite index. If the local extract is unavailable, the backend falls back to Overpass.
 
 Elevation uses the public swisstopo profile service by default:
 

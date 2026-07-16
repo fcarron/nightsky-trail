@@ -25,7 +25,13 @@ services:
       GRAPHHOPPER_BASE_URL: http://graphhopper:8989
       GRAPHHOPPER_PROFILE: hike
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
-    command: sh -c "pip install uv && uv sync && uv run python manage.py runserver 0.0.0.0:8000"
+    command: >
+      sh -c "apt-get update
+      && apt-get install -y --no-install-recommends libexpat1
+      && rm -rf /var/lib/apt/lists/*
+      && pip install uv
+      && uv sync
+      && uv run python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
     depends_on:

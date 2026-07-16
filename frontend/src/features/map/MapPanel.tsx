@@ -18,7 +18,7 @@ import { Circle, Fill, Stroke, Style } from "ol/style.js";
 import { apply } from "ol-mapbox-style";
 import { useEffect, useRef, useState } from "react";
 
-import { getOsmDebugTrails } from "../../services/api";
+import { getTrailDifficultyWays } from "../../services/api";
 import type {
   ComputedRouteSegment,
   LonLat,
@@ -72,14 +72,14 @@ export function MapPanel({
   const graphhopperDebugLayerRef = useRef<VectorLayer<VectorSource> | null>(
     null,
   );
-  const osmDebugLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
   const routeSourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
-  const osmDebugSourceRef = useRef<VectorSource>(new VectorSource());
-  const osmDebugRequestIdRef = useRef(0);
-  const osmDebugAbortRef = useRef<AbortController | null>(null);
-  const osmDebugTimerRef = useRef<number | null>(null);
+  const difficultySourceRef = useRef<VectorSource>(new VectorSource());
+  const difficultyRequestIdRef = useRef(0);
+  const difficultyAbortRef = useRef<AbortController | null>(null);
+  const difficultyTimerRef = useRef<number | null>(null);
   const callbacksRef = useRef({
     onAddWaypoint,
     onInsertWaypoint,
@@ -88,13 +88,17 @@ export function MapPanel({
   });
   const selectedWaypointIdRef = useRef(selectedWaypointId);
   const baseLayerIdRef = useRef<BaseLayerId>("light");
-  const osmDebugVisibleRef = useRef(false);
+  const difficultyVisibleRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("light");
   const [hikingTrailsVisible, setHikingTrailsVisible] = useState(true);
-  const [osmDebugVisible, setOsmDebugVisible] = useState(false);
-  const [osmDebugStatus, setOsmDebugStatus] = useState("OSM Debug aus");
-  const [selectedOsmWay, setSelectedOsmWay] = useState<{
+  const [difficultyVisible, setDifficultyVisible] = useState(false);
+  const [difficultyStatus, setDifficultyStatus] = useState("OSM Zusatz aus");
+  const [difficultyLimitedToKnown, setDifficultyLimitedToKnown] = useState(false);
+  const [difficultySummary, setDifficultySummary] = useState<DifficultySummary>(
+    EMPTY_DIFFICULTY_SUMMARY,
+  );
+  const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
     id: number;
     tags: Record<string, string>;
   } | null>(null);
@@ -113,8 +117,8 @@ export function MapPanel({
   }, [selectedWaypointId]);
 
   useEffect(() => {
-    osmDebugVisibleRef.current = osmDebugVisible;
-  }, [osmDebugVisible]);
+    difficultyVisibleRef.current = difficultyVisible;
+  }, [difficultyVisible]);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -173,15 +177,15 @@ export function MapPanel({
       zIndex: 25,
     });
     graphhopperDebugLayer.set("layerRole", "overlay" satisfies LayerRole);
-    const osmDebugLayer = new VectorLayer({
-      source: osmDebugSourceRef.current,
-      style: osmDebugStyle,
+    const difficultyLayer = new VectorLayer({
+      source: difficultySourceRef.current,
+      style: difficultyStyle,
       visible: false,
-      zIndex: 18,
+      zIndex: 16,
     });
-    osmDebugLayer.set("layerRole", "overlay" satisfies LayerRole);
+    difficultyLayer.set("layerRole", "overlay" satisfies LayerRole);
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
-    osmDebugLayerRef.current = osmDebugLayer;
+    difficultyLayerRef.current = difficultyLayer;
     standardLayerRef.current = standardLayer;
     osmTopoLayerRef.current = osmTopoLayer;
     hikingTrailsLayerRef.current = hikingTrailsLayer;
@@ -206,7 +210,7 @@ export function MapPanel({
     map.addLayer(standardLayer);
     map.addLayer(osmTopoLayer);
     map.addLayer(hikingTrailsLayer);
-    map.addLayer(osmDebugLayer);
+    map.addLayer(difficultyLayer);
     map.addLayer(routeLayer);
     map.addLayer(graphhopperDebugLayer);
     map.addLayer(pointLayer);
@@ -230,18 +234,18 @@ export function MapPanel({
         return;
       }
 
-      const osmDebugFeatures = map.getFeaturesAtPixel(event.pixel, {
+      const difficultyFeatures = map.getFeaturesAtPixel(event.pixel, {
         hitTolerance: 5,
-        layerFilter: (layer) => layer === osmDebugLayer,
+        layerFilter: (layer) => layer === difficultyLayer,
       });
-      const osmWayId = osmDebugFeatures[0]?.get("osmWayId");
-      const osmTags = osmDebugFeatures[0]?.get("osmTags");
+      const osmWayId = difficultyFeatures[0]?.get("osmWayId");
+      const osmTags = difficultyFeatures[0]?.get("osmTags");
       if (
-        osmDebugVisibleRef.current &&
+        difficultyVisibleRef.current &&
         typeof osmWayId === "number" &&
         isStringRecord(osmTags)
       ) {
-        setSelectedOsmWay({ id: osmWayId, tags: osmTags });
+        setSelectedDifficultyWay({ id: osmWayId, tags: osmTags });
         return;
       }
 
@@ -300,7 +304,7 @@ export function MapPanel({
       osmTopoLayerRef.current = null;
       hikingTrailsLayerRef.current = null;
       graphhopperDebugLayerRef.current = null;
-      osmDebugLayerRef.current = null;
+      difficultyLayerRef.current = null;
     };
   }, []);
 
@@ -390,11 +394,11 @@ export function MapPanel({
   }, [graphhopperDebugVisible]);
 
   useEffect(() => {
-    osmDebugLayerRef.current?.setVisible(osmDebugVisible);
+    difficultyLayerRef.current?.setVisible(difficultyVisible);
 
-    if (!osmDebugVisible) {
-      osmDebugAbortRef.current?.abort();
-      osmDebugSourceRef.current.clear();
+    if (!difficultyVisible) {
+      difficultyAbortRef.current?.abort();
+      difficultySourceRef.current.clear();
       return;
     }
 
@@ -404,13 +408,13 @@ export function MapPanel({
     }
 
     function scheduleLoad(delayMs = 250) {
-      if (osmDebugTimerRef.current !== null) {
-        window.clearTimeout(osmDebugTimerRef.current);
+      if (difficultyTimerRef.current !== null) {
+        window.clearTimeout(difficultyTimerRef.current);
       }
-      osmDebugTimerRef.current = window.setTimeout(loadDebugWays, delayMs);
+      difficultyTimerRef.current = window.setTimeout(loadDifficultyWays, delayMs);
     }
 
-    function loadDebugWays() {
+    function loadDifficultyWays() {
       const currentMap = mapRef.current;
       if (!currentMap) {
         return;
@@ -418,9 +422,11 @@ export function MapPanel({
 
       const zoom = currentMap.getView().getZoom() ?? 0;
       if (zoom < 13) {
-        osmDebugAbortRef.current?.abort();
-        osmDebugSourceRef.current.clear();
-        setOsmDebugStatus("OSM Debug ab Zoom 13");
+        difficultyAbortRef.current?.abort();
+        difficultySourceRef.current.clear();
+        setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
+        setDifficultyLimitedToKnown(false);
+        setDifficultyStatus("OSM Zusatz ab Zoom 13");
         return;
       }
 
@@ -442,27 +448,31 @@ export function MapPanel({
       ];
 
       if ((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) > 0.02) {
-        osmDebugAbortRef.current?.abort();
-        osmDebugSourceRef.current.clear();
-        setOsmDebugStatus("OSM Debug: Ausschnitt zu gross");
+        difficultyAbortRef.current?.abort();
+        difficultySourceRef.current.clear();
+        setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
+        setDifficultyLimitedToKnown(false);
+        setDifficultyStatus("OSM Zusatz: Ausschnitt zu gross");
         return;
       }
 
-      const requestId = osmDebugRequestIdRef.current + 1;
-      osmDebugRequestIdRef.current = requestId;
-      osmDebugAbortRef.current?.abort();
+      const requestId = difficultyRequestIdRef.current + 1;
+      difficultyRequestIdRef.current = requestId;
+      difficultyAbortRef.current?.abort();
       const controller = new AbortController();
-      osmDebugAbortRef.current = controller;
-      setOsmDebugStatus("OSM Debug lädt");
+      difficultyAbortRef.current = controller;
+      setDifficultyStatus("OSM Zusatz lädt");
 
-      getOsmDebugTrails(bbox, zoom, controller.signal)
+      getTrailDifficultyWays(bbox, zoom, controller.signal)
         .then((response) => {
-          if (osmDebugRequestIdRef.current !== requestId) {
+          if (difficultyRequestIdRef.current !== requestId) {
             return;
           }
 
-          const source = osmDebugSourceRef.current;
+          const source = difficultySourceRef.current;
           source.clear();
+          setDifficultySummary(summarizeDifficulty(response.ways));
+          setDifficultyLimitedToKnown(response.warnings.length > 0);
           response.ways.forEach((way) => {
             const feature = new Feature(
               new LineString(
@@ -475,18 +485,25 @@ export function MapPanel({
             feature.set("osmTags", way.tags);
             source.addFeature(feature);
           });
-          setOsmDebugStatus(`OSM Debug: ${response.ways.length} Wege`);
+          setDifficultyStatus(
+            response.warnings.length
+              ? `OSM-Wege: ${response.ways.length} · nur T-Daten`
+              : `OSM-Wege: ${response.ways.length}`,
+          );
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {
             return;
           }
-          if (osmDebugRequestIdRef.current !== requestId) {
+          if (difficultyRequestIdRef.current !== requestId) {
             return;
           }
 
-          osmDebugSourceRef.current.clear();
-          setOsmDebugStatus("OSM Debug nicht verfügbar");
+          setDifficultyStatus(
+            difficultySourceRef.current.getFeatures().length
+              ? "OSM Zusatz nicht verfügbar · letzter Stand"
+              : "OSM Zusatz nicht verfügbar",
+          );
         });
     }
 
@@ -494,13 +511,13 @@ export function MapPanel({
     const moveEndListener = map.on("moveend", () => scheduleLoad());
 
     return () => {
-      if (osmDebugTimerRef.current !== null) {
-        window.clearTimeout(osmDebugTimerRef.current);
+      if (difficultyTimerRef.current !== null) {
+        window.clearTimeout(difficultyTimerRef.current);
       }
-      osmDebugAbortRef.current?.abort();
+      difficultyAbortRef.current?.abort();
       unByKey(moveEndListener);
     };
-  }, [osmDebugVisible]);
+  }, [difficultyVisible]);
 
   return (
     <section className="mapSurface" aria-label="Karte">
@@ -524,40 +541,121 @@ export function MapPanel({
             checked={hikingTrailsVisible}
             onChange={(event) => setHikingTrailsVisible(event.target.checked)}
           />
-          Wanderwege
+          Offizielle Wanderwege
         </label>
         <label className="mapOverlayToggle">
           <input
             type="checkbox"
-            checked={osmDebugVisible}
+            checked={difficultyVisible}
             onChange={(event) => {
               const enabled = event.target.checked;
-              setSelectedOsmWay(null);
-              setOsmDebugStatus(enabled ? "OSM Debug lädt" : "OSM Debug aus");
-              setOsmDebugVisible(enabled);
+              setSelectedDifficultyWay(null);
+              setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
+              setDifficultyLimitedToKnown(false);
+              setDifficultyStatus(
+                enabled ? "OSM Zusatz lädt" : "OSM Zusatz aus",
+              );
+              setDifficultyVisible(enabled);
             }}
           />
-          OSM Debug
+          OSM Zusatz
         </label>
       </div>
-      {osmDebugVisible ? (
-        <div className="osmDebugPanel" aria-live="polite">
-          <strong>{osmDebugStatus}</strong>
-          {selectedOsmWay ? (
+      {difficultyVisible ? (
+        <div className="difficultyPanel" aria-live="polite">
+          <strong>{difficultyStatus}</strong>
+          {selectedDifficultyWay ? (
             <>
-              <div>way {selectedOsmWay.id}</div>
+              <div className="difficultySelectedTitle">
+                OSM {formatSacScale(selectedDifficultyWay.tags.sac_scale)}
+              </div>
               <dl>
-                {Object.entries(selectedOsmWay.tags).map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
+                <div>
+                  <dt>Quelle</dt>
+                  <dd>OpenStreetMap way {selectedDifficultyWay.id}</dd>
+                </div>
+                {Object.entries(selectedDifficultyWay.tags).map(
+                  ([key, value]) => (
+                    <div key={key}>
+                      <dt>{key}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ),
+                )}
               </dl>
             </>
           ) : (
-            <span>OSM-Linie anklicken für Tags.</span>
+            <>
+              <div className="difficultySummaryGrid" aria-label="OSM T-Level im Ausschnitt">
+                {DIFFICULTY_LEGEND.map((item) => (
+                  <div key={item.label}>
+                    <span
+                      className="difficultySwatch"
+                      style={{ background: item.color }}
+                    />
+                    <span>{item.label}</span>
+                    <strong>{difficultySummary.byLabel[item.label] ?? 0}</strong>
+                  </div>
+                ))}
+              </div>
+              {difficultySummary.commonTags.length ? (
+                <dl>
+                  {difficultySummary.commonTags.map(([key, value]) => (
+                    <div key={key}>
+                      <dt>{key}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <span>
+                  {difficultyStatus.includes("nicht verfügbar")
+                    ? "OSM-Datenquelle nicht verfügbar."
+                    : difficultyLimitedToKnown
+                      ? "Keine bekannten OSM-Zusatzhinweise im Ausschnitt geladen. Weiter hineinzoomen für OSM-Wege ohne T-Angabe."
+                      : "Keine OSM-Wege im Ausschnitt geladen."}
+                </span>
+              )}
+            </>
           )}
+        </div>
+      ) : null}
+      {hikingTrailsVisible || difficultyVisible ? (
+        <div
+          className="trailLegend"
+          aria-label="Weg- und Zusatzlegende"
+        >
+          {hikingTrailsVisible ? (
+            <section>
+              <strong>swisstopo offiziell</strong>
+              <div>
+                <span className="officialLine officialLineHiking" />
+                Wanderweg
+              </div>
+              <div>
+                <span className="officialLine officialLineMountain" />
+                Bergwanderweg
+              </div>
+              <div>
+                <span className="officialLine officialLineAlpine" />
+                Alpinwanderweg
+              </div>
+            </section>
+          ) : null}
+          {difficultyVisible ? (
+            <section>
+              <strong>OSM Zusatz</strong>
+              {SUPPLEMENT_LEGEND.map((item) => (
+                <div key={item.label}>
+                  <span
+                    className="difficultySwatch"
+                    style={{ background: item.color }}
+                  />
+                  {item.label}
+                </div>
+              ))}
+            </section>
+          ) : null}
         </div>
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
@@ -626,18 +724,32 @@ function graphhopperDebugStyle(feature: FeatureLike): Style {
   return graphhopperDebugLineStyle;
 }
 
-function osmDebugStyle(feature: FeatureLike): Style {
+function difficultyStyle(feature: FeatureLike): Style[] {
   const tags = feature.get("osmTags");
-  const highway = isStringRecord(tags) ? tags.highway : undefined;
-  const hasDifficulty = isStringRecord(tags) && typeof tags.sac_scale === "string";
+  const sacScale = isStringRecord(tags) ? tags.sac_scale : undefined;
+  const supplement = osmSupplementStyle(sacScale);
+  if (!supplement) {
+    return [];
+  }
 
-  return new Style({
-    stroke: new Stroke({
-      color: hasDifficulty ? "#ff9f1c" : "#ffd166",
-      lineDash: highway === "track" ? [10, 6] : undefined,
-      width: 3,
+  return [
+    new Style({
+      stroke: new Stroke({
+        color: supplement.halo,
+        lineCap: "round",
+        lineDash: supplement.dash,
+        width: supplement.haloWidth,
+      }),
     }),
-  });
+    new Style({
+      stroke: new Stroke({
+        color: supplement.color,
+        lineCap: "round",
+        lineDash: supplement.dash,
+        width: supplement.width,
+      }),
+    }),
+  ];
 }
 
 const graphhopperDebugLineStyle = new Style({
@@ -682,4 +794,110 @@ function isStringRecord(value: unknown): value is Record<string, string> {
     value !== null &&
     Object.values(value).every((item) => typeof item === "string")
   );
+}
+
+interface DifficultySummary {
+  byLabel: Record<string, number>;
+  commonTags: [string, string][];
+}
+
+const EMPTY_DIFFICULTY_SUMMARY: DifficultySummary = {
+  byLabel: {},
+  commonTags: [],
+};
+
+const DIFFICULTY_LEGEND = [
+  { label: "?", color: "#6b7280" },
+  { label: "<T1", color: "#6b7280" },
+  { label: "T1", color: "#6b7280" },
+  { label: "T2", color: "#6b7280" },
+  { label: "T3", color: "#05070a" },
+  { label: "T4", color: "#6b7280" },
+  { label: "T5", color: "#05070a" },
+  { label: "T6", color: "#05070a" },
+];
+
+const SUPPLEMENT_LEGEND = [
+  { label: "T3 auf rot", color: "#05070a" },
+  { label: "T5/T6 auf blau", color: "#05070a" },
+];
+
+const SAC_SCALE_BY_OSM_VALUE: Record<string, { label: string }> = {
+  strolling: { label: "<T1" },
+  hiking: { label: "T1" },
+  mountain_hiking: { label: "T2" },
+  demanding_mountain_hiking: { label: "T3" },
+  alpine_hiking: { label: "T4" },
+  demanding_alpine_hiking: { label: "T5" },
+  difficult_alpine_hiking: { label: "T6" },
+};
+
+function formatSacScale(value: string | undefined): string {
+  if (!value) {
+    return "?";
+  }
+  return SAC_SCALE_BY_OSM_VALUE[value]?.label ?? value;
+}
+
+interface OsmSupplementStyle {
+  color: string;
+  dash: number[];
+  halo: string;
+  haloWidth: number;
+  width: number;
+}
+
+function osmSupplementStyle(value: string | undefined): OsmSupplementStyle | null {
+  if (value === "demanding_mountain_hiking") {
+    return {
+      color: "rgba(5, 7, 10, 0.86)",
+      dash: [1, 12],
+      halo: "rgba(255, 255, 255, 0.58)",
+      haloWidth: 5,
+      width: 3,
+    };
+  }
+  if (value === "demanding_alpine_hiking" || value === "difficult_alpine_hiking") {
+    return {
+      color: "rgba(5, 7, 10, 0.9)",
+      dash: [1, 8],
+      halo: "rgba(255, 255, 255, 0.62)",
+      haloWidth: 5,
+      width: 3,
+    };
+  }
+  return null;
+}
+
+function summarizeDifficulty(
+  ways: { tags: Record<string, string> }[],
+): DifficultySummary {
+  const byLabel: Record<string, number> = {};
+  const tagCounts = new globalThis.Map<string, number>();
+
+  ways.forEach((way) => {
+    const label = formatSacScale(way.tags.sac_scale);
+    byLabel[label] = (byLabel[label] ?? 0) + 1;
+
+    ["highway", "trail_visibility", "surface", "foot", "access"].forEach(
+      (key) => {
+        const value = way.tags[key];
+        if (!value) {
+          return;
+        }
+        const countKey = `${key}=${value}`;
+        tagCounts.set(countKey, (tagCounts.get(countKey) ?? 0) + 1);
+      },
+    );
+  });
+
+  const commonTags = [...tagCounts.entries()]
+    .sort(([, firstCount], [, secondCount]) => secondCount - firstCount)
+    .slice(0, 5)
+    .map(([tag]): [string, string] => {
+      const separatorIndex = tag.indexOf("=");
+      return [tag.slice(0, separatorIndex), tag.slice(separatorIndex + 1)];
+    });
+
+  return { byLabel, commonTags };
 }

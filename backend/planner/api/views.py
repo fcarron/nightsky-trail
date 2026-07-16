@@ -18,7 +18,12 @@ from planner.domain.route import (
     Waypoint,
 )
 from planner.integrations.graphhopper import GraphHopperClient
-from planner.integrations.overpass import OverpassClient, OverpassUnavailableError
+from planner.integrations.local_osm import LocalOsmTrailIndex, LocalOsmUnavailableError
+from planner.integrations.overpass import (
+    OverpassClient,
+    OverpassUnavailableError,
+    includes_unknown_difficulty_ways,
+)
 from planner.integrations.swisstopo import (
     LineStringGeometry,
     SwisstopoClient,
@@ -180,7 +185,7 @@ class TrailsView(APIView):
         if not serializer.is_valid():
             raise UnprocessableEntity(
                 "invalid_trails_request",
-                "OSM debug request validation failed.",
+                "OSM difficulty request validation failed.",
                 {"fields": serializer.errors},
             )
 
@@ -189,18 +194,30 @@ class TrailsView(APIView):
             return Response(
                 {
                     "ways": [],
-                    "warnings": ["OSM debug loads at zoom level 13 or higher."],
+                    "warnings": ["OSM difficulty loads at zoom level 13 or higher."],
                 }
             )
 
         bbox = serializer.validated_data["bbox"]
+        warnings = []
         try:
-            ways = OverpassClient(
-                settings.OVERPASS_BASE_URL,
-                timeout_seconds=settings.OVERPASS_TIMEOUT_SECONDS,
+            ways = LocalOsmTrailIndex(
+                settings.OSM_PBF_PATH,
+                settings.OSM_TRAIL_INDEX_PATH,
             ).trails(bbox)
-        except OverpassUnavailableError as error:
-            raise UnprocessableEntity(error.code, error.message, error.details) from error
+        except LocalOsmUnavailableError:
+            if not includes_unknown_difficulty_ways(bbox):
+                warnings.append(
+                    "Only OSM ways with known difficulty are loaded for this viewport. "
+                    "Zoom in to include unknown difficulty ways."
+                )
+            try:
+                ways = OverpassClient(
+                    settings.OVERPASS_BASE_URL,
+                    timeout_seconds=settings.OVERPASS_TIMEOUT_SECONDS,
+                ).trails(bbox)
+            except OverpassUnavailableError as error:
+                raise UnprocessableEntity(error.code, error.message, error.details) from error
 
         return Response(
             {
@@ -212,7 +229,7 @@ class TrailsView(APIView):
                     }
                     for way in ways
                 ],
-                "warnings": [],
+                "warnings": warnings,
             }
         )
 

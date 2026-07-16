@@ -5,7 +5,15 @@ import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from planner.integrations.overpass import OsmWay, OverpassUnavailableError, parse_overpass_response
+from planner.integrations.local_osm import LocalOsmUnavailableError
+from planner.integrations.overpass import (
+    OsmWay,
+    OverpassClient,
+    OverpassUnavailableError,
+    build_trails_query,
+    includes_unknown_difficulty_ways,
+    parse_overpass_response,
+)
 
 
 def test_parse_overpass_response_returns_normalized_ways() -> None:
@@ -71,9 +79,72 @@ def test_parse_overpass_response_maps_remark_without_elements() -> None:
     assert error.value.details == {"remark": "runtime error: Query ran out of memory"}
 
 
+def test_build_trails_query_loads_known_and_unknown_difficulty_ways() -> None:
+    query = build_trails_query(7.44, 46.94, 7.46, 46.96)
+
+    assert 'way["highway"~' in query
+    assert 'way["sac_scale"]' in query
+    assert 'way["route"~"^(hiking|foot)$"]' in query
+    assert "46.9400000,7.4400000,46.9600000,7.4600000" in query
+    assert includes_unknown_difficulty_ways((7.44, 46.94, 7.46, 46.96))
+
+
+def test_build_trails_query_limits_large_viewports_to_known_difficulty() -> None:
+    query = build_trails_query(7.40, 46.90, 7.55, 47.00)
+
+    assert 'way["sac_scale"]' in query
+    assert 'way["highway"~' not in query
+    assert 'way["route"~"^(hiking|foot)$"]' not in query
+    assert not includes_unknown_difficulty_ways((7.40, 46.90, 7.55, 47.00))
+
+
+def test_overpass_client_falls_back_to_known_difficulty_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        headers: dict[str, str],
+        timeout: httpx.Timeout,
+    ) -> httpx.Response:
+        calls.append(data["data"])
+        if len(calls) == 1:
+            return httpx.Response(504, json={"remark": "timeout"})
+        return httpx.Response(
+            200,
+            json={
+                "elements": [
+                    {
+                        "type": "way",
+                        "id": 123,
+                        "tags": {"highway": "path", "sac_scale": "hiking"},
+                        "geometry": [
+                            {"lon": 7.4474, "lat": 46.948},
+                            {"lon": 7.45, "lat": 46.95},
+                        ],
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    ways = OverpassClient("https://overpass.example.test/api").trails((7.44, 46.94, 7.46, 46.96))
+
+    assert len(calls) == 2
+    assert 'way["highway"~' in calls[0]
+    assert 'way["sac_scale"]' in calls[1]
+    assert 'way["highway"~' not in calls[1]
+    assert ways[0].tags["sac_scale"] == "hiking"
+
+
 @pytest.mark.django_db
 def test_trails_endpoint_returns_debug_ways(monkeypatch: pytest.MonkeyPatch) -> None:
     client = APIClient()
+    monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", MissingLocalOsmTrailIndex)
     monkeypatch.setattr("planner.api.views.OverpassClient", FakeOverpassClient)
 
     response = client.get(
@@ -137,6 +208,14 @@ class FakeOverpassClient:
                 tags={"highway": "path", "sac_scale": "mountain_hiking"},
             )
         ]
+
+
+class MissingLocalOsmTrailIndex:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def trails(self, bbox: tuple[float, float, float, float]) -> list[OsmWay]:
+        raise LocalOsmUnavailableError("No local index in this test.")
 
 
 class ExplodingOverpassClient:

@@ -11,6 +11,7 @@ Implemented endpoints:
 - `GET /api/v1/health` returns API health.
 - `POST /api/v1/route/compute` validates a route and returns normalized segment geometry and distance. `straight` segments are calculated locally; `routed` segments call GraphHopper through the backend.
 - `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, and smoothed gradient points.
+- `GET /api/v1/trails` validates a viewport bbox and returns normalized OSM trail ways with selected public tags for the difficulty overlay.
 
 - `config/` contains Django settings, WSGI, and root URLs.
 - `planner/api/` contains thin HTTP views, serializers, URL routing, and API error handling.
@@ -18,7 +19,7 @@ Implemented endpoints:
 - `planner/services/` coordinates domain code and adapters.
 - `planner/integrations/` contains external API clients and upstream response formats.
 
-External services are never called directly from React components. GraphHopper access goes through `planner/integrations/graphhopper.py` with a fixed configurable base URL, timeout, response validation, normalized exceptions, and fixture-based tests. swisstopo profile access follows the same adapter boundary in `planner/integrations/swisstopo.py`. Overpass will use the same boundary when the trail overlay is implemented.
+External services are never called directly from React components. GraphHopper access goes through `planner/integrations/graphhopper.py` with a fixed configurable base URL, timeout, response validation, normalized exceptions, and fixture-based tests. swisstopo profile access follows the same adapter boundary in `planner/integrations/swisstopo.py`. OSM trail difficulty is served primarily from `planner/integrations/local_osm.py`, which builds a SQLite index from the configured Switzerland PBF extract. `planner/integrations/overpass.py` remains a bounded fallback when the local extract is unavailable.
 
 ## Frontend
 
@@ -45,4 +46,4 @@ The elevation implementation uses swisstopo profile data as the source of truth.
 
 ## Caching
 
-Use Django's cache interface first. Planned cache keys include elevation by geometry hash and trail overlay cells by rounded bounding box and zoom. Redis is not part of the scaffold.
+Use Django's cache interface first. Planned cache keys include elevation by geometry hash. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. Redis is not part of the scaffold.

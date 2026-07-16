@@ -95,7 +95,7 @@ export async function computeElevationProfile(
   return payload;
 }
 
-export async function getOsmDebugTrails(
+export async function getTrailDifficultyWays(
   bbox: [number, number, number, number],
   zoom: number,
   signal?: AbortSignal,
@@ -115,14 +115,14 @@ export async function getOsmDebugTrails(
         ? payload
         : {
             code: "request_failed",
-            message: `OSM debug trails failed with HTTP ${response.status}`,
+            message: `Trail difficulty loading failed with HTTP ${response.status}`,
             details: {},
           },
     );
   }
 
   if (!isTrailsResponse(payload)) {
-    throw new Error("OSM debug trails returned an invalid response.");
+    throw new Error("Trail difficulty loading returned an invalid response.");
   }
 
   return payload;

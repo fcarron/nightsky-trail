@@ -427,7 +427,8 @@ button:disabled {
 
 .mapNotice,
 .mapLayerSelector,
-.osmDebugPanel {
+.difficultyPanel,
+.trailLegend {
   position: absolute;
   border: 1px solid #263545;
   border-radius: 8px;
@@ -481,7 +482,7 @@ button:disabled {
   accent-color: #4f8cff;
 }
 
-.osmDebugPanel {
+.difficultyPanel {
   right: 12px;
   top: 126px;
   display: grid;
@@ -493,23 +494,52 @@ button:disabled {
   font-size: 12px;
 }
 
-.osmDebugPanel strong {
+.difficultyPanel strong,
+.trailLegend strong {
   color: #ffd166;
   font-size: 13px;
 }
 
-.osmDebugPanel span,
-.osmDebugPanel div {
+.difficultyPanel span,
+.difficultyPanel div {
   color: #8fa1ad;
 }
 
-.osmDebugPanel dl {
+.difficultySelectedTitle {
+  color: #f4f8fb;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.difficultySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.difficultySummaryGrid div {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #263545;
+  border-radius: 7px;
+  background: #101923;
+  padding: 6px;
+}
+
+.difficultySummaryGrid strong {
+  color: #f4f8fb;
+  font-size: 12px;
+}
+
+.difficultyPanel dl {
   display: grid;
   gap: 6px;
   margin: 0;
 }
 
-.osmDebugPanel dl div {
+.difficultyPanel dl div {
   display: grid;
   grid-template-columns: minmax(92px, auto) 1fr;
   gap: 8px;
@@ -517,15 +547,60 @@ button:disabled {
   padding-top: 6px;
 }
 
-.osmDebugPanel dt {
+.difficultyPanel dt {
   color: #8fa1ad;
 }
 
-.osmDebugPanel dd {
+.difficultyPanel dd {
   overflow-wrap: anywhere;
   margin: 0;
   color: #f4f8fb;
   font-weight: 650;
+}
+
+.trailLegend {
+  left: 12px;
+  bottom: 34px;
+  display: grid;
+  max-width: 280px;
+  gap: 10px;
+  padding: 10px;
+  font-size: 11px;
+}
+
+.trailLegend section {
+  display: grid;
+  gap: 6px;
+}
+
+.trailLegend section div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #dce7ee;
+}
+
+.officialLine {
+  position: relative;
+  width: 30px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f8d347;
+}
+
+.officialLineMountain {
+  background: linear-gradient(90deg, #ffffff 0 28%, #e11d48 28% 72%, #ffffff 72%);
+}
+
+.officialLineAlpine {
+  background: linear-gradient(90deg, #ffffff 0 28%, #2563eb 28% 72%, #ffffff 72%);
+}
+
+.difficultySwatch {
+  width: 18px;
+  height: 8px;
+  border: 1px solid rgba(244, 248, 251, 0.4);
+  border-radius: 999px;
 }
 
 .attribution {
@@ -559,12 +634,16 @@ button:disabled {
     border-bottom: 1px solid #1d2a36;
   }
 
-  .osmDebugPanel {
+  .difficultyPanel {
     left: 12px;
     right: 12px;
     top: auto;
     bottom: 42px;
     width: auto;
     max-height: 30vh;
+  }
+
+  .trailLegend {
+    display: none;
   }
 }
