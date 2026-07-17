@@ -100,14 +100,14 @@ button:disabled {
   line-height: 1.35;
 }
 
-.summaryGrid {
+.runSummaryGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1.35fr 1fr 1fr 0.75fr;
   gap: 8px;
   margin: 0 0 12px;
 }
 
-.summaryGrid div,
+.runSummaryGrid div,
 .waypointEndpoints div,
 .elevationStats div {
   border: 1px solid #263545;
@@ -116,20 +116,186 @@ button:disabled {
   padding: 9px;
 }
 
-.summaryGrid dt,
+.runSummaryGrid dt,
 .waypointEndpoints dt,
 .elevationStats dt {
   color: #8fa1ad;
   font-size: 11px;
 }
 
-.summaryGrid dd,
+.runSummaryGrid dd,
 .waypointEndpoints dd,
 .elevationStats dd {
   margin: 3px 0 0;
   color: #f4f8fb;
   font-size: 15px;
   font-weight: 750;
+}
+
+.runSummaryGrid div:first-child {
+  border-color: rgba(79, 140, 255, 0.44);
+  background: linear-gradient(180deg, #183049, #15212c);
+}
+
+.runSummaryGrid div:first-child dd {
+  color: #d9e8ff;
+  font-size: 19px;
+}
+
+.paceCalibration {
+  display: grid;
+  grid-template-columns: auto auto minmax(62px, 1fr) auto auto auto;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  border: 1px solid #263545;
+  border-radius: 9px;
+  background: #0d141c;
+  padding: 8px 10px;
+}
+
+.paceCalibration label,
+.paceCalibration span {
+  color: #8fa1ad;
+  font-size: 12px;
+}
+
+.paceModeToggle {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.paceModeToggle input {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 1px solid #334657;
+  border-radius: 999px;
+  background: #172532;
+  accent-color: #4f8cff;
+}
+
+.paceModeToggle input::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #8fa1ad;
+  content: "";
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.paceModeToggle input:checked {
+  border-color: #4f8cff;
+  background: rgba(79, 140, 255, 0.22);
+}
+
+.paceModeToggle input:checked::after {
+  transform: translateX(16px);
+  background: #d9e8ff;
+}
+
+.paceModeToggle span {
+  margin-right: auto;
+}
+
+.paceModeToggle strong {
+  color: #d9e8ff;
+  font-size: 12px;
+}
+
+.paceCalibration input {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #334657;
+  border-radius: 7px;
+  background: #101923;
+  color: #f4f8fb;
+  padding: 0 8px;
+}
+
+.paceCalibration button {
+  min-height: 30px;
+  border: 1px solid #334657;
+  border-radius: 7px;
+  background: #172532;
+  color: #dce7ee;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.paceCalibration button:hover {
+  border-color: #4f8cff;
+  background: #1d3146;
+}
+
+.paceCalibration strong {
+  color: #d9e8ff;
+  font-size: 12px;
+  text-align: right;
+}
+
+.loopCard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #263545;
+  border-radius: 9px;
+  background: #0d141c;
+  padding: 9px 10px;
+}
+
+.loopCard div {
+  display: grid;
+  gap: 2px;
+}
+
+.loopCard span {
+  color: #8fa1ad;
+  font-size: 11px;
+}
+
+.loopCard strong {
+  color: #f4f8fb;
+  font-size: 14px;
+}
+
+.loopCard button {
+  min-height: 32px;
+  border: 1px solid #334657;
+  border-radius: 7px;
+  background: #172532;
+  color: #dce7ee;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.loopCard button:hover:not(:disabled) {
+  border-color: #4f8cff;
+  background: #1d3146;
+}
+
+.loopCard button:disabled {
+  color: #647783;
+  opacity: 0.65;
+}
+
+.loopCard .loopStateClosed {
+  color: #7ddf9b;
+}
+
+.loopCard .loopStateOpen {
+  color: #ffd166;
 }
 
 .toolbar {
@@ -189,6 +355,14 @@ button:disabled {
   padding-top: 12px;
 }
 
+.elevationPanel {
+  margin-top: 10px;
+}
+
+.routeEditorPanel {
+  gap: 8px;
+}
+
 .sectionHeader,
 .panelHeader {
   display: flex;
@@ -224,6 +398,84 @@ button:disabled {
   grid-template-columns: 1fr 52px 1fr;
   gap: 7px;
   margin: 0;
+}
+
+.waypointDetails {
+  display: grid;
+  gap: 8px;
+}
+
+.waypointDetails summary {
+  cursor: pointer;
+  color: #8fa1ad;
+  font-size: 12px;
+}
+
+.waypointDetails[open] summary {
+  margin-bottom: 8px;
+  color: #dce7ee;
+}
+
+.selectedPointCard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 92, 122, 0.38);
+  border-radius: 8px;
+  background: rgba(255, 92, 122, 0.08);
+  padding: 8px 9px;
+}
+
+.selectedPointCard div {
+  display: grid;
+  gap: 2px;
+}
+
+.selectedPointCard span {
+  color: #d9a6b4;
+  font-size: 11px;
+}
+
+.selectedPointCard strong {
+  color: #ffe7ed;
+  font-size: 14px;
+}
+
+.selectedPointCard button {
+  min-height: 30px;
+  border: 1px solid rgba(255, 92, 122, 0.55);
+  border-radius: 7px;
+  background: rgba(255, 92, 122, 0.12);
+  color: #ffd6df;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.selectedPointCard button:hover {
+  background: rgba(255, 92, 122, 0.2);
+}
+
+.compactSelectedPoint {
+  grid-template-columns: auto 1fr auto;
+  padding: 7px 8px;
+}
+
+.compactSelectedPoint::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff5c7a;
+  content: "";
+}
+
+.compactSelectedPoint strong {
+  font-size: 13px;
+}
+
+.compactSelectedPoint button {
+  min-height: 28px;
+  padding: 0 9px;
 }
 
 .waypointEndpoints dd {
@@ -289,6 +541,52 @@ button:disabled {
   width: 100%;
   min-height: 30px;
   font-size: 12px;
+}
+
+.editorDetails {
+  display: block;
+}
+
+.editorDetails summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  color: #f4f8fb;
+  font-size: 14px;
+  font-weight: 750;
+  list-style: none;
+}
+
+.editorDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.editorDetails summary::before {
+  color: #8fa1ad;
+  content: "▸";
+  font-size: 11px;
+}
+
+.editorDetails[open] summary::before {
+  content: "▾";
+}
+
+.editorDetails summary span {
+  margin-right: auto;
+}
+
+.editorDetails summary small {
+  color: #8fa1ad;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.editorDetailsContent {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
 }
 
 .debugToggle {
@@ -371,7 +669,7 @@ button:disabled {
 
 .elevationChart {
   width: 100%;
-  height: 174px;
+  height: 186px;
   border: 1px solid #263545;
   border-radius: 8px;
   background: #0d141c;
@@ -675,6 +973,10 @@ button:disabled {
     max-height: 46vh;
     border-right: 0;
     border-bottom: 1px solid #1d2a36;
+  }
+
+  .runSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .difficultyPanel {

@@ -33,18 +33,99 @@ const graphhopperDebugPointStyle = new Style({
   }),
 });
 
+const selectedWaypointStyle = new Style({
+  image: new Circle({
+    radius: 8,
+    fill: new Fill({ color: "#d93025" }),
+    stroke: new Stroke({ color: "#ffffff", width: 2 }),
+  }),
+});
+
+const defaultWaypointStyle = new Style({
+  image: new Circle({
+    radius: 6,
+    fill: new Fill({ color: "#1967d2" }),
+    stroke: new Stroke({ color: "#ffffff", width: 2 }),
+  }),
+});
+
+const elevationHoverMarkerStyle = new Style({
+  image: new Circle({
+    radius: 7,
+    fill: new Fill({ color: "#f4f8fb" }),
+    stroke: new Stroke({ color: "#05070a", width: 3 }),
+  }),
+});
+
+const matchedDifficultyStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(22, 163, 74, 0.72)",
+      lineCap: "round",
+      width: 2,
+    }),
+  }),
+];
+
+const ambiguousDifficultyStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(245, 158, 11, 0.82)",
+      lineCap: "round",
+      lineDash: [6, 8],
+      width: 2,
+    }),
+  }),
+];
+
+const osmOnlyDifficultyStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(168, 85, 247, 0.72)",
+      lineCap: "round",
+      lineDash: [6, 8],
+      width: 2,
+    }),
+  }),
+];
+
+const unknownDifficultyStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(148, 163, 184, 0.72)",
+      lineCap: "round",
+      lineDash: [6, 8],
+      width: 2,
+    }),
+  }),
+];
+
+const emptyWarningGeometry = new MultiPoint([]);
+const warningMarkerCache = new WeakMap<
+  FeatureLike,
+  { geometry: MultiPoint; spacingBucket: number }
+>();
+
+const warningOverlayStyle = [
+  new Style({
+    geometry: (feature) => {
+      return warningMarkerCache.get(feature)?.geometry ?? emptyWarningGeometry;
+    },
+    text: new Text({
+      fill: new Fill({ color: "rgba(5, 7, 10, 0.78)" }),
+      font: "700 13px sans-serif",
+      stroke: new Stroke({ color: "rgba(255, 255, 255, 0.55)", width: 2 }),
+      text: "+",
+    }),
+  }),
+];
+
 export function routeStyle(mode: "straight" | "routed"): Style {
   return mode === "routed" ? routedRouteStyle : straightRouteStyle;
 }
 
 export function waypointStyle(selected: boolean): Style {
-  return new Style({
-    image: new Circle({
-      radius: selected ? 8 : 6,
-      fill: new Fill({ color: selected ? "#d93025" : "#1967d2" }),
-      stroke: new Stroke({ color: "#ffffff", width: 2 }),
-    }),
-  });
+  return selected ? selectedWaypointStyle : defaultWaypointStyle;
 }
 
 export function graphhopperDebugStyle(feature: FeatureLike): Style {
@@ -55,42 +136,17 @@ export function graphhopperDebugStyle(feature: FeatureLike): Style {
 }
 
 export function elevationHoverStyle(): Style {
-  return new Style({
-    image: new Circle({
-      radius: 7,
-      fill: new Fill({ color: "#f4f8fb" }),
-      stroke: new Stroke({ color: "#05070a", width: 3 }),
-    }),
-  });
+  return elevationHoverMarkerStyle;
 }
 
 export function difficultyStyle(feature: FeatureLike, resolution: number): Style[] {
   if (feature.get("warningOverlay") !== true) {
     const status = matchStatusFromFeature(feature);
-    return [
-      new Style({
-        stroke: new Stroke({
-          color: debugMatchColor(status),
-          lineCap: "round",
-          lineDash: status === "matched" ? undefined : [6, 8],
-          width: 2,
-        }),
-      }),
-    ];
+    return difficultyDebugStyle(status);
   }
 
-  return [
-    new Style({
-      geometry: (styleFeature) =>
-        warningPlusMarkerGeometry(styleFeature, resolution),
-      text: new Text({
-        fill: new Fill({ color: "rgba(5, 7, 10, 0.78)" }),
-        font: "700 13px sans-serif",
-        stroke: new Stroke({ color: "rgba(255, 255, 255, 0.55)", width: 2 }),
-        text: "+",
-      }),
-    }),
-  ];
+  ensureWarningPlusMarkerGeometry(feature, resolution);
+  return warningOverlayStyle;
 }
 
 function matchStatusFromFeature(feature: FeatureLike): string {
@@ -106,37 +162,59 @@ function matchStatusFromFeature(feature: FeatureLike): string {
   return "unknown";
 }
 
-function warningPlusMarkerGeometry(
+function ensureWarningPlusMarkerGeometry(
   feature: FeatureLike,
   resolution: number,
-): MultiPoint {
+): void {
   const geometry = feature.getGeometry();
   if (!(geometry instanceof LineString)) {
-    return new MultiPoint([]);
+    warningMarkerCache.set(feature, {
+      geometry: emptyWarningGeometry,
+      spacingBucket: 0,
+    });
+    return;
   }
 
   const length = geometry.getLength();
   if (length <= 0) {
-    return new MultiPoint([]);
+    warningMarkerCache.set(feature, {
+      geometry: emptyWarningGeometry,
+      spacingBucket: 0,
+    });
+    return;
   }
 
   const spacing = Math.max(26 * resolution, 14);
+  const spacingBucket = Math.max(14, Math.round(spacing));
+  const cached = warningMarkerCache.get(feature);
+  if (cached?.spacingBucket === spacingBucket) {
+    return;
+  }
+
   const coordinates = [];
-  for (let distance = spacing / 2; distance < length; distance += spacing) {
+  for (
+    let distance = spacingBucket / 2;
+    distance < length;
+    distance += spacingBucket
+  ) {
     coordinates.push(geometry.getCoordinateAt(distance / length));
   }
-  return new MultiPoint(coordinates);
+
+  warningMarkerCache.set(feature, {
+    geometry: new MultiPoint(coordinates),
+    spacingBucket,
+  });
 }
 
-function debugMatchColor(status: string): string {
+function difficultyDebugStyle(status: string): Style[] {
   if (status === "matched") {
-    return "rgba(22, 163, 74, 0.72)";
+    return matchedDifficultyStyle;
   }
   if (status === "ambiguous") {
-    return "rgba(245, 158, 11, 0.82)";
+    return ambiguousDifficultyStyle;
   }
   if (status === "osm_only") {
-    return "rgba(168, 85, 247, 0.72)";
+    return osmOnlyDifficultyStyle;
   }
-  return "rgba(148, 163, 184, 0.72)";
+  return unknownDifficultyStyle;
 }

@@ -155,6 +155,13 @@ class ElevationProfileView(APIView):
                 "descentMeters": round(profile.descent_meters, 3),
                 "minElevationMeters": round(profile.min_elevation_meters, 3),
                 "maxElevationMeters": round(profile.max_elevation_meters, 3),
+                "hikingTime": {
+                    "duration_minutes": profile.hiking_time.duration_minutes,
+                    "method": profile.hiking_time.method,
+                    "segment_length_m": profile.hiking_time.segment_length_m,
+                    "smoothing_window_m": profile.hiking_time.smoothing_window_m,
+                    "segment_count": profile.hiking_time.segment_count,
+                },
                 "points": [
                     {
                         "distanceMeters": round(point.distance_meters, 3),

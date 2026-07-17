@@ -10,7 +10,7 @@ Implemented endpoints:
 
 - `GET /api/v1/health` returns API health.
 - `POST /api/v1/route/compute` validates a route and returns normalized segment geometry and distance. `straight` segments are calculated locally; `routed` segments call GraphHopper through the backend.
-- `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, and smoothed gradient points.
+- `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, smoothed gradient points, and Swiss hiking-time metadata.
 - `GET /api/v1/trails` validates a viewport bbox and returns OSM difficulty summary counts plus compact warning-overlay geometries. Official swisstopo trail geometries are used internally for matching and are returned only when explicitly requested for debugging.
 
 - `config/` contains Django settings, WSGI, and root URLs.
@@ -46,7 +46,7 @@ Routes are represented as independently editable segments between consecutive wa
 
 ## Elevation Algorithm
 
-The elevation implementation uses swisstopo profile data as the source of truth. The backend requests bounded samples from swisstopo, smooths elevation with a small window, calculates gradient over about 50 metres, and computes ascent/descent from the smoothed series. The frontend displays distance, ascent, descent, min/max elevation, maximum absolute gradient, and an ECharts elevation/gradient profile. Synthetic profile tests cover the backend algorithm.
+The elevation implementation uses swisstopo profile data as the source of truth. The backend requests bounded samples from swisstopo, smooths elevation with a small window, calculates gradient over about 50 metres, and computes ascent/descent from the smoothed series. Swiss hiking time is calculated separately from the smoothed elevation profile: samples are resampled into fixed 50-metre segments, each segment slope is passed through the Swiss polynomial method, and unrounded segment times are summed before final rounding. The calculation intentionally does not apply trail difficulty, surface, visibility, weather, or fitness corrections. The frontend displays distance, ascent, descent, min/max elevation, maximum absolute gradient, hiking time, and an ECharts elevation/gradient profile. Synthetic profile tests cover the backend algorithm.
 
 ## Caching
 

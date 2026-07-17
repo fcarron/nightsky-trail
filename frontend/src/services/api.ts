@@ -187,8 +187,24 @@ function isElevationProfileResponse(
     Number.isFinite(payload.minElevationMeters) &&
     typeof payload.maxElevationMeters === "number" &&
     Number.isFinite(payload.maxElevationMeters) &&
+    isHikingTime(payload.hikingTime) &&
     Array.isArray(payload.points) &&
     payload.points.every(isElevationProfilePoint)
+  );
+}
+
+function isHikingTime(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
+    typeof payload.duration_minutes === "number" &&
+    Number.isFinite(payload.duration_minutes) &&
+    payload.method === "swiss_hiking_polynomial" &&
+    typeof payload.segment_length_m === "number" &&
+    Number.isFinite(payload.segment_length_m) &&
+    typeof payload.smoothing_window_m === "number" &&
+    Number.isFinite(payload.smoothing_window_m) &&
+    typeof payload.segment_count === "number" &&
+    Number.isFinite(payload.segment_count)
   );
 }
 

@@ -13,6 +13,7 @@ import { formatDistance } from "../route/routeGeometry";
 import type { ElevationProfile } from "./elevationModel";
 import {
   formatElevationMeters,
+  formatDurationMinutes,
   formatGradientPercent,
   gradientGroupForPercent,
 } from "./elevationModel";
@@ -54,14 +55,36 @@ export function ElevationPanel({
     }
     return Math.floor(profile.minElevationMeters / 50) * 50;
   }, [profile]);
+  const chartData = useMemo(() => {
+    if (!profile) {
+      return null;
+    }
+
+    return {
+      base: profile.points.map((point) => [
+        point.distanceMeters / 1000,
+        elevationFloor,
+      ]),
+      gradient: profile.points.map((point) => [
+        point.distanceMeters / 1000,
+        point.smoothedElevationMeters - elevationFloor,
+      ]),
+      line: profile.points.map((point) => [
+        point.distanceMeters / 1000,
+        point.smoothedElevationMeters,
+      ]),
+    };
+  }, [elevationFloor, profile]);
 
   useEffect(() => {
-    if (!chartRef.current || !profile || profile.points.length === 0) {
+    if (!chartRef.current || !profile || !chartData || profile.points.length === 0) {
       onHoverPointChange?.(null);
       return;
     }
 
     const chart = echarts.init(chartRef.current);
+    let hoverFrame: number | null = null;
+    let pendingHoverEvent: { offsetX: number; offsetY: number } | null = null;
     const elevationRange = Math.max(
       80,
       profile.maxElevationMeters - elevationFloor,
@@ -86,10 +109,12 @@ export function ElevationPanel({
       },
       dataZoom: [
         {
+          debounce: 30,
           filterMode: "none",
-          moveOnMouseMove: true,
+          moveOnMouseMove: false,
           moveOnMouseWheel: true,
           show: false,
+          throttle: 40,
           type: "inside",
           zoomLock: false,
           zoomOnMouseWheel: true,
@@ -102,6 +127,7 @@ export function ElevationPanel({
             areaStyle: { color: "rgba(79, 140, 255, 0.1)" },
             lineStyle: { color: "rgba(244, 248, 251, 0.25)" },
           },
+          realtime: false,
           fillerColor: "rgba(79, 140, 255, 0.16)",
           handleStyle: { color: "#8fa1ad" },
           height: 16,
@@ -136,21 +162,16 @@ export function ElevationPanel({
       },
       series: [
         {
-          data: profile.points.map((point) => [
-            point.distanceMeters / 1000,
-            elevationFloor,
-          ]),
+          data: chartData.base,
           itemStyle: { color: "rgba(0, 0, 0, 0)" },
+          large: true,
           name: "Basis",
           stack: "profile",
           type: "bar",
           tooltip: { show: false },
         },
         {
-          data: profile.points.map((point) => [
-            point.distanceMeters / 1000,
-            point.smoothedElevationMeters - elevationFloor,
-          ]),
+          data: chartData.gradient,
           barCategoryGap: "0%",
           barGap: "0%",
           barMinWidth: 1,
@@ -171,21 +192,34 @@ export function ElevationPanel({
           type: "bar",
         },
         {
-          data: profile.points.map((point) => [
-            point.distanceMeters / 1000,
-            point.smoothedElevationMeters,
-          ]),
+          data: chartData.line,
           lineStyle: { color: "rgba(244, 248, 251, 0.82)", width: 1.5 },
           name: "Höhe",
           showSymbol: false,
           silent: true,
           smooth: 0.15,
+          progressive: 300,
           type: "line",
         },
       ],
     });
 
     const handleMouseMove = (event: { offsetX: number; offsetY: number }) => {
+      pendingHoverEvent = event;
+      if (hoverFrame !== null) {
+        return;
+      }
+      hoverFrame = window.requestAnimationFrame(() => {
+        hoverFrame = null;
+        const currentEvent = pendingHoverEvent;
+        if (!currentEvent) {
+          return;
+        }
+        updateHoverPoint(currentEvent);
+      });
+    };
+
+    const updateHoverPoint = (event: { offsetX: number; offsetY: number }) => {
       if (!chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])) {
         onHoverPointChange?.(null);
         return;
@@ -204,7 +238,14 @@ export function ElevationPanel({
         lat: point.latitude,
       });
     };
-    const handleMouseOut = () => onHoverPointChange?.(null);
+    const handleMouseOut = () => {
+      pendingHoverEvent = null;
+      if (hoverFrame !== null) {
+        window.cancelAnimationFrame(hoverFrame);
+        hoverFrame = null;
+      }
+      onHoverPointChange?.(null);
+    };
     chart.getZr().on("mousemove", handleMouseMove);
     chart.getZr().on("mouseout", handleMouseOut);
 
@@ -212,13 +253,16 @@ export function ElevationPanel({
     resizeObserver.observe(chartRef.current);
 
     return () => {
+      if (hoverFrame !== null) {
+        window.cancelAnimationFrame(hoverFrame);
+      }
       chart.getZr().off("mousemove", handleMouseMove);
       chart.getZr().off("mouseout", handleMouseOut);
       resizeObserver.disconnect();
       chart.dispose();
       onHoverPointChange?.(null);
     };
-  }, [elevationFloor, onHoverPointChange, profile, panelSize]);
+  }, [chartData, elevationFloor, onHoverPointChange, profile, panelSize]);
 
   return (
     <section
@@ -252,6 +296,10 @@ export function ElevationPanel({
             <div>
               <dt>Abstieg</dt>
               <dd>{formatElevationMeters(profile.descentMeters)}</dd>
+            </div>
+            <div>
+              <dt>Wanderzeit</dt>
+              <dd>{formatDurationMinutes(profile.hikingTime.durationMinutes)}</dd>
             </div>
             <div>
               <dt>Höhe</dt>

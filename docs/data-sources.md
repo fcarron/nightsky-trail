@@ -42,7 +42,9 @@ Elevation profiles use:
 POST https://api3.geo.admin.ch/rest/services/profile.json
 ```
 
-The frontend sends public GeoJSON `LineString` geometry in EPSG:4326. The backend validates the coordinates, converts the LineString to EPSG:2056, calls swisstopo, validates the response, and returns normalized distance/elevation/gradient data.
+The frontend sends public GeoJSON `LineString` geometry in EPSG:4326. The backend validates the coordinates, converts the LineString to EPSG:2056, calls swisstopo, validates the response, and returns normalized distance/elevation/gradient data plus Swiss hiking-time metadata.
+
+Swiss hiking time is derived only from the swisstopo elevation profile and route distance. The calculation smooths elevation, resamples into 50-metre segments, calculates segment slope, and applies the official polynomial pace model within +/-40% slope with linear steep-section handling outside that range. It does not correct for trail difficulty, surface, trail visibility, weather, or user fitness.
 
 ## GraphHopper Routing
 

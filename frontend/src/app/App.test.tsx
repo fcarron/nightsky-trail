@@ -79,9 +79,10 @@ describe("App", () => {
 
     expect(screen.getByText("46.9000, 7.4000")).toBeInTheDocument();
     expect(screen.getByText("47.3000, 8.5000")).toBeInTheDocument();
-    expect(screen.getByLabelText("Routenzusammenfassung")).toHaveTextContent(
-      "Segmente1",
+    expect(screen.getByLabelText("Trailrunning Kennzahlen")).toHaveTextContent(
+      "Distanz",
     );
+    expect(screen.getByText("2 Punkte · 1 Abschnitte")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
@@ -297,6 +298,13 @@ function elevationResponse({
       descentMeters,
       minElevationMeters: 500,
       maxElevationMeters: 600,
+      hikingTime: {
+        duration_minutes: 18,
+        method: "swiss_hiking_polynomial",
+        segment_length_m: 50,
+        smoothing_window_m: 40,
+        segment_count: 25,
+      },
       points: [
         {
           distanceMeters: 0,

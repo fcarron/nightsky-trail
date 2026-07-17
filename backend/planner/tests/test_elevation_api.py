@@ -31,6 +31,13 @@ def test_elevation_profile_returns_normalized_profile(monkeypatch: pytest.Monkey
     assert payload["descentMeters"] == 0
     assert payload["minElevationMeters"] == 500
     assert payload["maxElevationMeters"] == 540
+    assert payload["hikingTime"] == {
+        "duration_minutes": 7,
+        "method": "swiss_hiking_polynomial",
+        "segment_length_m": 50,
+        "smoothing_window_m": 40,
+        "segment_count": 2,
+    }
     assert payload["points"][0] == {
         "distanceMeters": 0,
         "elevationMeters": 500,

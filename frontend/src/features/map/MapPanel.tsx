@@ -67,7 +67,7 @@ interface MapPanelProps {
   elevationHoverPoint: LonLat | null;
   selectedWaypointId: string | null;
   onAddWaypoint: (position: LonLat) => void;
-  onInsertWaypoint: (segmentId: string, position: LonLat) => void;
+  onInsertWaypoint: (segmentId: string, position: LonLat) => string;
   onMoveWaypoint: (id: string, position: LonLat) => void;
   onSelectWaypoint: (id: string | null) => void;
 }
@@ -112,6 +112,8 @@ export function MapPanel({
   const baseLayerIdRef = useRef<BaseLayerId>("light");
   const difficultyVisibleRef = useRef(false);
   const trailMatchDebugVisibleRef = useRef(false);
+  const routeDragInsertRef = useRef<{ waypointId: string } | null>(null);
+  const suppressNextSingleClickRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("light");
@@ -269,6 +271,15 @@ export function MapPanel({
       });
 
     map.on("singleclick", (event) => {
+      if (suppressNextSingleClickRef.current) {
+        suppressNextSingleClickRef.current = false;
+        return;
+      }
+
+      if (routeDragInsertRef.current) {
+        return;
+      }
+
       const pointFeatures = map.getFeaturesAtPixel(event.pixel, {
         layerFilter: (layer) => layer === pointLayer,
       });
@@ -309,6 +320,57 @@ export function MapPanel({
       callbacksRef.current.onAddWaypoint({ lon, lat });
     });
 
+    const handleRoutePointerDown = (event: PointerEvent) => {
+      const pixel = map.getEventPixel(event);
+      const coordinate = map.getCoordinateFromPixel(pixel);
+      const pointFeatures = map.getFeaturesAtPixel(pixel, {
+        layerFilter: (layer) => layer === pointLayer,
+      });
+      if (pointFeatures.length > 0) {
+        return;
+      }
+
+      const routeFeatures = map.getFeaturesAtPixel(pixel, {
+        hitTolerance: 8,
+        layerFilter: (layer) => layer === routeLayer,
+      });
+      const routeFeature = routeFeatures[0];
+      const segmentId = routeFeature?.get("segmentId");
+      const geometry = routeFeature?.getGeometry();
+      if (typeof segmentId !== "string" || !(geometry instanceof LineString)) {
+        return;
+      }
+
+      const [lon, lat] = toLonLat(geometry.getClosestPoint(coordinate));
+      const waypointId = callbacksRef.current.onInsertWaypoint(segmentId, {
+        lon,
+        lat,
+      });
+      callbacksRef.current.onSelectWaypoint(waypointId);
+      routeDragInsertRef.current = { waypointId };
+      suppressNextSingleClickRef.current = true;
+      event.preventDefault();
+    };
+
+    const handleRoutePointerUp = () => {
+      routeDragInsertRef.current = null;
+    };
+
+    const viewport = map.getViewport();
+    viewport.addEventListener("pointerdown", handleRoutePointerDown);
+    window.addEventListener("pointerup", handleRoutePointerUp);
+
+    map.on("pointerdrag", (event) => {
+      const dragInsert = routeDragInsertRef.current;
+      if (!dragInsert) {
+        return;
+      }
+
+      const [lon, lat] = toLonLat(event.coordinate);
+      callbacksRef.current.onMoveWaypoint(dragInsert.waypointId, { lon, lat });
+      event.preventDefault();
+    });
+
     const select = new Select({
       layers: [pointLayer],
       style: (feature) =>
@@ -343,6 +405,8 @@ export function MapPanel({
 
     return () => {
       map.setTarget(undefined);
+      viewport.removeEventListener("pointerdown", handleRoutePointerDown);
+      window.removeEventListener("pointerup", handleRoutePointerUp);
       mapRef.current = null;
       setMapReady(false);
       standardLayerRef.current = null;

@@ -10,9 +10,18 @@ export interface ElevationProfile {
   descentMeters: number;
   minElevationMeters: number;
   maxElevationMeters: number;
+  hikingTime: HikingTime;
   maxAbsGradientPercent: number;
   points: ElevationPoint[];
   gradientBands: ElevationGradientBand[];
+}
+
+export interface HikingTime {
+  durationMinutes: number;
+  method: "swiss_hiking_polynomial";
+  segmentLengthMeters: number;
+  smoothingWindowMeters: number;
+  segmentCount: number;
 }
 
 export interface ElevationPoint {
@@ -60,7 +69,7 @@ export function toElevationProfileRequest(
   };
 }
 
-const ELEVATION_GEOMETRY_TARGET_SPACING_METERS = 30;
+const ELEVATION_GEOMETRY_TARGET_SPACING_METERS = 25;
 const ELEVATION_GEOMETRY_MAX_POINTS = 800;
 const EARTH_RADIUS_METERS = 6_371_000;
 
@@ -150,6 +159,13 @@ export function toElevationProfile(
     descentMeters: response.descentMeters,
     minElevationMeters: response.minElevationMeters,
     maxElevationMeters: response.maxElevationMeters,
+    hikingTime: {
+      durationMinutes: response.hikingTime.duration_minutes,
+      method: response.hikingTime.method,
+      segmentLengthMeters: response.hikingTime.segment_length_m,
+      smoothingWindowMeters: response.hikingTime.smoothing_window_m,
+      segmentCount: response.hikingTime.segment_count,
+    },
     maxAbsGradientPercent: points.reduce(
       (max, point) => Math.max(max, Math.abs(point.gradientPercent)),
       0,
@@ -201,4 +217,14 @@ export function formatElevationMeters(value: number): string {
 
 export function formatGradientPercent(value: number): string {
   return `${value.toFixed(1)} %`;
+}
+
+export function formatDurationMinutes(minutes: number): string {
+  const roundedMinutes = Math.round(minutes);
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = roundedMinutes % 60;
+  if (hours === 0) {
+    return `${remainingMinutes} min`;
+  }
+  return `${hours}:${remainingMinutes.toString().padStart(2, "0")} h`;
 }

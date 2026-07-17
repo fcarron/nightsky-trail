@@ -36,7 +36,16 @@ export interface ElevationProfileResponse {
   descentMeters: number;
   minElevationMeters: number;
   maxElevationMeters: number;
+  hikingTime: HikingTimeDto;
   points: ElevationProfilePointDto[];
+}
+
+export interface HikingTimeDto {
+  duration_minutes: number;
+  method: "swiss_hiking_polynomial";
+  segment_length_m: number;
+  smoothing_window_m: number;
+  segment_count: number;
 }
 
 export interface TrailsResponse {

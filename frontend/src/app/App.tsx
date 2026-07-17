@@ -3,12 +3,14 @@ import type { MutableRefObject } from "react";
 
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
+  formatDurationMinutes,
   toElevationProfile,
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
 import type { ElevationProfile } from "../features/elevation/elevationModel";
 import { MapPanel } from "../features/map/MapPanel";
 import {
+  distanceMetersBetween,
   formatDistance,
   summarizeRoute,
 } from "../features/route/routeGeometry";
@@ -73,6 +75,10 @@ const initialElevationState: ElevationState = {
   status: "idle",
   message: null,
 };
+const DEFAULT_BASE_PACE_MIN_PER_KM = 6.5;
+const SWISS_HIKING_FLAT_PACE_MIN_PER_KM = 14.271;
+const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
+const CALIBRATED_TIME_STORAGE_KEY = "swiss-route-planner.calibrated-time-enabled.v1";
 
 export function App() {
   const [health, setHealth] = useState<HealthState>("checking");
@@ -82,6 +88,15 @@ export function App() {
   );
   const [elevationHoverPoint, setElevationHoverPoint] = useState<LonLat | null>(
     null,
+  );
+  const [basePaceMinPerKm, setBasePaceMinPerKm] = useState(
+    loadBasePaceMinPerKm,
+  );
+  const [basePaceInput, setBasePaceInput] = useState(() =>
+    formatPaceInput(loadBasePaceMinPerKm()),
+  );
+  const [calibratedTimeEnabled, setCalibratedTimeEnabled] = useState(
+    loadCalibratedTimeEnabled,
   );
   const [routeComputeState, dispatchRouteCompute] = useReducer(
     routeComputeReducer,
@@ -116,10 +131,37 @@ export function App() {
   );
   const firstWaypoint = history.present.waypoints[0] ?? null;
   const lastWaypoint = history.present.waypoints.at(-1) ?? null;
+  const selectedWaypoint =
+    history.present.waypoints.find((waypoint) => waypoint.id === selectedWaypointId) ??
+    null;
   const intermediateWaypointCount = Math.max(
     0,
     history.present.waypoints.length - 2,
   );
+  const loopGapMeters =
+    firstWaypoint && lastWaypoint && history.present.waypoints.length >= 2
+      ? distanceMetersBetween(firstWaypoint.position, lastWaypoint.position)
+      : null;
+  const isClosedLoop =
+    loopGapMeters !== null &&
+    history.present.waypoints.length >= 3 &&
+    loopGapMeters <= 30;
+  const ascentMeters = elevationState.profile?.ascentMeters ?? null;
+  const climbMetersPerKilometer =
+    ascentMeters !== null && routeSummary.distanceMeters > 0
+      ? ascentMeters / (routeSummary.distanceMeters / 1000)
+      : null;
+  const estimatedEffortMinutes = elevationState.profile
+    ? estimateEffortMinutes(
+        elevationState.profile.hikingTime.durationMinutes,
+        basePaceMinPerKm,
+      )
+    : null;
+  const displayedDurationMinutes = elevationState.profile
+    ? calibratedTimeEnabled
+      ? estimatedEffortMinutes
+      : elevationState.profile.hikingTime.durationMinutes
+    : null;
   const graphhopperDebugSummary = useMemo(
     () => summarizeGraphhopperDebug(effectiveComputedRoute),
     [effectiveComputedRoute],
@@ -143,6 +185,17 @@ export function App() {
   useEffect(() => {
     saveStoredRoute(history.present);
   }, [history.present]);
+
+  useEffect(() => {
+    window.localStorage.setItem(BASE_PACE_STORAGE_KEY, String(basePaceMinPerKm));
+  }, [basePaceMinPerKm]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      CALIBRATED_TIME_STORAGE_KEY,
+      calibratedTimeEnabled ? "true" : "false",
+    );
+  }, [calibratedTimeEnabled]);
 
   useEffect(() => {
     if (history.present.waypoints.length < 2) {
@@ -315,6 +368,7 @@ export function App() {
       waypoint: { id, position },
     });
     setSelectedWaypointId(id);
+    return id;
   }
 
   function moveWaypoint(id: string, position: LonLat) {
@@ -333,6 +387,34 @@ export function App() {
   function clearRoute() {
     dispatch({ type: "clear" });
     setSelectedWaypointId(null);
+  }
+
+  function closeLoop() {
+    if (!firstWaypoint || history.present.waypoints.length < 2 || isClosedLoop) {
+      return;
+    }
+
+    const id = nextWaypointId(waypointCounterRef);
+    dispatch({
+      type: "add-waypoint",
+      waypoint: { id, position: firstWaypoint.position },
+    });
+    setSelectedWaypointId(id);
+  }
+
+  function updateBasePaceInput(value: string) {
+    setBasePaceInput(value);
+    const parsedValue = parsePaceInput(value);
+    if (parsedValue === null) {
+      return;
+    }
+    setBasePaceMinPerKm(parsedValue);
+  }
+
+  function stepBasePace(deltaSeconds: number) {
+    const nextValue = clampPaceMinutes(basePaceMinPerKm + deltaSeconds / 60);
+    setBasePaceMinPerKm(nextValue);
+    setBasePaceInput(formatPaceInput(nextValue));
   }
 
   function toggleSegmentMode(segmentId: string) {
@@ -365,23 +447,101 @@ export function App() {
       <section className="plannerLayout" aria-label="Routenplaner">
         <aside className="sidebar">
           <div className="sidebarHeader">
-            <h1>Route planen</h1>
-            <p>Routing ist Standard. Linie anklicken, Punkt einfügen.</p>
+            <h1>Trailrunde planen</h1>
+            <p>Klick setzt Punkte. Linie ziehen verfeinert die Runde.</p>
           </div>
-          <dl className="summaryGrid" aria-label="Routenzusammenfassung">
-            <div>
-              <dt>Wegpunkte</dt>
-              <dd>{routeSummary.waypointCount}</dd>
-            </div>
+          <dl className="runSummaryGrid" aria-label="Trailrunning Kennzahlen">
             <div>
               <dt>Distanz</dt>
               <dd>{formatDistance(routeSummary.distanceMeters)}</dd>
             </div>
             <div>
-              <dt>Segmente</dt>
-              <dd>{routeSummary.segmentCount}</dd>
+              <dt>Aufstieg</dt>
+              <dd>{ascentMeters !== null ? formatMeters(ascentMeters) : "-"}</dd>
+            </div>
+            <div>
+              <dt>Zeit</dt>
+              <dd>
+                {displayedDurationMinutes !== null
+                  ? formatDurationMinutes(displayedDurationMinutes)
+                  : "-"}
+              </dd>
+            </div>
+            <div>
+              <dt>hm/km</dt>
+              <dd>
+                {climbMetersPerKilometer !== null
+                  ? Math.round(climbMetersPerKilometer)
+                  : "-"}
+              </dd>
             </div>
           </dl>
+
+          <div className="paceCalibration" aria-label="Zeit-Schätzung">
+            <label className="paceModeToggle">
+              <input
+                type="checkbox"
+                checked={calibratedTimeEnabled}
+                onChange={(event) => setCalibratedTimeEnabled(event.currentTarget.checked)}
+              />
+              <span>Zeit</span>
+              <strong>{calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"}</strong>
+            </label>
+            <label htmlFor="base-pace-input">Pace</label>
+            <button
+              type="button"
+              aria-label="Basispace 10 Sekunden schneller"
+              onClick={() => stepBasePace(-10)}
+            >
+              -10s
+            </button>
+            <input
+              id="base-pace-input"
+              type="text"
+              inputMode="decimal"
+              value={basePaceInput}
+              onChange={(event) => updateBasePaceInput(event.currentTarget.value)}
+              onBlur={() => setBasePaceInput(formatPaceInput(basePaceMinPerKm))}
+            />
+            <button
+              type="button"
+              aria-label="Basispace 10 Sekunden langsamer"
+              onClick={() => stepBasePace(10)}
+            >
+              +10s
+            </button>
+            <span>min/km</span>
+            <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
+          </div>
+
+          <ElevationPanel
+            profile={elevationState.profile}
+            status={elevationState.status}
+            message={elevationState.message}
+            onHoverPointChange={setElevationHoverPoint}
+          />
+
+          <div className="loopCard" aria-label="Rundenstatus">
+            <div>
+              <span className={isClosedLoop ? "loopStateClosed" : "loopStateOpen"}>
+                {isClosedLoop ? "Runde geschlossen" : "Runde offen"}
+              </span>
+              <strong>
+                {loopGapMeters !== null ? formatDistance(loopGapMeters) : "Start setzen"}
+              </strong>
+            </div>
+            <button
+              type="button"
+              disabled={
+                !firstWaypoint ||
+                history.present.waypoints.length < 2 ||
+                isClosedLoop
+              }
+              onClick={closeLoop}
+            >
+              Schliessen
+            </button>
+          </div>
           <div className="toolbar" aria-label="Routenaktionen">
             <button
               type="button"
@@ -438,108 +598,131 @@ export function App() {
             </ul>
           ) : null}
 
-          <section className="waypointPanel" aria-label="Wegpunkte">
+          <section className="waypointPanel routeEditorPanel" aria-label="Wegpunkte">
             <div className="sectionHeader">
               <h2>Wegpunkte</h2>
-              <span>{routeSummary.waypointCount}</span>
+              <span>
+                {routeSummary.waypointCount} Punkte · {routeSummary.segmentCount} Abschnitte
+              </span>
             </div>
 
             {firstWaypoint ? (
-              <dl className="waypointEndpoints">
-                <div>
-                  <dt>Start</dt>
-                  <dd>{formatCoordinate(firstWaypoint.position)}</dd>
-                </div>
-                <div>
-                  <dt>Via</dt>
-                  <dd>{intermediateWaypointCount}</dd>
-                </div>
-                <div>
-                  <dt>Ziel</dt>
-                  <dd>
-                    {lastWaypoint
-                      ? formatCoordinate(lastWaypoint.position)
-                      : "offen"}
-                  </dd>
-                </div>
-              </dl>
+              <>
+                <ol className="waypointDots" aria-label="Wegpunkte auswählen">
+                  {history.present.waypoints.map((waypoint, index) => (
+                    <li key={waypoint.id}>
+                      <button
+                        type="button"
+                        className={
+                          waypoint.id === selectedWaypointId
+                            ? "selectedWaypoint"
+                            : undefined
+                        }
+                        aria-label={`Wegpunkt ${index + 1}: ${formatCoordinate(
+                          waypoint.position,
+                        )}`}
+                        onClick={() => setSelectedWaypointId(waypoint.id)}
+                      >
+                        {index + 1}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+
+                {selectedWaypoint ? (
+                  <div className="selectedPointCard compactSelectedPoint" aria-label="Ausgewählter Wegpunkt">
+                    <div>
+                      <span>Ausgewählt</span>
+                      <strong>
+                        Punkt {history.present.waypoints.indexOf(selectedWaypoint) + 1}
+                      </strong>
+                    </div>
+                    <button type="button" onClick={deleteSelectedWaypoint}>
+                      Löschen
+                    </button>
+                  </div>
+                ) : null}
+
+                <details className="waypointDetails">
+                  <summary>Koordinaten anzeigen</summary>
+                  <dl className="waypointEndpoints">
+                    <div>
+                      <dt>Start</dt>
+                      <dd>{formatCoordinate(firstWaypoint.position)}</dd>
+                    </div>
+                    <div>
+                      <dt>Via</dt>
+                      <dd>{intermediateWaypointCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Ziel</dt>
+                      <dd>
+                        {lastWaypoint
+                          ? formatCoordinate(lastWaypoint.position)
+                          : "offen"}
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
+              </>
             ) : (
               <p className="emptyState">Klick auf die Karte setzt den Start.</p>
             )}
-
-            <ol className="waypointDots" aria-label="Wegpunkte auswählen">
-              {history.present.waypoints.map((waypoint, index) => (
-                <li key={waypoint.id}>
-                  <button
-                    type="button"
-                    className={
-                      waypoint.id === selectedWaypointId
-                        ? "selectedWaypoint"
-                        : undefined
-                    }
-                    aria-label={`Wegpunkt ${index + 1}: ${formatCoordinate(
-                      waypoint.position,
-                    )}`}
-                    onClick={() => setSelectedWaypointId(waypoint.id)}
-                  >
-                    {index + 1}
-                  </button>
-                </li>
-              ))}
-            </ol>
           </section>
 
           {history.present.segments.length ? (
-            <section className="segmentPanel" aria-label="Segmente">
-              <div className="sectionHeader">
-                <h2>Abschnitte</h2>
-                <span>{history.present.segments.length}</span>
+            <details className="segmentPanel editorDetails">
+              <summary>
+                <span>Abschnitte</span>
+                <small>{history.present.segments.length}</small>
+              </summary>
+              <div className="editorDetailsContent">
+                {ENABLE_DEV_TOOLS ? (
+                  <>
+                    <label className="debugToggle">
+                      <input
+                        type="checkbox"
+                        checked={graphhopperDebugVisible}
+                        disabled={!graphhopperDebugSummary.routedSegmentCount}
+                        onChange={(event) =>
+                          setGraphhopperDebugVisible(event.target.checked)
+                        }
+                      />
+                      GraphHopper anzeigen
+                    </label>
+                    {graphhopperDebugSummary.routedSegmentCount ? (
+                      <dl className="debugSummary" aria-label="GraphHopper Debug">
+                        <div>
+                          <dt>Routed</dt>
+                          <dd>{graphhopperDebugSummary.routedSegmentCount}</dd>
+                        </div>
+                        <div>
+                          <dt>Stützpunkte</dt>
+                          <dd>{graphhopperDebugSummary.geometryPointCount}</dd>
+                        </div>
+                        <div>
+                          <dt>hike_rating</dt>
+                          <dd>{graphhopperDebugSummary.hikeRatingCount}</dd>
+                        </div>
+                      </dl>
+                    ) : null}
+                  </>
+                ) : null}
+                <ol className="segmentList">
+                  {history.present.segments.map((segment, index) => (
+                    <li key={segment.id}>
+                      <span>{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleSegmentMode(segment.id)}
+                      >
+                        {segment.mode === "straight" ? "Gerade" : "Routing"}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
               </div>
-              {ENABLE_DEV_TOOLS ? (
-                <>
-                  <label className="debugToggle">
-                    <input
-                      type="checkbox"
-                      checked={graphhopperDebugVisible}
-                      disabled={!graphhopperDebugSummary.routedSegmentCount}
-                      onChange={(event) =>
-                        setGraphhopperDebugVisible(event.target.checked)
-                      }
-                    />
-                    GraphHopper anzeigen
-                  </label>
-                  {graphhopperDebugSummary.routedSegmentCount ? (
-                    <dl className="debugSummary" aria-label="GraphHopper Debug">
-                      <div>
-                        <dt>Routed</dt>
-                        <dd>{graphhopperDebugSummary.routedSegmentCount}</dd>
-                      </div>
-                      <div>
-                        <dt>Stützpunkte</dt>
-                        <dd>{graphhopperDebugSummary.geometryPointCount}</dd>
-                      </div>
-                      <div>
-                        <dt>hike_rating</dt>
-                        <dd>{graphhopperDebugSummary.hikeRatingCount}</dd>
-                      </div>
-                    </dl>
-                  ) : null}
-                </>
-              ) : null}
-              <ol className="segmentList">
-                {history.present.segments.map((segment, index) => (
-                  <li key={segment.id}>
-                    <span>{index + 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleSegmentMode(segment.id)}
-                    >
-                      {segment.mode === "straight" ? "Gerade" : "Routing"}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            </details>
           ) : null}
 
           <div className="routeLegend" aria-label="Legende">
@@ -552,12 +735,6 @@ export function App() {
             <span>Routing</span>
           </div>
 
-          <ElevationPanel
-            profile={elevationState.profile}
-            status={elevationState.status}
-            message={elevationState.message}
-            onHoverPointChange={setElevationHoverPoint}
-          />
         </aside>
 
         <MapPanel
@@ -615,6 +792,74 @@ function nextWaypointId(counterRef: MutableRefObject<number>): string {
 
 function formatCoordinate(position: LonLat): string {
   return `${position.lat.toFixed(4)}, ${position.lon.toFixed(4)}`;
+}
+
+function formatMeters(value: number): string {
+  return `${Math.round(value).toLocaleString("de-CH")} m`;
+}
+
+function estimateEffortMinutes(
+  hikingDurationMinutes: number,
+  basePaceMinPerKm: number,
+): number {
+  return hikingDurationMinutes * (basePaceMinPerKm / SWISS_HIKING_FLAT_PACE_MIN_PER_KM);
+}
+
+function loadBasePaceMinPerKm(): number {
+  const storedValue = window.localStorage.getItem(BASE_PACE_STORAGE_KEY);
+  if (!storedValue) {
+    return DEFAULT_BASE_PACE_MIN_PER_KM;
+  }
+
+  const parsedValue = Number(storedValue);
+  if (!Number.isFinite(parsedValue) || parsedValue < 2 || parsedValue > 20) {
+    return DEFAULT_BASE_PACE_MIN_PER_KM;
+  }
+  return roundToNearestTenSeconds(parsedValue);
+}
+
+function roundToNearestTenSeconds(value: number): number {
+  return Math.round(value * 6) / 6;
+}
+
+function loadCalibratedTimeEnabled(): boolean {
+  return window.localStorage.getItem(CALIBRATED_TIME_STORAGE_KEY) === "true";
+}
+
+function clampPaceMinutes(value: number): number {
+  return Math.min(20, Math.max(2, roundToNearestTenSeconds(value)));
+}
+
+function parsePaceInput(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const timeMatch = /^(\d{1,2})(?::([0-5]?\d))?$/.exec(trimmedValue);
+  if (timeMatch) {
+    const minutes = Number(timeMatch[1]);
+    const seconds = Number(timeMatch[2] ?? 0);
+    const pace = minutes + seconds / 60;
+    return pace >= 2 && pace <= 20 ? roundToNearestTenSeconds(pace) : null;
+  }
+
+  const decimalValue = Number(trimmedValue.replace(",", "."));
+  if (!Number.isFinite(decimalValue) || decimalValue < 2 || decimalValue > 20) {
+    return null;
+  }
+  return roundToNearestTenSeconds(decimalValue);
+}
+
+function formatPaceInput(minPerKm: number): string {
+  const totalSeconds = Math.round(minPerKm * 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatSpeedKmh(minPerKm: number): string {
+  return `${(60 / minPerKm).toFixed(1)} km/h`;
 }
 
 function highestWaypointNumber(ids: string[]): number {
