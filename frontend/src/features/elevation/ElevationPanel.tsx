@@ -180,6 +180,7 @@ export function ElevationPanel({
           coordinateSystem: "cartesian2d",
           encode: { x: 0, y: 1 },
           itemStyle: {
+            borderWidth: 0,
             color: (params: { dataIndex: number }) =>
               gradientGroupForPercent(
                 profile.points[params.dataIndex]?.gradientPercent ?? 0,
@@ -343,9 +344,9 @@ export function ElevationPanel({
 
 function gradientBarWidth(profile: ElevationProfile): number {
   if (profile.points.length < 2) {
-    return 2;
+    return 4;
   }
-  return Math.max(2.8, Math.min(12, 840 / profile.points.length));
+  return Math.max(4, Math.min(18, 1_550 / profile.points.length));
 }
 
 function nearestElevationPoint(
