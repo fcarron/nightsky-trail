@@ -1,6 +1,6 @@
 # Architecture
 
-Swiss Route Planner is split into a Django API and a React frontend. The active route stays in frontend state for the MVP; no account system or server-side route storage is part of the scaffold.
+Swiss Route Planner is split into a Django API and a React frontend. The active route stays in frontend state and browser local storage during editing. The first persistence slice adds lightweight Django session login plus user-owned saved tours, without social features, sync, payments, or activity recording.
 
 ## Backend
 
@@ -12,6 +12,8 @@ Implemented endpoints:
 - `POST /api/v1/route/compute` validates a route and returns normalized segment geometry and distance. `straight` segments are calculated locally; `routed` segments call GraphHopper through the backend.
 - `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, smoothed gradient points, and Swiss hiking-time metadata.
 - `GET /api/v1/trails` validates a viewport bbox and returns OSM difficulty summary counts plus compact warning-overlay geometries. Official swisstopo trail geometries are used internally for matching and are returned only when explicitly requested for debugging.
+- `GET /api/v1/auth/session`, `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, and `POST /api/v1/auth/logout` manage a local Django session.
+- `GET /api/v1/tours`, `POST /api/v1/tours`, `GET /api/v1/tours/{id}`, `PATCH /api/v1/tours/{id}`, and `DELETE /api/v1/tours/{id}` store normalized route plans for the authenticated user.
 
 - `config/` contains Django settings, WSGI, and root URLs.
 - `planner/api/` contains thin HTTP views, serializers, URL routing, and API error handling.
@@ -35,6 +37,8 @@ The frontend is a strict TypeScript React app served by Vite.
 - `src/types/` contains shared TypeScript DTOs and domain types.
 
 OpenLayers lifecycle code is isolated in the map feature. The map object is kept in a component ref, while serializable route state stays in React reducer state and is persisted to browser local storage. Map styling and trail overlay display helpers live in focused map feature modules so the OpenLayers lifecycle component remains manageable. Route geometry is requested from `/api/v1/route/compute`; elevation is requested from `/api/v1/elevation/profile` once a computed route is available. Request IDs and `AbortController` prevent stale responses from overwriting newer edits. The last valid computed route and elevation profile remain visible when later requests fail.
+
+Saved tours store the normalized route plan JSON. Loading a tour replaces the active reducer state. GPX export writes the currently computed route geometry when available, otherwise the waypoint line. GPX import reads local `trkpt`, `rtept`, or `wpt` points and creates a straight manual route; it does not silently re-route imported geometry.
 
 ## Coordinates
 

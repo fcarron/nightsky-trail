@@ -29,7 +29,7 @@ export function clearStoredRoute(storage: Storage = window.localStorage): void {
   storage.removeItem(STORAGE_KEY);
 }
 
-function parseRoutePlan(value: unknown): RoutePlan {
+export function parseRoutePlan(value: unknown): RoutePlan {
   if (!isRecord(value)) {
     throw new Error("Stored route is not an object.");
   }

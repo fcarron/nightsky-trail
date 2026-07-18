@@ -2,6 +2,32 @@ export interface HealthResponse {
   status: "ok";
 }
 
+export interface AuthSessionResponse {
+  authenticated: boolean;
+  user: AuthUserDto | null;
+}
+
+export interface AuthUserDto {
+  id: number;
+  username: string;
+}
+
+export interface SavedTourDto {
+  id: string;
+  name: string;
+  routeData: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedTourResponse {
+  tour: SavedTourDto;
+}
+
+export interface SavedTourListResponse {
+  tours: SavedTourDto[];
+}
+
 export interface RouteComputeRequest {
   waypoints: RouteWaypointDto[];
   segments: RouteSegmentRequestDto[];

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.api.exceptions import UnprocessableEntity
+from planner.api.exceptions import Unauthorized, UnprocessableEntity
 from planner.api.serializers import (
+    AuthLoginSerializer,
+    AuthRegisterSerializer,
     ElevationProfileRequestSerializer,
     RouteComputeRequestSerializer,
+    SavedTourSerializer,
     TrailsQuerySerializer,
 )
 from planner.domain.elevation import ElevationValidationError, build_elevation_profile
@@ -26,6 +30,7 @@ from planner.integrations.swisstopo import (
     SwisstopoClient,
     SwisstopoUnavailableError,
 )
+from planner.models import SavedTour
 from planner.services.routing import compute_route
 from planner.services.trails import build_trails_response
 
@@ -40,6 +45,206 @@ class HealthView(APIView):
     )
     def get(self, request: object) -> Response:
         return Response({"status": "ok"})
+
+
+class AuthSessionView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_session",
+        responses={200: dict[str, object]},
+    )
+    def get(self, request: object) -> Response:
+        user = request_user(request)
+        if not user.is_authenticated:
+            return Response({"authenticated": False, "user": None})
+
+        return Response(
+            {
+                "authenticated": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.get_username(),
+                },
+            }
+        )
+
+
+class AuthRegisterView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_register",
+        request=AuthRegisterSerializer,
+        responses={200: dict[str, object]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = AuthRegisterSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_register_request",
+                "Register request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        data = serializer.validated_data
+        user_model = get_user_model()
+        if user_model.objects.filter(username=data["username"]).exists():
+            raise UnprocessableEntity(
+                "username_unavailable",
+                "This username is already used.",
+                {},
+            )
+
+        user = user_model.objects.create_user(
+            username=data["username"],
+            password=data["password"],
+        )
+        login(django_request(request), user)
+        return Response(
+            {
+                "authenticated": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.get_username(),
+                },
+            }
+        )
+
+
+class AuthLoginView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_login",
+        request=AuthLoginSerializer,
+        responses={200: dict[str, object]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = AuthLoginSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_login_request",
+                "Login request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        data = serializer.validated_data
+        user = authenticate(
+            django_request(request),
+            username=data["username"],
+            password=data["password"],
+        )
+        if user is None:
+            raise Unauthorized("invalid_credentials", "Username or password is invalid.", {})
+
+        login(django_request(request), user)
+        return Response(
+            {
+                "authenticated": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.get_username(),
+                },
+            }
+        )
+
+
+class AuthLogoutView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_logout",
+        responses={200: dict[str, object]},
+    )
+    def post(self, request: object) -> Response:
+        logout(django_request(request))
+        return Response({"authenticated": False, "user": None})
+
+
+class SavedTourListView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="tour_list",
+        responses={200: dict[str, object]},
+    )
+    def get(self, request: object) -> Response:
+        user = authenticated_user(request)
+        serializer = SavedTourSerializer(
+            SavedTour.objects.filter(owner=user),
+            many=True,
+        )
+        return Response({"tours": serializer.data})
+
+    @extend_schema(
+        operation_id="tour_create",
+        request=SavedTourSerializer,
+        responses={200: dict[str, object]},
+    )
+    def post(self, request: object) -> Response:
+        user = authenticated_user(request)
+        serializer = SavedTourSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_tour_request",
+                "Tour request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        tour = SavedTour.objects.create(
+            owner=user,
+            name=serializer.validated_data["name"],
+            route_data=serializer.validated_data["route_data"],
+        )
+        return Response({"tour": SavedTourSerializer(tour).data})
+
+
+class SavedTourDetailView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="tour_detail",
+        responses={200: dict[str, object]},
+    )
+    def get(self, request: object, tour_id: str) -> Response:
+        tour = tour_for_user(request, tour_id)
+        return Response({"tour": SavedTourSerializer(tour).data})
+
+    @extend_schema(
+        operation_id="tour_update",
+        request=SavedTourSerializer,
+        responses={200: dict[str, object]},
+    )
+    def patch(self, request: object, tour_id: str) -> Response:
+        tour = tour_for_user(request, tour_id)
+        serializer = SavedTourSerializer(tour, data=getattr(request, "data", {}), partial=True)
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_tour_request",
+                "Tour request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        for field, value in serializer.validated_data.items():
+            setattr(tour, field, value)
+        tour.save(update_fields=[*serializer.validated_data.keys(), "updated_at"])
+        return Response({"tour": SavedTourSerializer(tour).data})
+
+    @extend_schema(
+        operation_id="tour_delete",
+        responses={200: dict[str, str]},
+    )
+    def delete(self, request: object, tour_id: str) -> Response:
+        tour = tour_for_user(request, tour_id)
+        tour.delete()
+        return Response({"status": "deleted"})
 
 
 class RouteComputeView(APIView):
@@ -218,3 +423,41 @@ def estimate_sample_count(coordinates: list[list[float]]) -> int:
     # The frontend keeps route distance separately; this heuristic keeps requests bounded
     # until elevation caching and geometry resampling are implemented.
     return max(50, len(coordinates) * 25)
+
+
+def django_request(request: object) -> object:
+    return getattr(request, "_request", request)
+
+
+def request_user(request: object) -> object:
+    raw_user = getattr(django_request(request), "user", None)
+    if getattr(raw_user, "is_authenticated", False):
+        return raw_user
+
+    user_id = getattr(django_request(request), "session", {}).get("_auth_user_id")
+    if user_id is None:
+        return AnonymousUserLike()
+
+    try:
+        return get_user_model().objects.get(pk=user_id)
+    except get_user_model().DoesNotExist:
+        return AnonymousUserLike()
+
+
+def authenticated_user(request: object) -> object:
+    user = request_user(request)
+    if not getattr(user, "is_authenticated", False):
+        raise Unauthorized()
+    return user
+
+
+def tour_for_user(request: object, tour_id: str) -> SavedTour:
+    user = authenticated_user(request)
+    try:
+        return SavedTour.objects.get(id=tour_id, owner=user)
+    except (SavedTour.DoesNotExist, ValueError) as error:
+        raise UnprocessableEntity("tour_not_found", "Tour was not found.", {}) from error
+
+
+class AnonymousUserLike:
+    is_authenticated = False

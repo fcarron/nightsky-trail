@@ -18,28 +18,43 @@ import {
   toComputedRoute,
   toRouteComputeRequest,
 } from "../features/route/routeApi";
+import { exportPointsToGpx, importRoutePlanFromGpx } from "../features/route/gpx";
 import {
   createPlannerHistory,
   initialPlannerHistory,
   routePlannerReducer,
 } from "../features/route/routePlanner";
-import type { ComputedRoute, LonLat } from "../features/route/routeModel";
+import type {
+  ComputedRoute,
+  LonLat,
+  SegmentMode,
+} from "../features/route/routeModel";
 import {
   loadStoredRoute,
+  parseRoutePlan,
   saveStoredRoute,
 } from "../features/route/routeStorage";
 import {
   ApiRequestError,
   computeElevationProfile,
   computeRoute,
+  createSavedTour,
+  getAuthSession,
   getHealth,
+  listSavedTours,
+  loginAccount,
+  logoutAccount,
+  registerAccount,
+  updateSavedTour,
 } from "../services/api";
+import type { AuthSessionResponse, SavedTourDto } from "../types/api";
 import "./App.css";
 import { ENABLE_DEV_TOOLS } from "./config";
 
 type HealthState = "checking" | "ok" | "unavailable";
 type RouteComputeStatus = "idle" | "loading" | "ready" | "error";
 type ElevationStatus = "idle" | "loading" | "ready" | "error";
+type AuthState = AuthSessionResponse & { status: "checking" | "ready" | "error" };
 
 interface RouteComputeState {
   route: ComputedRoute | null;
@@ -82,6 +97,16 @@ const CALIBRATED_TIME_STORAGE_KEY = "swiss-route-planner.calibrated-time-enabled
 
 export function App() {
   const [health, setHealth] = useState<HealthState>("checking");
+  const [authState, setAuthState] = useState<AuthState>({
+    authenticated: false,
+    status: "checking",
+    user: null,
+  });
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
+  const [activeTourId, setActiveTourId] = useState<string | null>(null);
+  const [tourMessage, setTourMessage] = useState<string | null>(null);
   const [graphhopperDebugVisible, setGraphhopperDebugVisible] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(
     null,
@@ -98,6 +123,7 @@ export function App() {
   const [calibratedTimeEnabled, setCalibratedTimeEnabled] = useState(
     loadCalibratedTimeEnabled,
   );
+  const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
   const [routeComputeState, dispatchRouteCompute] = useReducer(
     routeComputeReducer,
     initialRouteComputeState,
@@ -114,6 +140,7 @@ export function App() {
   const waypointCounterRef = useRef(0);
   const routeRequestIdRef = useRef(0);
   const elevationRequestIdRef = useRef(0);
+  const gpxInputRef = useRef<HTMLInputElement | null>(null);
   const effectiveComputedRoute =
     history.present.waypoints.length >= 2 ? routeComputeState.route : null;
   const effectiveRouteComputeStatus =
@@ -181,6 +208,28 @@ export function App() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAuthSession(controller.signal)
+      .then((session) => setAuthState({ ...session, status: "ready" }))
+      .catch(() =>
+        setAuthState({ authenticated: false, status: "error", user: null }),
+      );
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!authState.authenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+    listSavedTours(controller.signal)
+      .then((response) => setSavedTours(response.tours))
+      .catch((error: unknown) => setTourMessage(errorMessage(error)));
+    return () => controller.abort();
+  }, [authState.authenticated]);
 
   useEffect(() => {
     saveStoredRoute(history.present);
@@ -356,7 +405,11 @@ export function App() {
 
   function addWaypoint(position: LonLat) {
     const id = nextWaypointId(waypointCounterRef);
-    dispatch({ type: "add-waypoint", waypoint: { id, position } });
+    dispatch({
+      type: "add-waypoint",
+      segmentMode: drawingMode,
+      waypoint: { id, position },
+    });
     setSelectedWaypointId(id);
   }
 
@@ -386,7 +439,101 @@ export function App() {
 
   function clearRoute() {
     dispatch({ type: "clear" });
+    setActiveTourId(null);
     setSelectedWaypointId(null);
+  }
+
+  async function submitLogin(mode: "login" | "register") {
+    setTourMessage(null);
+    try {
+      const session =
+        mode === "login"
+          ? await loginAccount(authUsername, authPassword)
+          : await registerAccount(authUsername, authPassword);
+      setAuthState({ ...session, status: "ready" });
+      setAuthPassword("");
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    }
+  }
+
+  async function submitLogout() {
+    setTourMessage(null);
+    try {
+      const session = await logoutAccount();
+      setAuthState({ ...session, status: "ready" });
+      setSavedTours([]);
+      setActiveTourId(null);
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    }
+  }
+
+  async function saveTour() {
+    if (!authState.authenticated || history.present.waypoints.length === 0) {
+      return;
+    }
+
+    setTourMessage(null);
+    try {
+      const name = defaultTourName();
+      const response = activeTourId
+        ? await updateSavedTour(activeTourId, { routeData: history.present })
+        : await createSavedTour(name, history.present);
+      setActiveTourId(response.tour.id);
+      const list = await listSavedTours();
+      setSavedTours(list.tours);
+      setTourMessage("Tour gespeichert.");
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    }
+  }
+
+  function loadTour(tour: SavedTourDto) {
+    try {
+      const plan = parseRoutePlan(tour.routeData);
+      dispatch({ type: "replace", plan });
+      setSelectedWaypointId(null);
+      setActiveTourId(tour.id);
+      setTourMessage(`Tour geladen: ${tour.name}`);
+    } catch {
+      setTourMessage("Diese Tour kann nicht geladen werden.");
+    }
+  }
+
+  function exportGpx() {
+    const routePoints = currentRoutePoints(
+      effectiveComputedRoute,
+      history.present.waypoints.map((waypoint) => waypoint.position),
+    );
+    if (routePoints.length < 2) {
+      setTourMessage("Für GPX Export braucht es mindestens zwei Punkte.");
+      return;
+    }
+
+    const blob = new Blob([exportPointsToGpx(routePoints, defaultTourName())], {
+      type: "application/gpx+xml",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${defaultTourName().replaceAll(/[^\dA-Za-z-]+/g, "-")}.gpx`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setTourMessage("GPX exportiert.");
+  }
+
+  async function importGpxFile(file: File) {
+    setTourMessage(null);
+    try {
+      const plan = importRoutePlanFromGpx(await file.text());
+      dispatch({ type: "replace", plan });
+      setActiveTourId(null);
+      setSelectedWaypointId(null);
+      setTourMessage("GPX importiert. Abschnitte sind vorerst gerade.");
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    }
   }
 
   function closeLoop() {
@@ -397,6 +544,7 @@ export function App() {
     const id = nextWaypointId(waypointCounterRef);
     dispatch({
       type: "add-waypoint",
+      segmentMode: drawingMode,
       waypoint: { id, position: firstWaypoint.position },
     });
     setSelectedWaypointId(id);
@@ -447,9 +595,115 @@ export function App() {
       <section className="plannerLayout" aria-label="Routenplaner">
         <aside className="sidebar">
           <div className="sidebarHeader">
-            <h1>Trailrunde planen</h1>
+            <h1>Tour zeichnen</h1>
             <p>Klick setzt Punkte. Linie ziehen verfeinert die Runde.</p>
           </div>
+
+          <section className="accountPanel" aria-label="Konto und Touren">
+            {authState.authenticated ? (
+              <>
+                <div className="accountIdentity">
+                  <span>Angemeldet</span>
+                  <strong>{authState.user?.username}</strong>
+                </div>
+                <button type="button" onClick={saveTour}>
+                  Speichern
+                </button>
+                <select
+                  aria-label="Gespeicherte Tour laden"
+                  value={activeTourId ?? ""}
+                  onChange={(event) => {
+                    const tour = savedTours.find(
+                      (item) => item.id === event.currentTarget.value,
+                    );
+                    if (tour) {
+                      loadTour(tour);
+                    }
+                  }}
+                >
+                  <option value="">Tour laden</option>
+                  {savedTours.map((tour) => (
+                    <option key={tour.id} value={tour.id}>
+                      {tour.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={submitLogout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  aria-label="Benutzername"
+                  placeholder="Benutzername"
+                  value={authUsername}
+                  onChange={(event) => setAuthUsername(event.currentTarget.value)}
+                />
+                <input
+                  aria-label="Passwort"
+                  placeholder="Passwort"
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.currentTarget.value)}
+                />
+                <button type="button" onClick={() => submitLogin("login")}>
+                  Login
+                </button>
+                <button type="button" onClick={() => submitLogin("register")}>
+                  Registrieren
+                </button>
+              </>
+            )}
+          </section>
+
+          {tourMessage ? (
+            <div className="tourMessage" aria-live="polite">
+              {tourMessage}
+            </div>
+          ) : null}
+          <input
+            ref={gpxInputRef}
+            className="hiddenFileInput"
+            type="file"
+            accept=".gpx,application/gpx+xml,application/xml,text/xml"
+            aria-label="GPX importieren"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0] ?? null;
+              event.currentTarget.value = "";
+              if (file) {
+                void importGpxFile(file);
+              }
+            }}
+          />
+
+          <section className="drawModePanel" aria-label="Zeichnen">
+            <div>
+              <strong>Zeichnen</strong>
+              <span>
+                {drawingMode === "routed"
+                  ? "Magnet folgt Wegen"
+                  : "Neue Abschnitte gerade"}
+              </span>
+            </div>
+            <div className="drawModeButtons" role="group" aria-label="Zeichenmodus">
+              <button
+                type="button"
+                aria-pressed={drawingMode === "routed"}
+                onClick={() => setDrawingMode("routed")}
+              >
+                Magnet
+              </button>
+              <button
+                type="button"
+                aria-pressed={drawingMode === "straight"}
+                onClick={() => setDrawingMode("straight")}
+              >
+                Gerade
+              </button>
+            </div>
+          </section>
+
           <dl className="runSummaryGrid" aria-label="Trailrunning Kennzahlen">
             <div>
               <dt>Distanz</dt>
@@ -577,6 +831,19 @@ export function App() {
               onClick={clearRoute}
             >
               Leeren
+            </button>
+            <button
+              type="button"
+              onClick={() => gpxInputRef.current?.click()}
+            >
+              GPX Import
+            </button>
+            <button
+              type="button"
+              disabled={history.present.waypoints.length < 2}
+              onClick={exportGpx}
+            >
+              GPX Export
             </button>
           </div>
 
@@ -798,6 +1065,16 @@ function formatMeters(value: number): string {
   return `${Math.round(value).toLocaleString("de-CH")} m`;
 }
 
+function currentRoutePoints(
+  computedRoute: ComputedRoute | null,
+  waypointPositions: LonLat[],
+): LonLat[] {
+  if (computedRoute && computedRoute.geometry.length >= 2) {
+    return computedRoute.geometry;
+  }
+  return waypointPositions;
+}
+
 function estimateEffortMinutes(
   hikingDurationMinutes: number,
   basePaceMinPerKm: number,
@@ -860,6 +1137,23 @@ function formatPaceInput(minPerKm: number): string {
 
 function formatSpeedKmh(minPerKm: number): string {
   return `${(60 / minPerKm).toFixed(1)} km/h`;
+}
+
+function defaultTourName(): string {
+  return `Tour ${new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date())}`;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Aktion fehlgeschlagen.";
 }
 
 function highestWaypointNumber(ids: string[]): number {

@@ -22,6 +22,38 @@ class RouteComputeRequestSerializer(serializers.Serializer):
     segments = SegmentRequestSerializer(many=True, required=False)
 
 
+class AuthRegisterSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(min_length=8, max_length=128, trim_whitespace=False)
+
+
+class AuthLoginSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(max_length=128, trim_whitespace=False)
+
+
+class SavedTourSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(max_length=160)
+    routeData = serializers.JSONField(source="route_data")
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+
+    def validate_routeData(self, value: object) -> object:
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Route data must be an object.")
+
+        waypoints = value.get("waypoints")
+        segments = value.get("segments")
+        if not isinstance(waypoints, list) or not isinstance(segments, list):
+            raise serializers.ValidationError("Route data must contain waypoints and segments.")
+
+        if len(waypoints) > 200 or len(segments) > 250:
+            raise serializers.ValidationError("Route data is too large.")
+
+        return value
+
+
 class LineStringGeometrySerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=["LineString"])
     coordinates = serializers.ListField(

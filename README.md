@@ -1,86 +1,344 @@
 # Swiss Route Planner
 
-Swiss Route Planner is a focused route-planning web app for Switzerland. The MVP is planning-first: no accounts, activity recording, training analytics, recommendations, payments, or cloud route storage.
+Swiss Route Planner ist eine fokussierte Web-App zum Planen von Routen in der Schweiz. Sie ist bewusst kleiner gehalten als Komoot, Strava oder OpenRunner: Karte, Route zeichnen, Wege folgen, Höhenprofil, Wanderzeit, Schwierigkeitshinweise, GPX und gespeicherte Touren.
 
-## Current Milestone
+Keine Social Features, keine Aktivitätsaufzeichnung, keine Trainingsanalyse, keine Empfehlungen und keine Zahlungen.
 
-Milestone 0 is complete. The current app includes Milestone 1 route editing, the first Milestone 2 routing slice, the first Milestone 3 elevation slice, and a prototype T-difficulty warning overlay: an OpenLayers map shell using official swisstopo basemaps, waypoint add/move/select/delete controls, undo/redo, keyboard delete/undo/redo, reverse/clear, browser-local route restoration, explicit segment modes, a segment legend, backend-computed distance, and a swisstopo-backed elevation/gradient panel with Swiss hiking-time calculation. The frontend calls `/api/v1/route/compute`, `/api/v1/elevation/profile`, and `/api/v1/trails`, ignores stale responses, and keeps the last valid computed route/elevation visible after failures. New segments are routed by default. Clicking an existing route line inserts a waypoint into that segment, then the waypoint can be dragged like any other point. Segments can still be toggled between straight and routed; routed segments call GraphHopper through Django. Straight segments are dashed on the map, routed segments are solid.
+## Funktionen
 
-## Stack
+- Offizielle swisstopo Karten als Hauptkarte
+- Wegpunkte per Klick setzen, verschieben, löschen, umkehren, undo/redo
+- Neue Punkte direkt auf einer bestehenden Linie einfügen
+- Standardmässig Routing entlang Wegen, optional gerade Abschnitte
+- Segmentweise Umschaltung zwischen `Routing` und `Gerade`
+- Distanz, Aufstieg, Abstieg, Höhe, Maximalgradient und hm/km
+- Höhenprofil mit Gradient-Färbung
+- Schweizer Wanderzeit nach segmentbasierter Polynomial-Methode
+- Optionale persönliche Zeitschätzung über eigene min/km Pace
+- Offizielle swisstopo Wanderweg-Kategorien
+- OSM `sac_scale` Schwierigkeit als Zusatzhinweis
+- Schwarze Warnmarker nur auf den passenden schwierigen Teilsegmenten
+- Session-Login und gespeicherte Touren
+- GPX Import und Export
 
-- Backend: Python 3.13-compatible Django 5.2 LTS, Django REST Framework, drf-spectacular, pytest, Ruff.
-- Frontend: React 19, strict TypeScript, Vite 8, ECharts, Vitest, React Testing Library.
-- Maps and route data: swisstopo vector tiles are wired in the frontend; GraphHopper routing, swisstopo elevation profiles, and OSM trail difficulty data go through Django adapters.
+## Aktueller Stand
 
-## Setup
+Das Projekt ist ein lokaler MVP/Prototyp. Die Kernplanung funktioniert, inklusive Routing über GraphHopper, Höhenprofil über swisstopo und lokalem OSM/swisstopo Trail-Matching für Schwierigkeitshinweise.
 
-Copy environment defaults:
+Persistenz ist absichtlich klein:
+
+- Aktive Route bleibt im Browser Local Storage.
+- Login nutzt Django Sessions.
+- Gespeicherte Touren liegen in SQLite.
+- Keine Cloud-Synchronisierung und keine öffentlichen Profile.
+
+## Architektur
+
+```text
+frontend React/Vite/OpenLayers
+        |
+        | /api/v1/*
+        v
+backend Django REST Framework
+        |
+        +-- GraphHopper: Routing auf OSM Schweiz
+        +-- swisstopo: Höhenprofil und offizielle Daten
+        +-- lokaler OSM Index: sac_scale Schwierigkeit
+```
+
+Wichtige Verzeichnisse:
+
+```text
+backend/                  Django API
+backend/planner/api/      HTTP Views, Serializer, URLs
+backend/planner/domain/   reine Berechnungen
+backend/planner/services/ Orchestrierung
+backend/planner/integrations/ externe Adapter
+frontend/src/app/         App Shell
+frontend/src/features/    Karte, Route, Höhenprofil, Trail Difficulty
+frontend/src/services/    typisierte API Wrapper
+docs/                     Architektur und Datenquellen
+```
+
+## Voraussetzungen
+
+Empfohlen:
+
+- Docker und Docker Compose
+- `make`
+
+Für lokale Entwicklung ohne Docker:
+
+- Python 3.13 oder kompatibel
+- `uv`
+- Node `^20.19.0 || >=22.12.0`
+- npm
+- Docker trotzdem für GraphHopper
+
+## Installation Mit Docker Compose
+
+1. Umgebung vorbereiten:
 
 ```bash
 cp .env.example .env
 ```
 
-Install dependencies:
+Die Beispielwerte sind Docker-freundlich. Für rein lokale Entwicklung können die `OSM_*` und `SWISSTOPO_TRAILS_*_PATH` Werte in `.env` weggelassen werden; dann nutzt Django die Projektpfade unter `data/`.
 
-```bash
-make bootstrap
-```
-
-Run both development servers:
-
-```bash
-make dev
-```
-
-Backend API:
-
-```text
-GET http://127.0.0.1:8000/api/v1/health
-POST http://127.0.0.1:8000/api/v1/route/compute
-POST http://127.0.0.1:8000/api/v1/elevation/profile
-GET http://127.0.0.1:8000/api/schema/
-GET http://127.0.0.1:8000/api/docs/
-```
-
-Frontend:
-
-```text
-http://127.0.0.1:5173
-```
-
-The frontend toolchain requires Node `^20.19.0 || >=22.12.0`. The checked CI configuration uses Node 24.
-
-For routed segments, run a GraphHopper server with a Swiss OSM extract:
+2. GraphHopper OSM-Extrakt laden und GraphHopper starten:
 
 ```bash
 make graphhopper
 ```
 
-This downloads `data/osm/switzerland-latest.osm.pbf` from Geofabrik when missing and starts GraphHopper on port `8989` with its graph cache under `data/graphhopper/`. Both paths are ignored by git. For the local `make dev` flow, keep:
+Das lädt bei Bedarf `data/osm/switzerland-latest.osm.pbf` und baut später den GraphHopper-Cache unter `data/graphhopper/`. Beides ist von git ignoriert.
+
+3. Backend und Frontend starten:
 
 ```bash
+docker compose up backend frontend
+```
+
+4. Datenbankmigrationen ausführen:
+
+```bash
+docker compose exec backend uv run python manage.py migrate
+```
+
+5. App öffnen:
+
+```text
+http://127.0.0.1:5173
+```
+
+Backend API:
+
+```text
+http://127.0.0.1:8000/api/v1/health
+http://127.0.0.1:8000/api/docs/
+```
+
+## Lokale Installation
+
+1. Umgebung vorbereiten:
+
+```bash
+cp .env.example .env
+```
+
+2. Dependencies installieren:
+
+```bash
+make bootstrap
+```
+
+3. GraphHopper starten:
+
+```bash
+make graphhopper
+```
+
+4. Django Migrationen ausführen:
+
+```bash
+cd backend
+uv run python manage.py migrate
+```
+
+5. Backend und Frontend starten:
+
+```bash
+make dev
+```
+
+Danach läuft:
+
+```text
+Frontend: http://127.0.0.1:5173
+Backend:  http://127.0.0.1:8000
+```
+
+## Bedienung
+
+### Route Zeichnen
+
+- Klick auf die Karte setzt einen Wegpunkt.
+- Im Modus `Magnet` folgt ein neuer Abschnitt Wegen über GraphHopper.
+- Im Modus `Gerade` wird ein direkter Abschnitt gezeichnet.
+- Wegpunkte können gezogen werden.
+- Klick auf einen Wegpunkt selektiert ihn; danach kann er gelöscht werden.
+- Linie anklicken/ziehen fügt einen neuen Zwischenpunkt ein.
+- Abschnitte können einzeln zwischen `Routing` und `Gerade` umgeschaltet werden.
+
+Wenn Routing fehlschlägt, bleibt die letzte gültige Route sichtbar. Die App ersetzt fehlgeschlagenes Routing nicht still durch eine gerade Linie.
+
+### Höhenprofil Und Zeit
+
+Das Höhenprofil basiert auf swisstopo Höhenprofil-Daten. Die App glättet die Höhenwerte, berechnet Gradient über kurze Distanzfenster und zeigt den Gradient als Farbbänder im Profil.
+
+Die Wanderzeit wird nicht aus totaler Distanz plus totalem Aufstieg geschätzt. Stattdessen:
+
+```text
+Route
+-> swisstopo Höhenprofil
+-> geglättete Höhen
+-> 50-m-Segmente
+-> Steigung pro Segment
+-> Schweizer Polynomial-Methode
+-> Summe der Segmentzeiten
+```
+
+Optional kann eine persönliche Pace in `min/km` aktiviert werden. Diese ist eine einfache kalibrierte Zeitschätzung und ersetzt nicht die offizielle Wanderzeit-Berechnung.
+
+### Wanderwege Und Schwierigkeit
+
+Die offizielle swisstopo Wanderweg-Darstellung bleibt die Hauptinformation:
+
+- Wanderweg
+- Bergwanderweg
+- Alpinwanderweg
+
+OSM `sac_scale` wird als Zusatzinformation verwendet. Fehlende Schwierigkeit ist unbekannt, nie automatisch T1.
+
+Die schwarzen Warnmarker erscheinen nur, wenn ein OSM-Segment zuverlässig zu einem offiziellen swisstopo Weg passt und die Kombination explizit als Warnung definiert ist:
+
+- Bergwanderweg + T3
+- Alpinwanderweg + T5
+- Alpinwanderweg + T6
+
+Die Schwierigkeit wird nicht auf den ganzen swisstopo Weg übertragen.
+
+### Login Und Touren Speichern
+
+Registrierung und Login laufen lokal über Django Sessions. Nach dem Login kann die aktuelle Route als Tour gespeichert und später wieder geladen werden.
+
+Gespeicherte Touren enthalten den normalisierten Route-Plan mit Wegpunkten und Segmentmodi. Ein Benutzer kann nur eigene Touren lesen, ändern oder löschen.
+
+### GPX Import/Export
+
+GPX Export schreibt die berechnete Route, falls vorhanden. Wenn noch keine berechnete Route vorhanden ist, werden die Wegpunkte exportiert.
+
+GPX Import liest lokale `trkpt`, `rtept` oder `wpt` Koordinaten und erstellt daraus eine editierbare manuelle Route mit geraden Segmenten. Importierte GPX-Dateien werden nicht automatisch neu geroutet.
+
+## Wichtige API Endpunkte
+
+```http
+GET    /api/v1/health
+POST   /api/v1/route/compute
+POST   /api/v1/elevation/profile
+GET    /api/v1/trails?bbox=minLon,minLat,maxLon,maxLat&zoom=14
+
+GET    /api/v1/auth/session
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+POST   /api/v1/auth/logout
+
+GET    /api/v1/tours
+POST   /api/v1/tours
+GET    /api/v1/tours/{id}
+PATCH  /api/v1/tours/{id}
+DELETE /api/v1/tours/{id}
+```
+
+OpenAPI:
+
+```text
+http://127.0.0.1:8000/api/schema/
+http://127.0.0.1:8000/api/docs/
+```
+
+## Datenquellen
+
+- swisstopo Karten: offizielle Schweizer Karten und Basiskarten
+- swisstopo Höhenprofil: `https://api3.geo.admin.ch/rest/services/profile.json`
+- GraphHopper: Routing auf lokalem OSM Schweiz Extrakt
+- OpenStreetMap: Wege und `sac_scale` Schwierigkeit
+- swisstopo OGD: offizielle Wanderweg-Kategorien für Matching
+
+Details und Einschränkungen stehen in [docs/data-sources.md](docs/data-sources.md).
+
+## Konfiguration
+
+Die wichtigsten Variablen stehen in `.env.example`:
+
+```bash
+DJANGO_DEBUG=true
+DJANGO_SECRET_KEY=change-me-in-development
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5173
+
 GRAPHHOPPER_BASE_URL=http://localhost:8989
+GRAPHHOPPER_PROFILE=hike
+
+SWISSTOPO_BASE_URL=https://api3.geo.admin.ch
+
+OSM_PBF_PATH=/app/data/osm/switzerland-latest.osm.pbf
+OSM_TRAIL_INDEX_PATH=/app/data/osm/trails.sqlite3
 ```
 
-When running the backend through Docker Compose, `compose.yaml` points the backend at `http://graphhopper:8989`.
-
-The official hiking-trail display uses the fast swisstopo WMTS layer. The OSM supplement uses `data/osm/switzerland-latest.osm.pbf`; on the first `/api/v1/trails` request, the backend builds `data/osm/trails.sqlite3`, then viewport requests use that local SQLite index. Official swisstopo hiking-trail categories are also read from the `ch.swisstopo.swisstlm3d-wanderwege` GeoPackage cached under `data/swisstopo/`, but only inside the backend matching process. The normal API response emits summary counts plus the small black warning-overlay marker geometries only. Match Debug can request all matched/ambiguous/OSM-only segments, but it is hidden unless `VITE_DEV_TOOLS=true`.
-
-Elevation uses the public swisstopo profile service by default:
+Für Docker Compose zeigt der Backend-Container automatisch auf:
 
 ```bash
-SWISSTOPO_BASE_URL=https://api3.geo.admin.ch
+GRAPHHOPPER_BASE_URL=http://graphhopper:8989
 ```
 
-## Commands
+Für lokale Entwicklung ohne Docker sind die Default-Pfade meist besser als die `/app/...` Pfade aus `.env.example`. Diese Variablen können dann aus `.env` entfernt oder auf absolute lokale Pfade gesetzt werden.
+
+## Entwicklung
+
+Tests:
 
 ```bash
 make test
+```
+
+Lint:
+
+```bash
 make lint
+```
+
+Formatierung:
+
+```bash
 make format
+```
+
+Build:
+
+```bash
 make build
 ```
 
-## Data Sources
+Einzelne Checks:
 
-The planned production data sources are documented in [docs/data-sources.md](docs/data-sources.md). All external services must be accessed through backend adapters, with explicit timeouts, response validation, and tests that do not make live network calls.
+```bash
+cd backend
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+
+cd frontend
+npm run lint
+npm run typecheck
+npm run test -- --run
+npm run build
+```
+
+Hinweis: In manchen lokalen Umgebungen ist die Node-Version für das Frontend-Linting zu alt. Die Docker-Frontend-Umgebung nutzt Node 24.
+
+## Projektregeln
+
+- Schweiz zuerst.
+- Planung zuerst.
+- Externe Dienste nur über Backend-Adapter.
+- Keine Live-Netzwerkaufrufe in Unit Tests.
+- Fehlende OSM Schwierigkeit bleibt unbekannt.
+- Kein stiller Fallback von Routing auf gerade Linie.
+- Keine grossen Frameworks oder Abstraktionen ohne konkreten Bedarf.
+- Neue Features klein, testbar und dokumentiert halten.
+
+## Weitere Dokumentation
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/data-sources.md](docs/data-sources.md)

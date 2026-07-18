@@ -143,3 +143,7 @@ all other cases     -> no warning overlay
 ```
 
 The warning overlay is rendered as small black `+` markers along the affected OSM segment so the official swisstopo colour remains visible underneath.
+
+## GPX Files
+
+GPX import/export is a local browser file operation. Export writes a GPX 1.1 track from the active route geometry. Import reads track, route, or waypoint coordinates and creates a straight manual route from sampled points. Imported files are not sent to an external service and are not automatically re-routed.

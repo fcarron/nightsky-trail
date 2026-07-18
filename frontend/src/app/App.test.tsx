@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -174,7 +180,14 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole("button", { name: "Gerade" }));
+    await user.click(screen.getByText("Abschnitte"));
+    const segmentPanel = screen.getByText("Abschnitte").closest("details");
+    expect(segmentPanel).not.toBeNull();
+    await user.click(
+      within(segmentPanel as HTMLElement).getByRole("button", {
+        name: "Gerade",
+      }),
+    );
 
     await waitFor(() =>
       expect(screen.getByText("2.35 km")).toBeInTheDocument(),
@@ -255,6 +268,15 @@ function createFetchMock(
     if (url.endsWith("/api/v1/health")) {
       return Promise.resolve(
         new Response(JSON.stringify({ status: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    if (url.endsWith("/api/v1/auth/session")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ authenticated: false, user: null }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),

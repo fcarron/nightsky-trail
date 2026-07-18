@@ -13,13 +13,18 @@ export interface PlannerHistory {
 }
 
 export type PlannerAction =
-  | { type: "add-waypoint"; waypoint: { id: string; position: LonLat } }
+  | {
+      type: "add-waypoint";
+      waypoint: { id: string; position: LonLat };
+      segmentMode?: SegmentMode;
+    }
   | {
       type: "insert-waypoint";
       segmentId: string;
       waypoint: { id: string; position: LonLat };
     }
   | { type: "move-waypoint"; id: string; position: LonLat }
+  | { type: "replace"; plan: RoutePlan }
   | { type: "set-segment-mode"; id: string; mode: SegmentMode }
   | { type: "delete-waypoint"; id: string }
   | { type: "clear" }
@@ -54,7 +59,10 @@ export function routePlannerReducer(
 ): PlannerHistory {
   switch (action.type) {
     case "add-waypoint":
-      return commit(history, addWaypoint(history.present, action.waypoint));
+      return commit(
+        history,
+        addWaypoint(history.present, action.waypoint, action.segmentMode),
+      );
 
     case "insert-waypoint":
       return commit(
@@ -71,6 +79,9 @@ export function routePlannerReducer(
         ),
         segments: history.present.segments,
       });
+
+    case "replace":
+      return commit(history, action.plan);
 
     case "set-segment-mode":
       return commit(history, {
@@ -163,14 +174,18 @@ function commit(history: PlannerHistory, nextPlan: RoutePlan): PlannerHistory {
   };
 }
 
-function addWaypoint(plan: RoutePlan, waypoint: Waypoint): RoutePlan {
+function addWaypoint(
+  plan: RoutePlan,
+  waypoint: Waypoint,
+  segmentMode: SegmentMode = "routed",
+): RoutePlan {
   const previousWaypoint = plan.waypoints.at(-1);
   return {
     waypoints: [...plan.waypoints, waypoint],
     segments: previousWaypoint
       ? [
           ...plan.segments,
-          createRoutedSegment(previousWaypoint.id, waypoint.id),
+          createSegment(previousWaypoint.id, waypoint.id, segmentMode),
         ]
       : plan.segments,
   };

@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  AuthSessionResponse,
   CombinedTrailSegmentDto,
   ComputedRouteSegmentDto,
   ElevationProfilePointDto,
@@ -11,6 +12,8 @@ import type {
   OsmWayDto,
   RouteComputeRequest,
   RouteComputeResponse,
+  SavedTourListResponse,
+  SavedTourResponse,
   TrailsResponse,
 } from "../types/api";
 
@@ -29,6 +32,93 @@ export async function getHealth(signal?: AbortSignal): Promise<HealthResponse> {
   }
 
   return payload;
+}
+
+export async function getAuthSession(
+  signal?: AbortSignal,
+): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/session`, {
+    credentials: "include",
+    signal,
+  });
+  const payload: unknown = await response.json();
+
+  if (!response.ok || !isAuthSessionResponse(payload)) {
+    throw new Error("Auth session returned an invalid response.");
+  }
+
+  return payload;
+}
+
+export async function registerAccount(
+  username: string,
+  password: string,
+): Promise<AuthSessionResponse> {
+  return submitAuthRequest("/api/v1/auth/register", username, password);
+}
+
+export async function loginAccount(
+  username: string,
+  password: string,
+): Promise<AuthSessionResponse> {
+  return submitAuthRequest("/api/v1/auth/login", username, password);
+}
+
+export async function logoutAccount(): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+    credentials: "include",
+    method: "POST",
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(toApiError(payload, "Logout failed", response.status));
+  }
+  if (!isAuthSessionResponse(payload)) {
+    throw new Error("Logout returned an invalid response.");
+  }
+  return payload;
+}
+
+export async function listSavedTours(
+  signal?: AbortSignal,
+): Promise<SavedTourListResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tours`, {
+    credentials: "include",
+    signal,
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(toApiError(payload, "Tour list failed", response.status));
+  }
+  if (!isSavedTourListResponse(payload)) {
+    throw new Error("Tour list returned an invalid response.");
+  }
+  return payload;
+}
+
+export async function createSavedTour(
+  name: string,
+  routeData: unknown,
+): Promise<SavedTourResponse> {
+  return submitTourRequest("/api/v1/tours", "POST", { name, routeData });
+}
+
+export async function updateSavedTour(
+  id: string,
+  data: { name?: string; routeData?: unknown },
+): Promise<SavedTourResponse> {
+  return submitTourRequest(`/api/v1/tours/${id}`, "PATCH", data);
+}
+
+export async function deleteSavedTour(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tours/${id}`, {
+    credentials: "include",
+    method: "DELETE",
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(toApiError(payload, "Tour delete failed", response.status));
+  }
 }
 
 export async function computeRoute(
@@ -148,12 +238,103 @@ export class ApiRequestError extends Error {
   }
 }
 
+async function submitAuthRequest(
+  path: string,
+  username: string,
+  password: string,
+): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify({ password, username }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(toApiError(payload, "Authentication failed", response.status));
+  }
+  if (!isAuthSessionResponse(payload)) {
+    throw new Error("Authentication returned an invalid response.");
+  }
+  return payload;
+}
+
+async function submitTourRequest(
+  path: string,
+  method: "POST" | "PATCH",
+  body: Record<string, unknown>,
+): Promise<SavedTourResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method,
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(toApiError(payload, "Tour request failed", response.status));
+  }
+  if (!isSavedTourResponse(payload)) {
+    throw new Error("Tour request returned an invalid response.");
+  }
+  return payload;
+}
+
+function toApiError(payload: unknown, message: string, status: number): ApiErrorResponse {
+  return isApiErrorResponse(payload)
+    ? payload
+    : {
+        code: "request_failed",
+        message: `${message} with HTTP ${status}`,
+        details: {},
+      };
+}
+
 function isHealthResponse(payload: unknown): payload is HealthResponse {
   return (
     typeof payload === "object" &&
     payload !== null &&
     "status" in payload &&
     payload.status === "ok"
+  );
+}
+
+function isAuthSessionResponse(
+  payload: unknown,
+): payload is AuthSessionResponse {
+  return (
+    isRecord(payload) &&
+    typeof payload.authenticated === "boolean" &&
+    (payload.user === null ||
+      (isRecord(payload.user) &&
+        typeof payload.user.id === "number" &&
+        Number.isFinite(payload.user.id) &&
+        typeof payload.user.username === "string"))
+  );
+}
+
+function isSavedTourListResponse(
+  payload: unknown,
+): payload is SavedTourListResponse {
+  return (
+    isRecord(payload) &&
+    Array.isArray(payload.tours) &&
+    payload.tours.every(isSavedTour)
+  );
+}
+
+function isSavedTourResponse(payload: unknown): payload is SavedTourResponse {
+  return isRecord(payload) && isSavedTour(payload.tour);
+}
+
+function isSavedTour(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
+    typeof payload.id === "string" &&
+    typeof payload.name === "string" &&
+    "routeData" in payload &&
+    typeof payload.createdAt === "string" &&
+    typeof payload.updatedAt === "string"
   );
 }
 

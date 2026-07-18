@@ -12,16 +12,18 @@ Required features:
 * optional straight-line segments;
 * distance, ascent, descent, elevation, and gradient;
 * optional OSM hiking difficulty (`sac_scale`, T1–T6);
-* GPX import and export.
+* GPX import and export;
+* lightweight login and saved tours.
 
 Keep it smaller than OpenRunner, Komoot, or Strava.
 
-Do not add social features, activity recording, training analysis, recommendations, payments, authentication, or cloud synchronization unless explicitly requested.
+Do not add social features, activity recording, training analysis, recommendations, payments, or cloud synchronization unless explicitly requested.
 
 ## Principles
 
 * Planning first; Switzerland first.
-* No account or server-side route storage for the MVP.
+* Keep accounts and server-side storage limited to lightweight session login and user-owned saved tours.
+* No social graph, public profiles, sharing feed, activity recording, or cloud synchronization for the MVP.
 * Build small complete milestones.
 * Keep data sources and limitations visible.
 * Missing OSM difficulty is unknown, never T1.
@@ -231,6 +233,15 @@ GET  /api/v1/health
 POST /api/v1/route/compute
 POST /api/v1/elevation/profile
 GET  /api/v1/trails?bbox=minLon,minLat,maxLon,maxLat&zoom=14
+GET  /api/v1/auth/session
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+GET  /api/v1/tours
+POST /api/v1/tours
+GET  /api/v1/tours/{id}
+PATCH /api/v1/tours/{id}
+DELETE /api/v1/tours/{id}
 ```
 
 Route requests contain waypoints, profile, optional maximum T level, and the policy for unknown difficulty.
@@ -253,6 +264,8 @@ Rules:
 * preserve segment metadata.
 
 Elevation responses contain distance, ascent/descent, min/max elevation, and points with distance, elevation, smoothed elevation, gradient, longitude, and latitude.
+
+Saved-tour responses contain the route name, timestamps, and normalized route plan JSON for the authenticated user. A user must never be able to read, update, or delete another user's tours.
 
 Use a consistent error format:
 
@@ -295,16 +308,18 @@ For public deployment, replace Overpass with imported Swiss OSM data and vector 
 
 ## GPX and persistence
 
-GPX import/export preserves geometry, waypoint order, route name, and elevation when present.
+GPX export writes the active route geometry when available, otherwise the waypoint line.
 
-Imported GPX is shown as original geometry. Re-routing is an explicit action.
+GPX import reads local track, route, or waypoint coordinates and creates an editable manual route. Re-routing is an explicit action.
 
 For the MVP:
 
 * keep the active route in frontend state;
 * save the latest route to browser local storage;
-* do not add authentication or cloud storage;
-* add Django models only when explicitly required.
+* support lightweight Django session login;
+* support user-owned saved tours in SQLite;
+* do not add cloud synchronization or public sharing;
+* add Django models only when required by requested persistence features.
 
 ## Integration rules
 
@@ -401,6 +416,7 @@ Implement only the requested milestone.
 4. **T on route:** `hike_rating`, T colouring, distances, unknowns, maximum-T routing.
 5. **T overlay:** cached Overpass prototype with zoom restriction.
 6. **GPX/local:** import/export, reverse, local restoration.
+7. **Persistence:** lightweight session login, saved tours, load/update/delete.
 
 ## Code style
 
@@ -472,4 +488,3 @@ Do not claim a check passed unless it actually ran successfully.
 * https://wiki.openstreetmap.org/wiki/Key:sac_scale
 * https://www.openstreetmap.org/copyright
   ::: 
-

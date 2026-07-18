@@ -26,6 +26,25 @@ class UnprocessableEntity(APIException):
         }
 
 
+class Unauthorized(APIException):
+    status_code = 401
+    default_code = "authentication_required"
+    default_detail = "Authentication is required."
+
+    def __init__(
+        self,
+        code: str = "authentication_required",
+        message: str = "Login is required.",
+        details: dict[str, object] | None = None,
+    ) -> None:
+        self.default_code = code
+        self.detail = {
+            "code": code,
+            "message": message,
+            "details": details or {},
+        }
+
+
 def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response | None:
     response = exception_handler(exc, context)
     if response is None:

@@ -151,6 +151,53 @@ describe("route planner reducer", () => {
     expect(history.present.segments[0].mode).toBe("straight");
   });
 
+  it("uses the requested mode for newly drawn segments", () => {
+    let history = initialPlannerHistory;
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "a", position: { lon: 7.4, lat: 46.9 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      segmentMode: "straight",
+      waypoint: { id: "b", position: { lon: 8.0, lat: 47.0 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      segmentMode: "routed",
+      waypoint: { id: "c", position: { lon: 8.2, lat: 47.1 } },
+    });
+
+    expect(history.present.segments).toEqual([
+      {
+        id: "a-b",
+        fromWaypointId: "a",
+        toWaypointId: "b",
+        mode: "straight",
+      },
+      {
+        id: "b-c",
+        fromWaypointId: "b",
+        toWaypointId: "c",
+        mode: "routed",
+      },
+    ]);
+  });
+
+  it("replaces the active plan when loading a saved tour", () => {
+    const history = routePlannerReducer(initialPlannerHistory, {
+      type: "replace",
+      plan: {
+        waypoints: [{ id: "loaded-a", position: { lon: 7.4, lat: 46.9 } }],
+        segments: [],
+      },
+    });
+
+    expect(history.present.waypoints).toEqual([
+      { id: "loaded-a", position: { lon: 7.4, lat: 46.9 } },
+    ]);
+  });
+
   it("inserts a waypoint into an existing segment and preserves segment mode", () => {
     let history = initialPlannerHistory;
     history = routePlannerReducer(history, {

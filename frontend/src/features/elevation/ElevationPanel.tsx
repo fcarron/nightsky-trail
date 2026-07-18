@@ -95,8 +95,8 @@ export function ElevationPanel({
       grid: {
         left: 44,
         right: 14,
-        top: 18,
-        bottom: 42,
+        top: panelSize === "large" ? 18 : 8,
+        bottom: panelSize === "large" ? 42 : 28,
       },
       tooltip: {
         backgroundColor: "#101923",
@@ -130,7 +130,7 @@ export function ElevationPanel({
           realtime: false,
           fillerColor: "rgba(79, 140, 255, 0.16)",
           handleStyle: { color: "#8fa1ad" },
-          height: 16,
+          height: panelSize === "large" ? 16 : 12,
           labelFormatter: (value: number) => `${value.toFixed(1)} km`,
           selectedDataBackground: {
             areaStyle: { color: "rgba(79, 140, 255, 0.18)" },
@@ -285,35 +285,37 @@ export function ElevationPanel({
 
       {profile ? (
         <>
-          <dl className="elevationStats">
-            <div>
-              <dt>Distanz</dt>
-              <dd>{formatDistance(profile.distanceMeters)}</dd>
-            </div>
-            <div>
-              <dt>Aufstieg</dt>
-              <dd>{formatElevationMeters(profile.ascentMeters)}</dd>
-            </div>
-            <div>
-              <dt>Abstieg</dt>
-              <dd>{formatElevationMeters(profile.descentMeters)}</dd>
-            </div>
-            <div>
-              <dt>Wanderzeit</dt>
-              <dd>{formatDurationMinutes(profile.hikingTime.durationMinutes)}</dd>
-            </div>
-            <div>
-              <dt>Höhe</dt>
-              <dd>
-                {formatElevationMeters(profile.minElevationMeters)}-
-                {formatElevationMeters(profile.maxElevationMeters)}
-              </dd>
-            </div>
-            <div>
-              <dt>Max. Gradient</dt>
-              <dd>{formatGradientPercent(profile.maxAbsGradientPercent)}</dd>
-            </div>
-          </dl>
+          {panelSize === "large" ? (
+            <dl className="elevationStats">
+              <div>
+                <dt>Distanz</dt>
+                <dd>{formatDistance(profile.distanceMeters)}</dd>
+              </div>
+              <div>
+                <dt>Aufstieg</dt>
+                <dd>{formatElevationMeters(profile.ascentMeters)}</dd>
+              </div>
+              <div>
+                <dt>Abstieg</dt>
+                <dd>{formatElevationMeters(profile.descentMeters)}</dd>
+              </div>
+              <div>
+                <dt>Wanderzeit</dt>
+                <dd>{formatDurationMinutes(profile.hikingTime.durationMinutes)}</dd>
+              </div>
+              <div>
+                <dt>Höhe</dt>
+                <dd>
+                  {formatElevationMeters(profile.minElevationMeters)}-
+                  {formatElevationMeters(profile.maxElevationMeters)}
+                </dd>
+              </div>
+              <div>
+                <dt>Max. Gradient</dt>
+                <dd>{formatGradientPercent(profile.maxAbsGradientPercent)}</dd>
+              </div>
+            </dl>
+          ) : null}
           <div className="elevationPanelControls" aria-label="Profilgrösse">
             <button
               type="button"

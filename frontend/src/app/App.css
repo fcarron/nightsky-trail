@@ -1,6 +1,6 @@
 :root {
-  color: #e8eef2;
-  background: #0b1117;
+  color: #1f2933;
+  background: #f4f6f8;
   font-family:
     Inter,
     ui-sans-serif,
@@ -37,8 +37,8 @@ button:disabled {
 .appShell {
   display: grid;
   min-height: 100vh;
-  grid-template-rows: 48px 1fr;
-  background: #0b1117;
+  grid-template-rows: 52px 1fr;
+  background: #f4f6f8;
 }
 
 .topBar {
@@ -46,9 +46,9 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #1d2a36;
-  background: #0f1720;
-  padding: 8px 16px;
+  border-bottom: 1px solid #d8dee5;
+  background: #ffffff;
+  padding: 8px 24px;
 }
 
 .brand {
@@ -58,68 +58,153 @@ button:disabled {
 }
 
 .brand strong {
-  color: #f4f8fb;
+  color: #141821;
   font-size: 15px;
   line-height: 1.15;
 }
 
 .brand span,
 .status {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
 }
 
 .plannerLayout {
-  display: grid;
+  position: relative;
+  overflow: hidden;
+  display: block;
   min-height: 0;
-  grid-template-columns: minmax(300px, 344px) 1fr;
 }
 
 .sidebar {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  width: min(1120px, calc(100vw - 160px));
+  max-height: min(46vh, 430px);
   overflow: auto;
-  border-right: 1px solid #1d2a36;
-  background: #101923;
-  padding: 14px;
+  border: 1px solid #d4dbe3;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -12px 42px rgba(15, 23, 42, 0.24);
+  padding: 0 14px 12px;
 }
 
 .sidebarHeader {
-  margin-bottom: 12px;
+  display: inline-grid;
+  min-width: 180px;
+  margin: 0 0 8px;
+  border-radius: 0 0 0 0;
+  background: #ffffff;
+  padding: 12px 14px 8px 0;
 }
 
 .sidebarHeader h1 {
   margin: 0;
-  color: #f4f8fb;
-  font-size: 20px;
+  color: #111827;
+  font-size: 16px;
   line-height: 1.15;
 }
 
 .sidebarHeader p {
-  margin: 5px 0 0;
-  color: #8fa1ad;
+  margin: 4px 0 0;
+  color: #66717d;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.accountPanel {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #d8dee5;
+  padding: 0 0 8px;
+}
+
+.accountPanel input,
+.accountPanel select,
+.accountPanel button {
+  min-height: 30px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.accountPanel button {
+  color: #d8001f;
+}
+
+.accountPanel button:hover {
+  border-color: #d8001f;
+  background: #fff5f6;
+}
+
+.accountIdentity {
+  display: grid;
+  gap: 2px;
+}
+
+.accountIdentity span {
+  color: #66717d;
+  font-size: 11px;
+}
+
+.accountIdentity strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tourMessage {
+  border-bottom: 1px solid #d8dee5;
+  color: #66717d;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.hiddenFileInput {
+  display: none;
 }
 
 .runSummaryGrid {
   display: grid;
   grid-template-columns: 1.35fr 1fr 1fr 0.75fr;
-  gap: 8px;
-  margin: 0 0 12px;
+  gap: 18px;
+  margin: 0;
+  border-top: 1px solid #d8dee5;
+  border-bottom: 1px solid #d8dee5;
+  padding: 10px 0;
 }
 
 .runSummaryGrid div,
 .waypointEndpoints div,
 .elevationStats div {
-  border: 1px solid #263545;
+  border: 1px solid #d8dee5;
   border-radius: 8px;
-  background: #15212c;
+  background: #f7f9fb;
   padding: 9px;
+}
+
+.runSummaryGrid div {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .runSummaryGrid dt,
 .waypointEndpoints dt,
 .elevationStats dt {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 11px;
 }
 
@@ -127,44 +212,45 @@ button:disabled {
 .waypointEndpoints dd,
 .elevationStats dd {
   margin: 3px 0 0;
-  color: #f4f8fb;
+  color: #111827;
   font-size: 15px;
   font-weight: 750;
 }
 
 .runSummaryGrid div:first-child {
-  border-color: rgba(79, 140, 255, 0.44);
-  background: linear-gradient(180deg, #183049, #15212c);
+  border-color: transparent;
+  background: transparent;
 }
 
 .runSummaryGrid div:first-child dd {
-  color: #d9e8ff;
+  color: #111827;
   font-size: 19px;
 }
 
 .paceCalibration {
   display: grid;
-  grid-template-columns: auto auto minmax(62px, 1fr) auto auto auto;
+  grid-template-columns: auto auto auto minmax(74px, 120px) auto auto auto;
   align-items: center;
   gap: 7px;
-  margin-bottom: 12px;
-  border: 1px solid #263545;
-  border-radius: 9px;
-  background: #0d141c;
-  padding: 8px 10px;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid #d8dee5;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 8px 0;
 }
 
 .paceCalibration label,
 .paceCalibration span {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
 }
 
 .paceModeToggle {
-  grid-column: 1 / -1;
+  grid-column: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: start;
   gap: 8px;
   min-height: 28px;
 }
@@ -175,10 +261,10 @@ button:disabled {
   height: 18px;
   flex: 0 0 auto;
   appearance: none;
-  border: 1px solid #334657;
+  border: 1px solid #cbd5df;
   border-radius: 999px;
-  background: #172532;
-  accent-color: #4f8cff;
+  background: #e9eef3;
+  accent-color: #d8001f;
 }
 
 .paceModeToggle input::after {
@@ -194,53 +280,113 @@ button:disabled {
 }
 
 .paceModeToggle input:checked {
-  border-color: #4f8cff;
-  background: rgba(79, 140, 255, 0.22);
+  border-color: #d8001f;
+  background: rgba(216, 0, 31, 0.12);
 }
 
 .paceModeToggle input:checked::after {
   transform: translateX(16px);
-  background: #d9e8ff;
+  background: #d8001f;
 }
 
 .paceModeToggle span {
-  margin-right: auto;
+  margin-right: 0;
 }
 
 .paceModeToggle strong {
-  color: #d9e8ff;
+  color: #111827;
   font-size: 12px;
 }
 
 .paceCalibration input {
   width: 100%;
   min-height: 30px;
-  border: 1px solid #334657;
-  border-radius: 7px;
-  background: #101923;
-  color: #f4f8fb;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
   padding: 0 8px;
 }
 
 .paceCalibration button {
   min-height: 30px;
-  border: 1px solid #334657;
-  border-radius: 7px;
-  background: #172532;
-  color: #dce7ee;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
   padding: 0 8px;
   font-size: 12px;
 }
 
 .paceCalibration button:hover {
-  border-color: #4f8cff;
-  background: #1d3146;
+  border-color: #d8001f;
+  color: #d8001f;
+  background: #fff5f6;
 }
 
 .paceCalibration strong {
-  color: #d9e8ff;
+  color: #111827;
   font-size: 12px;
   text-align: right;
+}
+
+.drawModePanel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 0;
+  border: 0;
+  border-bottom: 1px solid #d8dee5;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 0 0 8px;
+}
+
+.drawModePanel div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.drawModePanel strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.drawModePanel span {
+  color: #66717d;
+  font-size: 11px;
+}
+
+.drawModeButtons {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(70px, 1fr));
+  gap: 4px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #ffffff;
+  padding: 3px;
+}
+
+.drawModeButtons button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #66717d;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.drawModeButtons button[aria-pressed="true"] {
+  background: #d8001f;
+  color: #ffffff;
+  font-weight: 750;
+}
+
+.drawModeButtons button:hover:not([aria-pressed="true"]) {
+  background: #fff5f6;
+  color: #d8001f;
 }
 
 .loopCard {
@@ -248,11 +394,12 @@ button:disabled {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
-  border: 1px solid #263545;
-  border-radius: 9px;
-  background: #0d141c;
-  padding: 9px 10px;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid #d8dee5;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 7px 0;
 }
 
 .loopCard div {
@@ -261,28 +408,29 @@ button:disabled {
 }
 
 .loopCard span {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 11px;
 }
 
 .loopCard strong {
-  color: #f4f8fb;
+  color: #111827;
   font-size: 14px;
 }
 
 .loopCard button {
   min-height: 32px;
-  border: 1px solid #334657;
-  border-radius: 7px;
-  background: #172532;
-  color: #dce7ee;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
   padding: 0 10px;
   font-size: 12px;
 }
 
 .loopCard button:hover:not(:disabled) {
-  border-color: #4f8cff;
-  background: #1d3146;
+  border-color: #d8001f;
+  color: #d8001f;
+  background: #fff5f6;
 }
 
 .loopCard button:disabled {
@@ -291,34 +439,38 @@ button:disabled {
 }
 
 .loopCard .loopStateClosed {
-  color: #7ddf9b;
+  color: #2f8f2f;
 }
 
 .loopCard .loopStateOpen {
-  color: #ffd166;
+  color: #a36300;
 }
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(7, minmax(0, auto));
+  justify-content: start;
+  gap: 0;
+  border-bottom: 1px solid #d8dee5;
+  padding: 6px 0;
 }
 
 .toolbar button,
 .segmentList button {
   min-height: 34px;
-  border: 1px solid #334657;
-  border-radius: 7px;
-  background: #172532;
-  color: #dce7ee;
-  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid #d8dee5;
+  border-radius: 0;
+  background: transparent;
+  color: #d8001f;
+  padding: 0 14px;
 }
 
 .toolbar button:hover:not(:disabled),
 .segmentList button:hover,
 .waypointDots button:hover {
-  border-color: #4f8cff;
-  background: #1d3146;
+  background: #fff5f6;
+  color: #b60018;
 }
 
 .toolbar button:disabled {
@@ -327,12 +479,11 @@ button:disabled {
 }
 
 .routeStatus {
-  margin-top: 10px;
-  border: 1px solid #263545;
-  border-radius: 8px;
-  background: #0d141c;
-  color: #a8c7ff;
-  padding: 8px 10px;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: #66717d;
+  padding: 0;
   font-size: 12px;
 }
 
@@ -350,13 +501,13 @@ button:disabled {
 .elevationPanel {
   display: grid;
   gap: 9px;
-  margin-top: 12px;
-  border-top: 1px solid #1d2a36;
-  padding-top: 12px;
+  margin-top: 6px;
+  border-top: 1px solid #d8dee5;
+  padding-top: 6px;
 }
 
 .elevationPanel {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .routeEditorPanel {
@@ -374,7 +525,7 @@ button:disabled {
 .sectionHeader h2,
 .panelHeader h2 {
   margin: 0;
-  color: #f4f8fb;
+  color: #111827;
   font-size: 14px;
   line-height: 1.2;
 }
@@ -383,7 +534,7 @@ button:disabled {
 .panelHeader span,
 .panelEmpty,
 .emptyState {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
 }
 
@@ -407,13 +558,13 @@ button:disabled {
 
 .waypointDetails summary {
   cursor: pointer;
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
 }
 
 .waypointDetails[open] summary {
   margin-bottom: 8px;
-  color: #dce7ee;
+  color: #111827;
 }
 
 .selectedPointCard {
@@ -421,9 +572,9 @@ button:disabled {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(255, 92, 122, 0.38);
-  border-radius: 8px;
-  background: rgba(255, 92, 122, 0.08);
+  border: 1px solid rgba(216, 0, 31, 0.28);
+  border-radius: 2px;
+  background: #fff5f6;
   padding: 8px 9px;
 }
 
@@ -433,27 +584,27 @@ button:disabled {
 }
 
 .selectedPointCard span {
-  color: #d9a6b4;
+  color: #8a3b48;
   font-size: 11px;
 }
 
 .selectedPointCard strong {
-  color: #ffe7ed;
+  color: #111827;
   font-size: 14px;
 }
 
 .selectedPointCard button {
   min-height: 30px;
-  border: 1px solid rgba(255, 92, 122, 0.55);
-  border-radius: 7px;
-  background: rgba(255, 92, 122, 0.12);
-  color: #ffd6df;
+  border: 1px solid rgba(216, 0, 31, 0.45);
+  border-radius: 2px;
+  background: #ffffff;
+  color: #d8001f;
   padding: 0 10px;
   font-size: 12px;
 }
 
 .selectedPointCard button:hover {
-  background: rgba(255, 92, 122, 0.2);
+  background: #ffe7ea;
 }
 
 .compactSelectedPoint {
@@ -465,7 +616,7 @@ button:disabled {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #ff5c7a;
+  background: #d8001f;
   content: "";
 }
 
@@ -509,18 +660,18 @@ button:disabled {
   width: 30px;
   height: 30px;
   place-items: center;
-  border: 1px solid #334657;
+  border: 1px solid #cbd5df;
   border-radius: 999px;
-  background: #182634;
-  color: #dce7ee;
+  background: #ffffff;
+  color: #111827;
   font-size: 12px;
   font-weight: 800;
 }
 
 .waypointDots .selectedWaypoint {
-  border-color: #ff5c7a;
-  background: #ff5c7a;
-  color: #230811;
+  border-color: #d8001f;
+  background: #d8001f;
+  color: #ffffff;
 }
 
 .segmentList li {
@@ -532,7 +683,7 @@ button:disabled {
 }
 
 .segmentList span {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
   text-align: center;
 }
@@ -540,6 +691,7 @@ button:disabled {
 .segmentList button {
   width: 100%;
   min-height: 30px;
+  border: 1px solid #cbd5df;
   font-size: 12px;
 }
 
@@ -553,7 +705,7 @@ button:disabled {
   justify-content: space-between;
   gap: 10px;
   cursor: pointer;
-  color: #f4f8fb;
+  color: #111827;
   font-size: 14px;
   font-weight: 750;
   list-style: none;
@@ -564,7 +716,7 @@ button:disabled {
 }
 
 .editorDetails summary::before {
-  color: #8fa1ad;
+  color: #66717d;
   content: "▸";
   font-size: 11px;
 }
@@ -578,7 +730,7 @@ button:disabled {
 }
 
 .editorDetails summary small {
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
   font-weight: 500;
 }
@@ -593,7 +745,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #dce7ee;
+  color: #111827;
   font-size: 12px;
 }
 
@@ -615,20 +767,20 @@ button:disabled {
 }
 
 .debugSummary div {
-  border: 1px solid #3e294b;
-  border-radius: 7px;
-  background: #1b1424;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #f7f9fb;
   padding: 7px;
 }
 
 .debugSummary dt {
-  color: #c08bd8;
+  color: #66717d;
   font-size: 10px;
 }
 
 .debugSummary dd {
   margin: 2px 0 0;
-  color: #ffd6f5;
+  color: #111827;
   font-size: 13px;
   font-weight: 750;
 }
@@ -638,14 +790,14 @@ button:disabled {
   align-items: center;
   gap: 7px;
   margin-top: 12px;
-  color: #8fa1ad;
+  color: #66717d;
   font-size: 12px;
 }
 
 .legendLine {
   width: 28px;
   height: 0;
-  border-top: 4px solid #4f8cff;
+  border-top: 4px solid #1f67d2;
 }
 
 .legendLineStraight {
@@ -669,32 +821,29 @@ button:disabled {
 
 .elevationChart {
   width: 100%;
-  height: 186px;
-  border: 1px solid #263545;
-  border-radius: 8px;
-  background: #0d141c;
+  height: 132px;
+  border: 1px solid #d8dee5;
+  border-radius: 0;
+  background: #ffffff;
 }
 
 .elevationPanel-large .elevationChart {
-  height: 280px;
+  height: 260px;
 }
 
 .elevationPanel-large {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
-  left: 14px;
-  z-index: 45;
+  position: static;
   display: grid;
-  grid-template-columns: minmax(220px, 320px) auto;
+  grid-template-columns: minmax(220px, 280px) minmax(360px, 1fr);
   align-items: start;
   gap: 10px 14px;
-  margin-top: 0;
-  border: 1px solid #263545;
-  border-radius: 10px;
-  background: rgba(16, 25, 35, 0.96);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.42);
-  padding: 12px;
+  margin-top: 6px;
+  border: 0;
+  border-top: 1px solid #d8dee5;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
+  padding: 6px 0 0;
 }
 
 .elevationPanel-large .panelHeader {
@@ -724,25 +873,30 @@ button:disabled {
 
 .elevationPanelControls button {
   min-height: 28px;
-  border: 1px solid #334657;
-  border-radius: 6px;
-  background: #101923;
-  color: #8fa1ad;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #66717d;
   padding: 0 10px;
   font: inherit;
   font-size: 12px;
 }
 
 .elevationPanelControls button[aria-pressed="true"] {
-  border-color: #4f8cff;
-  background: rgba(79, 140, 255, 0.14);
-  color: #f4f8fb;
+  border-color: #d8001f;
+  background: #fff5f6;
+  color: #d8001f;
 }
 
 .mapSurface {
   position: relative;
   min-height: 0;
   background: #0d141c;
+}
+
+.plannerLayout > .mapSurface {
+  position: absolute;
+  inset: 0;
 }
 
 .mapTarget {
@@ -884,8 +1038,8 @@ button:disabled {
 }
 
 .trailLegend {
-  left: 12px;
-  bottom: 34px;
+  right: 12px;
+  bottom: 76px;
   display: grid;
   max-width: 280px;
   gap: 10px;
@@ -965,14 +1119,28 @@ button:disabled {
   }
 
   .plannerLayout {
+    display: grid;
+    overflow: visible;
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
 
   .sidebar {
+    position: relative;
+    inset: auto;
+    z-index: 1;
+    width: auto;
     max-height: 46vh;
+    border: 0;
+    border-radius: 0;
     border-right: 0;
     border-bottom: 1px solid #1d2a36;
+    box-shadow: none;
+  }
+
+  .plannerLayout > .mapSurface {
+    position: relative;
+    min-height: 54vh;
   }
 
   .runSummaryGrid {
