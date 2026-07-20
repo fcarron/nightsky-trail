@@ -93,13 +93,28 @@ button:disabled {
   padding: 0 14px 12px;
 }
 
+.routeDock {
+  display: grid;
+  grid-template-columns:
+    minmax(160px, 240px)
+    minmax(360px, 1fr)
+    auto
+    minmax(250px, auto)
+    auto;
+  align-items: center;
+  gap: 8px 14px;
+  max-height: min(72vh, 720px);
+  overflow: visible;
+  padding: 10px 14px;
+}
+
 .sidebarHeader {
   display: inline-grid;
   min-width: 180px;
-  margin: 0 0 8px;
+  margin: 0;
   border-radius: 0 0 0 0;
   background: #ffffff;
-  padding: 12px 14px 8px 0;
+  padding: 0;
 }
 
 .sidebarHeader h1 {
@@ -116,6 +131,62 @@ button:disabled {
   line-height: 1.35;
 }
 
+.routeDock .sidebarHeader {
+  min-width: 0;
+}
+
+.routeDock .sidebarHeader h1 {
+  font-size: 17px;
+}
+
+.routeDock .sidebarHeader p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manageMenu {
+  position: relative;
+  justify-self: end;
+  order: 5;
+}
+
+.manageMenu summary {
+  min-height: 34px;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #d8001f;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.manageMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.manageMenu[open] summary,
+.manageMenu summary:hover {
+  border-color: #d8001f;
+  background: #fff5f6;
+}
+
+.managePanel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  gap: 8px;
+  border: 1px solid #d4dbe3;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.24);
+  padding: 10px;
+}
+
 .accountPanel {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto auto;
@@ -123,6 +194,12 @@ button:disabled {
   gap: 7px;
   border-bottom: 1px solid #d8dee5;
   padding: 0 0 8px;
+}
+
+.managePanel .accountPanel {
+  grid-template-columns: 1fr;
+  border-bottom: 0;
+  padding: 0;
 }
 
 .accountPanel input,
@@ -165,9 +242,10 @@ button:disabled {
 }
 
 .tourMessage {
-  border-bottom: 1px solid #d8dee5;
+  grid-column: 1 / -1;
+  border-top: 1px solid #d8dee5;
   color: #66717d;
-  padding: 6px 0;
+  padding: 6px 0 0;
   font-size: 12px;
 }
 
@@ -183,6 +261,11 @@ button:disabled {
   border-top: 1px solid #d8dee5;
   border-bottom: 1px solid #d8dee5;
   padding: 10px 0;
+}
+
+.routeDock .runSummaryGrid {
+  border: 0;
+  padding: 0;
 }
 
 .runSummaryGrid div,
@@ -332,15 +415,15 @@ button:disabled {
 
 .drawModePanel {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto;
   align-items: center;
   gap: 10px;
   margin: 0 0 0;
   border: 0;
-  border-bottom: 1px solid #d8dee5;
+  border-bottom: 0;
   border-radius: 0;
   background: #ffffff;
-  padding: 0 0 8px;
+  padding: 0;
 }
 
 .drawModePanel div:first-child {
@@ -448,15 +531,24 @@ button:disabled {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, auto));
+  grid-template-columns: repeat(5, minmax(0, auto));
   justify-content: start;
   gap: 0;
   border-bottom: 1px solid #d8dee5;
   padding: 6px 0;
 }
 
+.quickToolbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, auto));
+  justify-content: start;
+  gap: 0;
+}
+
 .toolbar button,
-.segmentList button {
+.segmentList button,
+.quickToolbar button,
+.fileActions button {
   min-height: 34px;
   border: 0;
   border-right: 1px solid #d8dee5;
@@ -467,15 +559,30 @@ button:disabled {
 }
 
 .toolbar button:hover:not(:disabled),
+.quickToolbar button:hover:not(:disabled),
+.fileActions button:hover:not(:disabled),
 .segmentList button:hover,
 .waypointDots button:hover {
   background: #fff5f6;
   color: #b60018;
 }
 
-.toolbar button:disabled {
+.toolbar button:disabled,
+.quickToolbar button:disabled,
+.fileActions button:disabled {
   color: #647783;
   opacity: 0.65;
+}
+
+.fileActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #d8dee5;
+  padding-top: 8px;
+}
+
+.fileActions button {
+  border: 1px solid #cbd5df;
 }
 
 .routeStatus {
@@ -488,6 +595,7 @@ button:disabled {
 }
 
 .routeWarnings {
+  grid-column: 1 / -1;
   display: grid;
   gap: 6px;
   margin: 10px 0 0;
@@ -504,6 +612,54 @@ button:disabled {
   margin-top: 6px;
   border-top: 1px solid #d8dee5;
   padding-top: 6px;
+}
+
+.detailDrawer {
+  grid-column: 1 / -1;
+  overflow: auto;
+  max-height: min(54vh, 540px);
+  border-top: 1px solid #d8dee5;
+}
+
+.detailDrawer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  cursor: pointer;
+  list-style: none;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.detailDrawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.detailDrawer > summary::before {
+  color: #d8001f;
+  content: "^";
+  font-size: 16px;
+}
+
+.detailDrawer[open] > summary::before {
+  content: "v";
+}
+
+.detailDrawer > summary span {
+  margin-right: auto;
+}
+
+.detailDrawer > summary small {
+  color: #66717d;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.detailDrawer:not([open]) {
+  max-height: 38px;
 }
 
 .elevationPanel {

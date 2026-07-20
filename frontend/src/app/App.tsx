@@ -193,6 +193,7 @@ export function App() {
     () => summarizeGraphhopperDebug(effectiveComputedRoute),
     [effectiveComputedRoute],
   );
+  const activeTour = savedTours.find((tour) => tour.id === activeTourId) ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -593,69 +594,88 @@ export function App() {
       </header>
 
       <section className="plannerLayout" aria-label="Routenplaner">
-        <aside className="sidebar">
+        <aside className="sidebar routeDock">
           <div className="sidebarHeader">
             <h1>Tour zeichnen</h1>
-            <p>Klick setzt Punkte. Linie ziehen verfeinert die Runde.</p>
+            <p>
+              {activeTour?.name ?? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."}
+            </p>
           </div>
 
-          <section className="accountPanel" aria-label="Konto und Touren">
-            {authState.authenticated ? (
-              <>
-                <div className="accountIdentity">
-                  <span>Angemeldet</span>
-                  <strong>{authState.user?.username}</strong>
-                </div>
-                <button type="button" onClick={saveTour}>
-                  Speichern
+          <details className="manageMenu">
+            <summary>Tour</summary>
+            <div className="managePanel">
+              <section className="accountPanel" aria-label="Konto und Touren">
+                {authState.authenticated ? (
+                  <>
+                    <div className="accountIdentity">
+                      <span>Angemeldet</span>
+                      <strong>{authState.user?.username}</strong>
+                    </div>
+                    <button type="button" onClick={saveTour}>
+                      Speichern
+                    </button>
+                    <select
+                      aria-label="Gespeicherte Tour laden"
+                      value={activeTourId ?? ""}
+                      onChange={(event) => {
+                        const tour = savedTours.find(
+                          (item) => item.id === event.currentTarget.value,
+                        );
+                        if (tour) {
+                          loadTour(tour);
+                        }
+                      }}
+                    >
+                      <option value="">Tour laden</option>
+                      {savedTours.map((tour) => (
+                        <option key={tour.id} value={tour.id}>
+                          {tour.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={submitLogout}>
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      aria-label="Benutzername"
+                      placeholder="Benutzername"
+                      value={authUsername}
+                      onChange={(event) => setAuthUsername(event.currentTarget.value)}
+                    />
+                    <input
+                      aria-label="Passwort"
+                      placeholder="Passwort"
+                      type="password"
+                      value={authPassword}
+                      onChange={(event) => setAuthPassword(event.currentTarget.value)}
+                    />
+                    <button type="button" onClick={() => submitLogin("login")}>
+                      Login
+                    </button>
+                    <button type="button" onClick={() => submitLogin("register")}>
+                      Registrieren
+                    </button>
+                  </>
+                )}
+              </section>
+              <div className="fileActions" aria-label="Dateiaktionen">
+                <button type="button" onClick={() => gpxInputRef.current?.click()}>
+                  GPX Import
                 </button>
-                <select
-                  aria-label="Gespeicherte Tour laden"
-                  value={activeTourId ?? ""}
-                  onChange={(event) => {
-                    const tour = savedTours.find(
-                      (item) => item.id === event.currentTarget.value,
-                    );
-                    if (tour) {
-                      loadTour(tour);
-                    }
-                  }}
+                <button
+                  type="button"
+                  disabled={history.present.waypoints.length < 2}
+                  onClick={exportGpx}
                 >
-                  <option value="">Tour laden</option>
-                  {savedTours.map((tour) => (
-                    <option key={tour.id} value={tour.id}>
-                      {tour.name}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={submitLogout}>
-                  Logout
+                  GPX Export
                 </button>
-              </>
-            ) : (
-              <>
-                <input
-                  aria-label="Benutzername"
-                  placeholder="Benutzername"
-                  value={authUsername}
-                  onChange={(event) => setAuthUsername(event.currentTarget.value)}
-                />
-                <input
-                  aria-label="Passwort"
-                  placeholder="Passwort"
-                  type="password"
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.currentTarget.value)}
-                />
-                <button type="button" onClick={() => submitLogin("login")}>
-                  Login
-                </button>
-                <button type="button" onClick={() => submitLogin("register")}>
-                  Registrieren
-                </button>
-              </>
-            )}
-          </section>
+              </div>
+            </div>
+          </details>
 
           {tourMessage ? (
             <div className="tourMessage" aria-live="polite">
@@ -731,6 +751,50 @@ export function App() {
             </div>
           </dl>
 
+          <div className="quickToolbar" aria-label="Schnelle Routenaktionen">
+            <button
+              type="button"
+              disabled={history.past.length === 0}
+              onClick={() => dispatch({ type: "undo" })}
+            >
+              Rückgängig
+            </button>
+            <button
+              type="button"
+              disabled={history.future.length === 0}
+              onClick={() => dispatch({ type: "redo" })}
+            >
+              Wiederholen
+            </button>
+            <button
+              type="button"
+              disabled={history.present.waypoints.length < 2}
+              onClick={() => dispatch({ type: "reverse" })}
+            >
+              Umkehren
+            </button>
+            <button
+              type="button"
+              disabled={!selectedWaypointId}
+              onClick={deleteSelectedWaypoint}
+            >
+              Löschen
+            </button>
+            <button
+              type="button"
+              disabled={history.present.waypoints.length === 0}
+              onClick={clearRoute}
+            >
+              Leeren
+            </button>
+          </div>
+
+          <details className="detailDrawer">
+            <summary>
+              <span>Details</span>
+              <small>Profil · Wegpunkte · Abschnitte</small>
+            </summary>
+
           <div className="paceCalibration" aria-label="Zeit-Schätzung">
             <label className="paceModeToggle">
               <input
@@ -796,57 +860,6 @@ export function App() {
               Schliessen
             </button>
           </div>
-          <div className="toolbar" aria-label="Routenaktionen">
-            <button
-              type="button"
-              disabled={history.past.length === 0}
-              onClick={() => dispatch({ type: "undo" })}
-            >
-              Rückgängig
-            </button>
-            <button
-              type="button"
-              disabled={history.future.length === 0}
-              onClick={() => dispatch({ type: "redo" })}
-            >
-              Wiederholen
-            </button>
-            <button
-              type="button"
-              disabled={history.present.waypoints.length < 2}
-              onClick={() => dispatch({ type: "reverse" })}
-            >
-              Umkehren
-            </button>
-            <button
-              type="button"
-              disabled={!selectedWaypointId}
-              onClick={deleteSelectedWaypoint}
-            >
-              Löschen
-            </button>
-            <button
-              type="button"
-              disabled={history.present.waypoints.length === 0}
-              onClick={clearRoute}
-            >
-              Leeren
-            </button>
-            <button
-              type="button"
-              onClick={() => gpxInputRef.current?.click()}
-            >
-              GPX Import
-            </button>
-            <button
-              type="button"
-              disabled={history.present.waypoints.length < 2}
-              onClick={exportGpx}
-            >
-              GPX Export
-            </button>
-          </div>
-
           <div className="routeStatus" aria-live="polite">
             {effectiveRouteComputeStatus === "loading"
               ? "Route wird berechnet"
@@ -1001,6 +1014,8 @@ export function App() {
             <span className="legendLine legendLineRouted" aria-hidden="true" />
             <span>Routing</span>
           </div>
+
+          </details>
 
         </aside>
 
