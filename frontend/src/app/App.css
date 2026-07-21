@@ -69,6 +69,28 @@ button:disabled {
   font-size: 12px;
 }
 
+.topSearch {
+  flex: 1 1 360px;
+  max-width: 520px;
+}
+
+.topSearch input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #f7f9fb;
+  color: #111827;
+  padding: 0 11px;
+  font-size: 13px;
+}
+
+.topSearch input:focus {
+  outline: 2px solid rgba(216, 0, 31, 0.16);
+  border-color: #d8001f;
+  background: #ffffff;
+}
+
 .plannerLayout {
   position: relative;
   overflow: hidden;
@@ -96,10 +118,9 @@ button:disabled {
 .routeDock {
   display: grid;
   grid-template-columns:
-    minmax(150px, 220px)
-    minmax(220px, auto)
-    minmax(340px, 1fr)
-    auto
+    minmax(150px, 210px)
+    minmax(190px, auto)
+    minmax(300px, 1fr)
     auto;
   align-items: center;
   gap: 8px 14px;
@@ -148,7 +169,6 @@ button:disabled {
 .manageMenu {
   position: relative;
   justify-self: end;
-  order: 5;
 }
 
 .manageMenu > button {
@@ -354,7 +374,9 @@ button:disabled {
   border-radius: 999px;
   background: #8fa1ad;
   content: "";
-  transition: transform 120ms ease, background 120ms ease;
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
 }
 
 .paceModeToggle input:checked {
@@ -534,13 +556,13 @@ button:disabled {
 }
 
 .quickToolbar {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, auto));
+  display: flex;
+  flex-wrap: wrap;
   grid-column: 1 / -1;
-  justify-content: start;
-  gap: 0;
+  justify-content: flex-start;
+  gap: 6px;
   border-top: 1px solid #d8dee5;
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
 .toolbar button,
@@ -548,12 +570,12 @@ button:disabled {
 .quickToolbar button,
 .fileActions button {
   min-height: 34px;
-  border: 0;
-  border-right: 1px solid #d8dee5;
-  border-radius: 0;
-  background: transparent;
-  color: #d8001f;
-  padding: 0 14px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .toolbar button:hover:not(:disabled),
@@ -572,6 +594,22 @@ button:disabled {
   opacity: 0.65;
 }
 
+.quickToolbar .primaryAction {
+  border-color: #d8001f;
+  background: #d8001f;
+  color: #ffffff;
+  font-weight: 750;
+}
+
+.quickToolbar .primaryAction:hover:not(:disabled) {
+  background: #b60018;
+  color: #ffffff;
+}
+
+.quickToolbar .quietAction {
+  color: #66717d;
+}
+
 .fileActions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -584,12 +622,101 @@ button:disabled {
 }
 
 .routeStatus {
-  margin-top: 6px;
-  border: 0;
-  background: transparent;
+  justify-self: start;
+  border: 1px solid #d8dee5;
+  border-radius: 999px;
+  background: #f7f9fb;
   color: #66717d;
-  padding: 0;
+  padding: 4px 10px;
   font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.routeStatus-ready {
+  border-color: rgba(47, 143, 47, 0.28);
+  background: rgba(47, 143, 47, 0.08);
+  color: #2f6f2f;
+}
+
+.routeStatus-loading {
+  border-color: rgba(216, 0, 31, 0.24);
+  background: #fff5f6;
+  color: #b60018;
+}
+
+.routeStatus-error {
+  border-color: rgba(216, 0, 31, 0.34);
+  background: #fff0f2;
+  color: #a30016;
+}
+
+.routeStatus-imported {
+  border-color: rgba(9, 105, 218, 0.28);
+  background: rgba(9, 105, 218, 0.08);
+  color: #0a5ca8;
+}
+
+.contextPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #d8dee5;
+  padding-top: 8px;
+}
+
+.contextPanel div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.contextPanel span {
+  color: #66717d;
+  font-size: 11px;
+}
+
+.contextPanel strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.contextPanel small {
+  color: #66717d;
+  font-size: 12px;
+}
+
+.contextActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.contextActions button {
+  min-height: 32px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.contextActions button:first-child {
+  border-color: rgba(216, 0, 31, 0.34);
+  color: #d8001f;
+}
+
+.contextActions button:hover {
+  border-color: #d8001f;
+  background: #fff5f6;
+  color: #b60018;
+}
+
+.emptyRoutePanel {
+  grid-template-columns: 1fr;
 }
 
 .routeWarnings {
@@ -1222,11 +1349,21 @@ button:disabled {
 }
 
 .officialLineMountain {
-  background: linear-gradient(90deg, #ffffff 0 28%, #e11d48 28% 72%, #ffffff 72%);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0 28%,
+    #e11d48 28% 72%,
+    #ffffff 72%
+  );
 }
 
 .officialLineAlpine {
-  background: linear-gradient(90deg, #ffffff 0 28%, #2563eb 28% 72%, #ffffff 72%);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0 28%,
+    #2563eb 28% 72%,
+    #ffffff 72%
+  );
 }
 
 .difficultySwatch {
@@ -1284,36 +1421,102 @@ button:disabled {
   }
 
   .topBar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
     min-height: 48px;
+    padding: 8px 12px;
+  }
+
+  .brand {
+    flex: 1 1 auto;
+  }
+
+  .topSearch {
+    flex: 1 0 100%;
+    order: 3;
+    max-width: none;
   }
 
   .plannerLayout {
-    display: grid;
-    overflow: visible;
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    position: relative;
+    display: block;
+    overflow: hidden;
+    min-height: calc(100vh - 90px);
   }
 
   .sidebar {
-    position: relative;
-    inset: auto;
-    z-index: 1;
+    position: absolute;
+    right: 8px;
+    bottom: 0;
+    left: 8px;
+    z-index: 35;
     width: auto;
-    max-height: 46vh;
-    border: 0;
-    border-radius: 0;
-    border-right: 0;
-    border-bottom: 1px solid #1d2a36;
-    box-shadow: none;
+    max-height: min(58vh, 560px);
+    transform: none;
+    border: 1px solid #d4dbe3;
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.22);
+  }
+
+  .routeDock {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    overflow: auto;
+    padding: 10px 12px;
+  }
+
+  .routeDock .sidebarHeader p {
+    white-space: normal;
+  }
+
+  .manageMenu {
+    justify-self: stretch;
+    order: initial;
+  }
+
+  .manageMenu > button {
+    width: 100%;
+  }
+
+  .managePanel {
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: auto;
   }
 
   .plannerLayout > .mapSurface {
-    position: relative;
-    min-height: 54vh;
+    position: absolute;
+    inset: 0;
+    min-height: 0;
   }
 
   .runSummaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .drawModePanel,
+  .contextPanel,
+  .paceCalibration {
+    grid-template-columns: 1fr;
+  }
+
+  .quickToolbar,
+  .contextActions {
+    justify-content: stretch;
+  }
+
+  .quickToolbar button,
+  .contextActions button {
+    flex: 1 1 130px;
+  }
+
+  .detailDrawer {
+    max-height: none;
   }
 
   .difficultyPanel {
