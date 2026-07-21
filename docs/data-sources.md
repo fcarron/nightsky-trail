@@ -2,6 +2,45 @@
 
 Swiss Route Planner is Switzerland-first and planning-first. Data sources must be visible to users together with their limitations.
 
+## License / Fair Use
+
+This project uses multiple data and tile sources. The app must keep source attribution visible in the map UI and must keep these source notes current in this document. This section is a project implementation note, not legal advice.
+
+User-facing attribution:
+
+```text
+© swisstopo
+© OpenStreetMap contributors
+© OpenTopoMap (CC-BY-SA)      when the OSM Topo layer is active
+```
+
+swisstopo requires source indication when swisstopo data or geoservices are published or distributed. For dynamic map applications, swisstopo allows attribution next to the data or in a central source list linked from the application. Project reference:
+
+```text
+https://www.swisstopo.admin.ch/en/source-reference-ogd-swisstopo
+```
+
+OpenStreetMap data is licensed under the Open Database License. The app must credit OpenStreetMap and link users to the OSM copyright/license information whenever OSM-derived routing, trail difficulty, or OSM-based map layers are used. Project reference:
+
+```text
+https://www.openstreetmap.org/copyright
+```
+
+OpenTopoMap raster tiles combine OSM data, SRTM elevation data, and the OpenTopoMap cartographic style. When the `OSM Topo` base layer is active, the UI must additionally show `© OpenTopoMap (CC-BY-SA)`. For larger or public deployments, tile usage should be clarified or replaced with self-hosted tiles. Project references:
+
+```text
+https://www.opentopomap.org/about
+https://wiki.openstreetmap.org/wiki/OpenTopoMap
+```
+
+Operational rules:
+
+- cache elevation profiles and trail-overlay responses where practical;
+- do not make unnecessary repeated swisstopo profile requests for unchanged route geometry;
+- use public Overpass only for development or low-volume fallback;
+- for public production use, prefer local/imported OSM data and self-hosted derived services;
+- before public growth or heavy traffic, clarify swisstopo fair-use and service-load expectations.
+
 ## swisstopo Map
 
 Preferred vector tile style:
@@ -20,6 +59,24 @@ Selectable hiking trail overlay:
 
 ```text
 ch.swisstopo.swisstlm3d-wanderwege
+```
+
+Selectable Wanderland route overlay through geo.admin WMS:
+
+```text
+ch.astra.wanderland
+```
+
+Selectable cycling route overlay through geo.admin WMS:
+
+```text
+ch.astra.veloland
+```
+
+Selectable hiking closure and detour overlay through geo.admin WMS:
+
+```text
+ch.astra.wanderland-sperrungen_umleitungen
 ```
 
 The UI must display `© swisstopo`.
@@ -48,7 +105,7 @@ Swiss hiking time is derived only from the swisstopo elevation profile and route
 
 ## GraphHopper Routing
 
-Routing uses a self-hosted GraphHopper instance with an OpenStreetMap extract for Switzerland. It is accessed only through Django. The backend keeps `GRAPHHOPPER_BASE_URL` and `GRAPHHOPPER_PROFILE` configurable, defaults to the `hike` profile, requests unencoded point geometry, asks for `hike_rating` details, and normalizes responses before returning them to the frontend.
+Routing uses a self-hosted GraphHopper instance with an OpenStreetMap extract for Switzerland. It is accessed only through Django. The backend keeps `GRAPHHOPPER_BASE_URL` and `GRAPHHOPPER_PROFILE` configurable, defaults to the `hike` profile, requests unencoded point geometry, asks for route details, and normalizes responses before returning them to the frontend.
 
 The local Docker GraphHopper is configured in:
 
@@ -56,7 +113,15 @@ The local Docker GraphHopper is configured in:
 docker/graphhopper/config.yml
 ```
 
-It imports a `hike` profile using GraphHopper's built-in `hike.json` model. Compared with the built-in `foot.json` model, this is important for Swiss hiking routes because `foot.json` blocks routes at lower `hike_rating` values, while `hike.json` is meant for hiking paths.
+It imports a `hike` profile using GraphHopper's built-in `hike.json` model. Compared with the built-in `foot.json` model, this is important for Swiss hiking routes because `foot.json` blocks routes at lower `hike_rating` values, while `hike.json` is meant for hiking paths. It also imports a `bike` profile using GraphHopper's built-in `bike.json` model for bicycle routing.
+
+The swisstopo/ASTRA `ch.astra.wanderland` layer is a visual official Wanderland route overlay. It shows the SwitzerlandMobility hiking routes and is separate from the `ch.swisstopo.swisstlm3d-wanderwege` trail-category layer.
+
+The swisstopo/ASTRA `ch.astra.veloland` layer is a visual official cycling-route overlay. Current bicycle route finding uses the GraphHopper `bike` profile on OSM data; it does not snap specifically to the swisstopo Veloland overlay.
+
+The swisstopo/ASTRA `ch.astra.wanderland-sperrungen_umleitungen` layer is a visual overlay for reported closures and detours on the hiking trail network and Wanderland routes. It is provided by ASTRA, swisstopo, Swiss Hiking Trails, SchweizMobil, and cantons. It is a planning aid; local signage and current conditions remain authoritative.
+
+After changing GraphHopper profiles or encoded values, the local graph cache must be rebuilt. Stop GraphHopper, remove the generated `data/graphhopper/` cache, and start GraphHopper again so it imports the Switzerland extract with the current `hike` and `bike` profiles.
 
 The first project-specific custom model is stored in:
 
@@ -146,4 +211,4 @@ The warning overlay is rendered as small black `+` markers along the affected OS
 
 ## GPX Files
 
-GPX import/export is a local browser file operation. Export writes a GPX 1.1 track from the active route geometry. Import reads track, route, or waypoint coordinates and creates a straight manual route from sampled points. Imported files are not sent to an external service and are not automatically re-routed.
+GPX import/export is a local browser file operation. Export writes a GPX 1.1 track from the active route geometry. Import reads track, route, or waypoint coordinates and preserves the imported geometry as the displayed route. Only editable start/end waypoints are created initially. Imported files are not sent to an external routing service and are not automatically re-routed.

@@ -17,7 +17,7 @@ describe("GPX route import and export", () => {
     expect(gpx).toContain('<trkpt lat="46.9492000" lon="7.4481000" />');
   });
 
-  it("imports GPX track points as a straight manual route", () => {
+  it("imports GPX track points as exact imported geometry with editable endpoints", () => {
     const plan = importRoutePlanFromGpx(`<?xml version="1.0"?>
 <gpx version="1.1">
   <trk>
@@ -31,8 +31,7 @@ describe("GPX route import and export", () => {
 
     expect(plan.waypoints).toEqual([
       { id: "gpx-1", position: { lat: 46.948, lon: 7.4474 } },
-      { id: "gpx-2", position: { lat: 46.9492, lon: 7.4481 } },
-      { id: "gpx-3", position: { lat: 46.95, lon: 7.449 } },
+      { id: "gpx-2", position: { lat: 46.95, lon: 7.449 } },
     ]);
     expect(plan.segments).toEqual([
       {
@@ -41,12 +40,11 @@ describe("GPX route import and export", () => {
         mode: "straight",
         toWaypointId: "gpx-2",
       },
-      {
-        fromWaypointId: "gpx-2",
-        id: "gpx-2-gpx-3",
-        mode: "straight",
-        toWaypointId: "gpx-3",
-      },
+    ]);
+    expect(plan.importedGeometry).toEqual([
+      { lat: 46.948, lon: 7.4474 },
+      { lat: 46.9492, lon: 7.4481 },
+      { lat: 46.95, lon: 7.449 },
     ]);
   });
 
@@ -54,5 +52,24 @@ describe("GPX route import and export", () => {
     expect(() => importRoutePlanFromGpx("<gpx />")).toThrow(
       "GPX enthält zu wenige Punkte.",
     );
+  });
+
+  it("preserves long GPX geometry without turning every point into a waypoint", () => {
+    const trackPoints = Array.from(
+      { length: 120 },
+      (_, index) =>
+        `<trkpt lat="${46.8 + index * 0.001}" lon="${7.4 + index * 0.001}" />`,
+    ).join("");
+
+    const plan = importRoutePlanFromGpx(`<gpx><trk><trkseg>${trackPoints}</trkseg></trk></gpx>`);
+
+    expect(plan.waypoints).toHaveLength(2);
+    expect(plan.segments).toHaveLength(1);
+    expect(plan.importedGeometry).toHaveLength(120);
+    expect(plan.waypoints[0].position).toEqual({ lat: 46.8, lon: 7.4 });
+    expect(plan.waypoints.at(-1)?.position).toEqual({
+      lat: 46.919,
+      lon: 7.519,
+    });
   });
 });

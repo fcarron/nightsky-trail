@@ -96,10 +96,10 @@ button:disabled {
 .routeDock {
   display: grid;
   grid-template-columns:
-    minmax(160px, 240px)
-    minmax(360px, 1fr)
+    minmax(150px, 220px)
+    minmax(220px, auto)
+    minmax(340px, 1fr)
     auto
-    minmax(250px, auto)
     auto;
   align-items: center;
   gap: 8px 14px;
@@ -151,10 +151,9 @@ button:disabled {
   order: 5;
 }
 
-.manageMenu summary {
+.manageMenu > button {
   min-height: 34px;
   cursor: pointer;
-  list-style: none;
   border: 1px solid #cbd5df;
   border-radius: 2px;
   background: #ffffff;
@@ -164,12 +163,8 @@ button:disabled {
   font-weight: 750;
 }
 
-.manageMenu summary::-webkit-details-marker {
-  display: none;
-}
-
-.manageMenu[open] summary,
-.manageMenu summary:hover {
+.manageMenu > button[aria-expanded="true"],
+.manageMenu > button:hover {
   border-color: #d8001f;
   background: #fff5f6;
 }
@@ -541,8 +536,11 @@ button:disabled {
 .quickToolbar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, auto));
+  grid-column: 1 / -1;
   justify-content: start;
   gap: 0;
+  border-top: 1px solid #d8dee5;
+  padding-top: 6px;
 }
 
 .toolbar button,
@@ -1258,11 +1256,26 @@ button:disabled {
   position: absolute;
   right: 12px;
   bottom: 10px;
-  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: min(520px, calc(100vw - 24px));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
   background: rgba(13, 20, 28, 0.74);
-  color: #c7d2da;
-  padding: 3px 7px;
+  padding: 4px 8px;
   font-size: 11px;
+  line-height: 1.3;
+}
+
+.attribution a {
+  color: #dce7ee;
+  text-decoration: none;
+}
+
+.attribution a:hover {
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 @media (max-width: 760px) {

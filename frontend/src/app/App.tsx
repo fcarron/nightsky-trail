@@ -16,6 +16,7 @@ import {
 } from "../features/route/routeGeometry";
 import {
   toComputedRoute,
+  toImportedComputedRoute,
   toRouteComputeRequest,
 } from "../features/route/routeApi";
 import { exportPointsToGpx, importRoutePlanFromGpx } from "../features/route/gpx";
@@ -27,6 +28,7 @@ import {
 import type {
   ComputedRoute,
   LonLat,
+  RoutingProfile,
   SegmentMode,
 } from "../features/route/routeModel";
 import {
@@ -106,6 +108,8 @@ export function App() {
   const [authPassword, setAuthPassword] = useState("");
   const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
   const [activeTourId, setActiveTourId] = useState<string | null>(null);
+  const [routeFitRequestId, setRouteFitRequestId] = useState(0);
+  const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [tourMessage, setTourMessage] = useState<string | null>(null);
   const [graphhopperDebugVisible, setGraphhopperDebugVisible] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(
@@ -141,6 +145,7 @@ export function App() {
   const routeRequestIdRef = useRef(0);
   const elevationRequestIdRef = useRef(0);
   const gpxInputRef = useRef<HTMLInputElement | null>(null);
+  const manageMenuRef = useRef<HTMLDivElement | null>(null);
   const effectiveComputedRoute =
     history.present.waypoints.length >= 2 ? routeComputeState.route : null;
   const effectiveRouteComputeStatus =
@@ -237,6 +242,36 @@ export function App() {
   }, [history.present]);
 
   useEffect(() => {
+    if (!manageMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        manageMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setManageMenuOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setManageMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [manageMenuOpen]);
+
+  useEffect(() => {
     window.localStorage.setItem(BASE_PACE_STORAGE_KEY, String(basePaceMinPerKm));
   }, [basePaceMinPerKm]);
 
@@ -250,6 +285,13 @@ export function App() {
   useEffect(() => {
     if (history.present.waypoints.length < 2) {
       routeRequestIdRef.current += 1;
+      return;
+    }
+
+    const importedRoute = toImportedComputedRoute(history.present);
+    if (importedRoute) {
+      routeRequestIdRef.current += 1;
+      dispatchRouteCompute({ type: "succeeded", route: importedRoute });
       return;
     }
 
@@ -453,6 +495,7 @@ export function App() {
           : await registerAccount(authUsername, authPassword);
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
+      setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -465,6 +508,7 @@ export function App() {
       setAuthState({ ...session, status: "ready" });
       setSavedTours([]);
       setActiveTourId(null);
+      setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -485,6 +529,7 @@ export function App() {
       const list = await listSavedTours();
       setSavedTours(list.tours);
       setTourMessage("Tour gespeichert.");
+      setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -496,7 +541,9 @@ export function App() {
       dispatch({ type: "replace", plan });
       setSelectedWaypointId(null);
       setActiveTourId(tour.id);
+      setRouteFitRequestId((requestId) => requestId + 1);
       setTourMessage(`Tour geladen: ${tour.name}`);
+      setManageMenuOpen(false);
     } catch {
       setTourMessage("Diese Tour kann nicht geladen werden.");
     }
@@ -522,6 +569,7 @@ export function App() {
     link.click();
     URL.revokeObjectURL(url);
     setTourMessage("GPX exportiert.");
+    setManageMenuOpen(false);
   }
 
   async function importGpxFile(file: File) {
@@ -531,7 +579,9 @@ export function App() {
       dispatch({ type: "replace", plan });
       setActiveTourId(null);
       setSelectedWaypointId(null);
-      setTourMessage("GPX importiert. Abschnitte sind vorerst gerade.");
+      setRouteFitRequestId((requestId) => requestId + 1);
+      setTourMessage("GPX importiert. Original-Track bleibt erhalten.");
+      setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -564,6 +614,10 @@ export function App() {
     const nextValue = clampPaceMinutes(basePaceMinPerKm + deltaSeconds / 60);
     setBasePaceMinPerKm(nextValue);
     setBasePaceInput(formatPaceInput(nextValue));
+  }
+
+  function setRoutingProfile(profile: RoutingProfile) {
+    dispatch({ type: "set-routing-profile", profile });
   }
 
   function toggleSegmentMode(segmentId: string) {
@@ -602,9 +656,16 @@ export function App() {
             </p>
           </div>
 
-          <details className="manageMenu">
-            <summary>Tour</summary>
-            <div className="managePanel">
+          <div className="manageMenu" ref={manageMenuRef}>
+            <button
+              type="button"
+              aria-expanded={manageMenuOpen}
+              onClick={() => setManageMenuOpen((open) => !open)}
+            >
+              Tour
+            </button>
+            {manageMenuOpen ? (
+              <div className="managePanel">
               <section className="accountPanel" aria-label="Konto und Touren">
                 {authState.authenticated ? (
                   <>
@@ -663,7 +724,13 @@ export function App() {
                 )}
               </section>
               <div className="fileActions" aria-label="Dateiaktionen">
-                <button type="button" onClick={() => gpxInputRef.current?.click()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManageMenuOpen(false);
+                    gpxInputRef.current?.click();
+                  }}
+                >
                   GPX Import
                 </button>
                 <button
@@ -675,7 +742,8 @@ export function App() {
                 </button>
               </div>
             </div>
-          </details>
+            ) : null}
+          </div>
 
           {tourMessage ? (
             <div className="tourMessage" aria-live="polite">
@@ -701,10 +769,28 @@ export function App() {
             <div>
               <strong>Zeichnen</strong>
               <span>
-                {drawingMode === "routed"
-                  ? "Magnet folgt Wegen"
-                  : "Neue Abschnitte gerade"}
+                {history.present.routingProfile === "bike"
+                  ? "Velo-Routing"
+                  : "Trailrunning"}
+                {" · "}
+                {drawingMode === "routed" ? "Magnet folgt Wegen" : "Gerade"}
               </span>
+            </div>
+            <div className="drawModeButtons" role="group" aria-label="Aktivität">
+              <button
+                type="button"
+                aria-pressed={history.present.routingProfile === "hike"}
+                onClick={() => setRoutingProfile("hike")}
+              >
+                Trail
+              </button>
+              <button
+                type="button"
+                aria-pressed={history.present.routingProfile === "bike"}
+                onClick={() => setRoutingProfile("bike")}
+              >
+                Velo
+              </button>
             </div>
             <div className="drawModeButtons" role="group" aria-label="Zeichenmodus">
               <button
@@ -1025,6 +1111,8 @@ export function App() {
           computedSegments={effectiveComputedRoute?.segments ?? null}
           graphhopperDebugVisible={ENABLE_DEV_TOOLS && graphhopperDebugVisible}
           elevationHoverPoint={elevationHoverPoint}
+          fitGeometry={history.present.importedGeometry}
+          fitRequestId={routeFitRequestId}
           selectedWaypointId={selectedWaypointId}
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}

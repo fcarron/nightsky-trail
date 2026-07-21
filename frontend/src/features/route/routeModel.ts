@@ -9,6 +9,7 @@ export interface Waypoint {
 }
 
 export type SegmentMode = "straight" | "routed";
+export type RoutingProfile = "hike" | "bike";
 
 export interface RouteSegment {
   id: string;
@@ -33,6 +34,8 @@ export interface ComputedRoute {
 export interface RoutePlan {
   waypoints: Waypoint[];
   segments: RouteSegment[];
+  routingProfile: RoutingProfile;
+  importedGeometry?: LonLat[];
 }
 
 export interface RouteSummary {

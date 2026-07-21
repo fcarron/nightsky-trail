@@ -1,7 +1,5 @@
 import type { LonLat, RoutePlan, RouteSegment, Waypoint } from "./routeModel";
 
-const MAX_IMPORTED_POINTS = 200;
-
 export function exportPointsToGpx(points: LonLat[], name: string): string {
   const escapedName = escapeXml(name);
   const trackPoints = points
@@ -41,8 +39,7 @@ export function importRoutePlanFromGpx(gpxText: string): RoutePlan {
     throw new Error("GPX enthält zu wenige Punkte.");
   }
 
-  const sampledPoints = samplePoints(points, MAX_IMPORTED_POINTS);
-  const waypoints: Waypoint[] = sampledPoints.map((position, index) => ({
+  const waypoints: Waypoint[] = [points[0], points[points.length - 1]].map((position, index) => ({
     id: `gpx-${index + 1}`,
     position,
   }));
@@ -56,7 +53,7 @@ export function importRoutePlanFromGpx(gpxText: string): RoutePlan {
     };
   });
 
-  return { segments, waypoints };
+  return { importedGeometry: points, routingProfile: "hike", segments, waypoints };
 }
 
 function pointsFromElements(document: Document, tagName: string): LonLat[] {
@@ -68,19 +65,6 @@ function pointsFromElements(document: Document, tagName: string): LonLat[] {
     }
     return [{ lat, lon }];
   });
-}
-
-function samplePoints(points: LonLat[], maxPoints: number): LonLat[] {
-  if (points.length <= maxPoints) {
-    return points;
-  }
-
-  const sampledPoints: LonLat[] = [];
-  const step = (points.length - 1) / (maxPoints - 1);
-  for (let index = 0; index < maxPoints; index += 1) {
-    sampledPoints.push(points[Math.round(index * step)]);
-  }
-  return sampledPoints;
 }
 
 function escapeXml(value: string): string {

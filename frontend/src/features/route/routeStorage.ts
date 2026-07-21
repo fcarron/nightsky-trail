@@ -1,4 +1,10 @@
-import type { RoutePlan, RouteSegment, Waypoint } from "./routeModel";
+import type {
+  LonLat,
+  RoutePlan,
+  RouteSegment,
+  RoutingProfile,
+  Waypoint,
+} from "./routeModel";
 import { emptyPlan, normalizeRoutePlan } from "./routePlanner";
 
 const STORAGE_KEY = "swiss-route-planner.active-route.v1";
@@ -36,7 +42,37 @@ export function parseRoutePlan(value: unknown): RoutePlan {
 
   const waypoints = parseWaypoints(value.waypoints);
   const segments = parseSegments(value.segments);
-  return { waypoints, segments };
+  const importedGeometry = parseImportedGeometry(value.importedGeometry);
+  const routingProfile = parseRoutingProfile(value.routingProfile);
+  return { importedGeometry, routingProfile, waypoints, segments };
+}
+
+function parseRoutingProfile(value: unknown): RoutingProfile {
+  return value === "bike" ? "bike" : "hike";
+}
+
+function parseImportedGeometry(value: unknown): LonLat[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("Stored route imported geometry is invalid.");
+  }
+
+  const geometry = value.map((point) => {
+    if (
+      !isRecord(point) ||
+      typeof point.lon !== "number" ||
+      typeof point.lat !== "number" ||
+      !Number.isFinite(point.lon) ||
+      !Number.isFinite(point.lat)
+    ) {
+      throw new Error("Stored route imported geometry point is invalid.");
+    }
+    return { lon: point.lon, lat: point.lat };
+  });
+
+  return geometry.length >= 2 ? geometry : undefined;
 }
 
 function parseWaypoints(value: unknown): Waypoint[] {

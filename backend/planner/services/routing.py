@@ -21,6 +21,8 @@ def compute_route(
     waypoints: list[Waypoint],
     requested_segments: list[SegmentRequest] | None,
     graphhopper: GraphHopperClient,
+    *,
+    profile: str = "hike",
 ) -> ComputedRoute:
     validate_waypoints(waypoints)
     segments = requested_segments or build_default_straight_segments(waypoints)
@@ -38,7 +40,7 @@ def compute_route(
         start = waypoint_by_id[segment.from_waypoint_id]
         end = waypoint_by_id[segment.to_waypoint_id]
         try:
-            routed = graphhopper.route_segment(start, end)
+            routed = graphhopper.route_segment(start, end, profile=profile)
         except GraphHopperError as error:
             raise RouteValidationError(
                 error.code,

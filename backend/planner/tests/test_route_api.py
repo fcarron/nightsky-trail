@@ -85,6 +85,37 @@ def test_route_compute_returns_routed_segment(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.django_db
+def test_route_compute_passes_bike_profile_to_graphhopper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = APIClient()
+    RecordingGraphHopperClient.profiles = []
+    monkeypatch.setattr("planner.api.views.GraphHopperClient", RecordingGraphHopperClient)
+
+    response = client.post(
+        reverse("route-compute"),
+        {
+            "profile": "bike",
+            "waypoints": [
+                {"id": "a", "longitude": 7.4474, "latitude": 46.948},
+                {"id": "b", "longitude": 8.5417, "latitude": 47.3769},
+            ],
+            "segments": [
+                {
+                    "fromWaypointId": "a",
+                    "toWaypointId": "b",
+                    "mode": "routed",
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert RecordingGraphHopperClient.profiles == ["bike"]
+
+
+@pytest.mark.django_db
 def test_route_compute_returns_mixed_straight_and_routed_segments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -194,6 +225,14 @@ class FakeGraphHopperClient:
             ],
             details={"hike_rating": [[0, 2, "hiking"]]},
         )
+
+
+class RecordingGraphHopperClient(FakeGraphHopperClient):
+    profiles: list[object] = []
+
+    def route_segment(self, start: Waypoint, end: Waypoint, **kwargs: object) -> GraphHopperRoute:
+        self.profiles.append(kwargs.get("profile"))
+        return super().route_segment(start, end, **kwargs)
 
 
 class UnavailableGraphHopperClient:

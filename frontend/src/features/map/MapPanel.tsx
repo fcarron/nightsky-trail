@@ -12,6 +12,7 @@ import TileLayer from "ol/layer/Tile.js";
 import VectorLayer from "ol/layer/Vector.js";
 import { fromLonLat, toLonLat, transformExtent } from "ol/proj.js";
 import XYZ from "ol/source/XYZ.js";
+import TileWMS from "ol/source/TileWMS.js";
 import VectorSource from "ol/source/Vector.js";
 import { apply } from "ol-mapbox-style";
 import { useEffect, useRef, useState } from "react";
@@ -27,9 +28,13 @@ import type {
 } from "../route/routeModel";
 import {
   OPEN_TOPO_MAP_URL,
+  SWISSTOPO_CYCLING_ROUTES_LAYER,
+  SWISSTOPO_HIKING_CLOSURES_LAYER,
+  SWISSTOPO_HIKING_ROUTES_LAYER,
   SWISSTOPO_HIKING_TRAILS_WMTS_URL,
   SWISSTOPO_STANDARD_WMTS_URL,
   SWISSTOPO_STYLE_URL,
+  SWISSTOPO_WMS_URL,
   SWITZERLAND_CENTER,
 } from "./mapConstants";
 import {
@@ -65,6 +70,8 @@ interface MapPanelProps {
   computedSegments: ComputedRouteSegment[] | null;
   graphhopperDebugVisible: boolean;
   elevationHoverPoint: LonLat | null;
+  fitGeometry?: LonLat[];
+  fitRequestId: number;
   selectedWaypointId: string | null;
   onAddWaypoint: (position: LonLat) => void;
   onInsertWaypoint: (segmentId: string, position: LonLat) => string;
@@ -78,6 +85,8 @@ export function MapPanel({
   computedSegments,
   graphhopperDebugVisible,
   elevationHoverPoint,
+  fitGeometry,
+  fitRequestId,
   selectedWaypointId,
   onAddWaypoint,
   onInsertWaypoint,
@@ -89,6 +98,9 @@ export function MapPanel({
   const standardLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const osmTopoLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const hikingTrailsLayerRef = useRef<TileLayer<XYZ> | null>(null);
+  const hikingRoutesLayerRef = useRef<TileLayer<TileWMS> | null>(null);
+  const cyclingRoutesLayerRef = useRef<TileLayer<TileWMS> | null>(null);
+  const hikingClosuresLayerRef = useRef<TileLayer<TileWMS> | null>(null);
   const graphhopperDebugLayerRef = useRef<VectorLayer<VectorSource> | null>(
     null,
   );
@@ -102,6 +114,7 @@ export function MapPanel({
   const difficultyRequestInFlightRef = useRef(false);
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
+  const lastHandledFitRequestIdRef = useRef(0);
   const callbacksRef = useRef({
     onAddWaypoint,
     onInsertWaypoint,
@@ -118,6 +131,9 @@ export function MapPanel({
   const [mapReady, setMapReady] = useState(false);
   const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("light");
   const [hikingTrailsVisible, setHikingTrailsVisible] = useState(true);
+  const [hikingRoutesVisible, setHikingRoutesVisible] = useState(false);
+  const [hikingClosuresVisible, setHikingClosuresVisible] = useState(false);
+  const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [difficultyStatus, setDifficultyStatus] = useState("Schwierigkeitshinweise aus");
@@ -199,6 +215,57 @@ export function MapPanel({
       zIndex: 10,
     });
     hikingTrailsLayer.set("layerRole", "trail-overlay" satisfies LayerRole);
+    const hikingRoutesLayer = new TileLayer({
+      minZoom: 10,
+      opacity: 0.9,
+      source: new TileWMS({
+        attributions: "© swisstopo",
+        crossOrigin: "anonymous",
+        params: {
+          FORMAT: "image/png",
+          LAYERS: SWISSTOPO_HIKING_ROUTES_LAYER,
+          TRANSPARENT: true,
+        },
+        url: SWISSTOPO_WMS_URL,
+      }),
+      visible: false,
+      zIndex: 11,
+    });
+    hikingRoutesLayer.set("layerRole", "trail-overlay" satisfies LayerRole);
+    const cyclingRoutesLayer = new TileLayer({
+      minZoom: 10,
+      opacity: 0.9,
+      source: new TileWMS({
+        attributions: "© swisstopo",
+        crossOrigin: "anonymous",
+        params: {
+          FORMAT: "image/png",
+          LAYERS: SWISSTOPO_CYCLING_ROUTES_LAYER,
+          TRANSPARENT: true,
+        },
+        url: SWISSTOPO_WMS_URL,
+      }),
+      visible: false,
+      zIndex: 11,
+    });
+    cyclingRoutesLayer.set("layerRole", "trail-overlay" satisfies LayerRole);
+    const hikingClosuresLayer = new TileLayer({
+      minZoom: 10,
+      opacity: 0.95,
+      source: new TileWMS({
+        attributions: "© swisstopo",
+        crossOrigin: "anonymous",
+        params: {
+          FORMAT: "image/png",
+          LAYERS: SWISSTOPO_HIKING_CLOSURES_LAYER,
+          TRANSPARENT: true,
+        },
+        url: SWISSTOPO_WMS_URL,
+      }),
+      visible: false,
+      zIndex: 12,
+    });
+    hikingClosuresLayer.set("layerRole", "trail-overlay" satisfies LayerRole);
     const routeLayer = new VectorLayer({
       source: routeSourceRef.current,
       style: (feature) =>
@@ -233,6 +300,9 @@ export function MapPanel({
     standardLayerRef.current = standardLayer;
     osmTopoLayerRef.current = osmTopoLayer;
     hikingTrailsLayerRef.current = hikingTrailsLayer;
+    hikingRoutesLayerRef.current = hikingRoutesLayer;
+    cyclingRoutesLayerRef.current = cyclingRoutesLayer;
+    hikingClosuresLayerRef.current = hikingClosuresLayer;
     const pointLayer = new VectorLayer({
       source: pointSourceRef.current,
       style: (feature) =>
@@ -245,7 +315,7 @@ export function MapPanel({
 
     const map = new Map({
       target,
-      controls: defaultControls({ attribution: true, zoom: true }),
+      controls: defaultControls({ attribution: false, zoom: true }),
       view: new View({
         center: fromLonLat(SWITZERLAND_CENTER),
         zoom: 8,
@@ -254,6 +324,9 @@ export function MapPanel({
     map.addLayer(standardLayer);
     map.addLayer(osmTopoLayer);
     map.addLayer(hikingTrailsLayer);
+    map.addLayer(hikingRoutesLayer);
+    map.addLayer(cyclingRoutesLayer);
+    map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
     map.addLayer(routeLayer);
     map.addLayer(elevationHoverLayer);
@@ -412,6 +485,9 @@ export function MapPanel({
       standardLayerRef.current = null;
       osmTopoLayerRef.current = null;
       hikingTrailsLayerRef.current = null;
+      hikingRoutesLayerRef.current = null;
+      cyclingRoutesLayerRef.current = null;
+      hikingClosuresLayerRef.current = null;
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
     };
@@ -459,12 +535,18 @@ export function MapPanel({
         return;
       }
 
+      const isImportedGpxSegment =
+        isComputedRouteSegment(segment) && segment.details.importedGpx === true;
       const feature = new Feature(new LineString(geometry));
       feature.set("segmentId", segment.id);
-      feature.set("segmentMode", segment.mode);
+      feature.set("segmentMode", isImportedGpxSegment ? "routed" : segment.mode);
       routeSource.addFeature(feature);
 
-      if (isComputedRouteSegment(segment) && segment.mode === "routed") {
+      if (
+        isComputedRouteSegment(segment) &&
+        segment.mode === "routed" &&
+        !isImportedGpxSegment
+      ) {
         const debugLine = new Feature(new LineString(geometry));
         debugLine.set("debugKind", "graphhopper-line");
         graphhopperDebugSource.addFeature(debugLine);
@@ -495,6 +577,56 @@ export function MapPanel({
   }, [selectedWaypointId]);
 
   useEffect(() => {
+    if (
+      !mapReady ||
+      fitRequestId === 0 ||
+      fitRequestId === lastHandledFitRequestIdRef.current ||
+      (!fitGeometry?.length && waypoints.length === 0)
+    ) {
+      return;
+    }
+
+    const map = mapRef.current;
+    const size = map?.getSize();
+    if (!map || !size) {
+      return;
+    }
+    lastHandledFitRequestIdRef.current = fitRequestId;
+
+    const positions =
+      fitGeometry && fitGeometry.length >= 2
+        ? fitGeometry
+        : waypoints.map((waypoint) => waypoint.position);
+    const coordinates = positions.map((position) =>
+      fromLonLat([position.lon, position.lat]),
+    );
+    if (coordinates.length === 1) {
+      map.getView().animate({
+        center: coordinates[0],
+        duration: 300,
+        zoom: Math.max(map.getView().getZoom() ?? 0, 14),
+      });
+      return;
+    }
+
+    const extent = coordinates.reduce(
+      (currentExtent, coordinate) => [
+        Math.min(currentExtent[0], coordinate[0]),
+        Math.min(currentExtent[1], coordinate[1]),
+        Math.max(currentExtent[2], coordinate[0]),
+        Math.max(currentExtent[3], coordinate[1]),
+      ],
+      [Infinity, Infinity, -Infinity, -Infinity],
+    );
+    map.getView().fit(extent, {
+      duration: 350,
+      maxZoom: 15,
+      padding: [90, 90, 180, 90],
+      size,
+    });
+  }, [fitGeometry, fitRequestId, mapReady, waypoints]);
+
+  useEffect(() => {
     const source = elevationHoverSourceRef.current;
     source.clear();
     if (!elevationHoverPoint) {
@@ -510,6 +642,18 @@ export function MapPanel({
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);
   }, [hikingTrailsVisible]);
+
+  useEffect(() => {
+    hikingRoutesLayerRef.current?.setVisible(hikingRoutesVisible);
+  }, [hikingRoutesVisible]);
+
+  useEffect(() => {
+    hikingClosuresLayerRef.current?.setVisible(hikingClosuresVisible);
+  }, [hikingClosuresVisible]);
+
+  useEffect(() => {
+    cyclingRoutesLayerRef.current?.setVisible(cyclingRoutesVisible);
+  }, [cyclingRoutesVisible]);
 
   useEffect(() => {
     graphhopperDebugLayerRef.current?.setVisible(graphhopperDebugVisible);
@@ -727,6 +871,30 @@ export function MapPanel({
         <label className="mapOverlayToggle">
           <input
             type="checkbox"
+            checked={hikingRoutesVisible}
+            onChange={(event) => setHikingRoutesVisible(event.target.checked)}
+          />
+          Wanderland
+        </label>
+        <label className="mapOverlayToggle">
+          <input
+            type="checkbox"
+            checked={hikingClosuresVisible}
+            onChange={(event) => setHikingClosuresVisible(event.target.checked)}
+          />
+          Sperrungen
+        </label>
+        <label className="mapOverlayToggle">
+          <input
+            type="checkbox"
+            checked={cyclingRoutesVisible}
+            onChange={(event) => setCyclingRoutesVisible(event.target.checked)}
+          />
+          Veloland
+        </label>
+        <label className="mapOverlayToggle">
+          <input
+            type="checkbox"
             checked={difficultyVisible}
             onChange={(event) => {
               const enabled = event.target.checked;
@@ -771,8 +939,18 @@ export function MapPanel({
         />
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
-      <div className="attribution">
-        © swisstopo · © OpenStreetMap contributors
+      <div className="attribution" aria-label="Datenquellen">
+        <a href="https://www.swisstopo.admin.ch/" target="_blank" rel="noreferrer">
+          © swisstopo
+        </a>
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+          © OpenStreetMap contributors
+        </a>
+        {baseLayerId === "osm-topo" ? (
+          <a href="https://opentopomap.org/about" target="_blank" rel="noreferrer">
+            © OpenTopoMap (CC-BY-SA)
+          </a>
+        ) : null}
       </div>
     </section>
   );

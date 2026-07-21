@@ -16,10 +16,15 @@ Keine Social Features, keine Aktivitätsaufzeichnung, keine Trainingsanalyse, ke
 - Schweizer Wanderzeit nach segmentbasierter Polynomial-Methode
 - Optionale persönliche Zeitschätzung über eigene min/km Pace
 - Offizielle swisstopo Wanderweg-Kategorien
+- Offizieller Wanderland-Routenoverlay
+- Gemeldete Wanderweg-Sperrungen und Umleitungen
+- Offizieller Veloland-Overlay
+- Routing-Profil für Trail/Wandern und Velo
 - OSM `sac_scale` Schwierigkeit als Zusatzhinweis
 - Schwarze Warnmarker nur auf den passenden schwierigen Teilsegmenten
 - Session-Login und gespeicherte Touren
 - GPX Import und Export
+- Installierbar als PWA
 
 ## Aktueller Stand
 
@@ -28,9 +33,11 @@ Das Projekt ist ein lokaler MVP/Prototyp. Die Kernplanung funktioniert, inklusiv
 Persistenz ist absichtlich klein:
 
 - Aktive Route bleibt im Browser Local Storage.
+- Die PWA kann die App-Shell und die letzte lokale Route offline öffnen.
 - Login nutzt Django Sessions.
 - Gespeicherte Touren liegen in SQLite.
 - Keine Cloud-Synchronisierung und keine öffentlichen Profile.
+- Karten, Routing, Höhenprofil und externe Overlays brauchen weiterhin Netzwerk.
 
 ## Architektur
 
@@ -92,6 +99,8 @@ make graphhopper
 ```
 
 Das lädt bei Bedarf `data/osm/switzerland-latest.osm.pbf` und baut später den GraphHopper-Cache unter `data/graphhopper/`. Beides ist von git ignoriert.
+
+Wenn sich `docker/graphhopper/config.yml` ändert, zum Beispiel durch neue Profile wie `bike`, muss der generierte GraphHopper-Cache neu aufgebaut werden: GraphHopper stoppen, `data/graphhopper/` entfernen und `make graphhopper` erneut starten.
 
 3. Backend und Frontend starten:
 
@@ -251,7 +260,10 @@ http://127.0.0.1:8000/api/docs/
 
 - swisstopo Karten: offizielle Schweizer Karten und Basiskarten
 - swisstopo Höhenprofil: `https://api3.geo.admin.ch/rest/services/profile.json`
-- GraphHopper: Routing auf lokalem OSM Schweiz Extrakt
+- swisstopo/ASTRA Wanderland: offizielle SchweizMobil-Wanderrouten
+- swisstopo/ASTRA Wanderland Sperrungen/Umleitungen: gemeldete Einschränkungen auf Wanderwegen
+- swisstopo/ASTRA Veloland: offizieller Fahrrad-Routenoverlay
+- GraphHopper: Trail- und Velo-Routing auf lokalem OSM Schweiz Extrakt
 - OpenStreetMap: Wege und `sac_scale` Schwierigkeit
 - swisstopo OGD: offizielle Wanderweg-Kategorien für Matching
 

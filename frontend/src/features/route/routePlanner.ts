@@ -2,6 +2,7 @@ import type {
   LonLat,
   RoutePlan,
   RouteSegment,
+  RoutingProfile,
   SegmentMode,
   Waypoint,
 } from "./routeModel";
@@ -25,6 +26,7 @@ export type PlannerAction =
     }
   | { type: "move-waypoint"; id: string; position: LonLat }
   | { type: "replace"; plan: RoutePlan }
+  | { type: "set-routing-profile"; profile: RoutingProfile }
   | { type: "set-segment-mode"; id: string; mode: SegmentMode }
   | { type: "delete-waypoint"; id: string }
   | { type: "clear" }
@@ -33,6 +35,7 @@ export type PlannerAction =
   | { type: "redo" };
 
 export const emptyPlan: RoutePlan = {
+  routingProfile: "hike",
   waypoints: [],
   segments: [],
 };
@@ -72,6 +75,8 @@ export function routePlannerReducer(
 
     case "move-waypoint":
       return commit(history, {
+        importedGeometry: undefined,
+        routingProfile: history.present.routingProfile,
         waypoints: history.present.waypoints.map((waypoint) =>
           waypoint.id === action.id
             ? { ...waypoint, position: action.position }
@@ -83,8 +88,16 @@ export function routePlannerReducer(
     case "replace":
       return commit(history, action.plan);
 
+    case "set-routing-profile":
+      return commit(history, {
+        ...history.present,
+        routingProfile: action.profile,
+      });
+
     case "set-segment-mode":
       return commit(history, {
+        importedGeometry: undefined,
+        routingProfile: history.present.routingProfile,
         waypoints: history.present.waypoints,
         segments: history.present.segments.map((segment) =>
           segment.id === action.id
@@ -102,6 +115,8 @@ export function routePlannerReducer(
     case "reverse": {
       const waypoints = [...history.present.waypoints].reverse();
       return commit(history, {
+        importedGeometry: undefined,
+        routingProfile: history.present.routingProfile,
         waypoints,
         segments: rebuildRoutedSegments(waypoints),
       });
@@ -137,6 +152,8 @@ export function routePlannerReducer(
 
 export function normalizeRoutePlan(plan: RoutePlan): RoutePlan {
   return {
+    importedGeometry: normalizeImportedGeometry(plan.importedGeometry),
+    routingProfile: normalizeRoutingProfile(plan.routingProfile),
     waypoints: plan.waypoints,
     segments: plan.segments.length
       ? plan.segments
@@ -181,6 +198,8 @@ function addWaypoint(
 ): RoutePlan {
   const previousWaypoint = plan.waypoints.at(-1);
   return {
+    importedGeometry: undefined,
+    routingProfile: plan.routingProfile,
     waypoints: [...plan.waypoints, waypoint],
     segments: previousWaypoint
       ? [
@@ -212,6 +231,8 @@ function insertWaypoint(
   }
 
   return {
+    importedGeometry: undefined,
+    routingProfile: plan.routingProfile,
     waypoints: [
       ...plan.waypoints.slice(0, waypointIndex),
       waypoint,
@@ -231,9 +252,21 @@ function deleteWaypoint(plan: RoutePlan, waypointId: string): RoutePlan {
     (waypoint) => waypoint.id !== waypointId,
   );
   return {
+    importedGeometry: undefined,
+    routingProfile: plan.routingProfile,
     waypoints,
     segments: rebuildRoutedSegments(waypoints),
   };
+}
+
+function normalizeImportedGeometry(
+  geometry: RoutePlan["importedGeometry"],
+): RoutePlan["importedGeometry"] {
+  return geometry && geometry.length >= 2 ? geometry : undefined;
+}
+
+function normalizeRoutingProfile(profile: unknown): RoutingProfile {
+  return profile === "bike" ? "bike" : "hike";
 }
 
 function createStraightSegment(
@@ -266,7 +299,8 @@ function createSegment(
 function plansEqual(first: RoutePlan, second: RoutePlan): boolean {
   if (
     first.waypoints.length !== second.waypoints.length ||
-    first.segments.length !== second.segments.length
+    first.segments.length !== second.segments.length ||
+    first.routingProfile !== second.routingProfile
   ) {
     return false;
   }
@@ -290,5 +324,25 @@ function plansEqual(first: RoutePlan, second: RoutePlan): boolean {
     );
   });
 
-  return waypointsEqual && segmentsEqual;
+  return (
+    waypointsEqual &&
+    segmentsEqual &&
+    importedGeometryEqual(first.importedGeometry, second.importedGeometry)
+  );
+}
+
+function importedGeometryEqual(
+  first: RoutePlan["importedGeometry"],
+  second: RoutePlan["importedGeometry"],
+): boolean {
+  if (!first && !second) {
+    return true;
+  }
+  if (!first || !second || first.length !== second.length) {
+    return false;
+  }
+  return first.every((point, index) => {
+    const other = second[index];
+    return point.lon === other.lon && point.lat === other.lat;
+  });
 }

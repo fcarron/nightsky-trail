@@ -35,7 +35,9 @@ export function summarizeRoute(plan: RoutePlan): RouteSummary {
   return {
     waypointCount: plan.waypoints.length,
     segmentCount: plan.segments.length,
-    distanceMeters: totalSegmentDistanceMeters(plan.waypoints, plan.segments),
+    distanceMeters: plan.importedGeometry
+      ? totalStraightLineDistanceMeters(plan.importedGeometry)
+      : totalSegmentDistanceMeters(plan.waypoints, plan.segments),
   };
 }
 

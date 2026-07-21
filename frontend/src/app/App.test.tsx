@@ -201,6 +201,36 @@ describe("App", () => {
     expect(routeRequest.segments[0].mode).toBe("routed");
   });
 
+  it("sends the selected bike routing profile", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock({
+      routeResponses: [
+        routeResponse({ distanceMeters: 1234 }),
+        routeResponse({ distanceMeters: 2345 }),
+      ],
+    });
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("1.23 km")).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Velo" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("2.35 km")).toBeInTheDocument(),
+    );
+    const routeCall = fetchMock.mock.calls
+      .filter(([url]) => url.toString().endsWith("/api/v1/route/compute"))
+      .at(-1);
+    const routeRequest = JSON.parse(String(routeCall?.[1]?.body)) as {
+      profile: string;
+    };
+    expect(routeRequest.profile).toBe("bike");
+  });
+
   it("ignores stale route compute responses", async () => {
     const user = userEvent.setup();
     const firstRouteResponse = createDeferred<Response>();

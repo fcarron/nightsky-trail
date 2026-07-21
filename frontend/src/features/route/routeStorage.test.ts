@@ -9,6 +9,7 @@ describe("route storage", () => {
 
     saveStoredRoute(
       {
+        routingProfile: "hike",
         waypoints: [
           { id: "a", position: { lon: 7.4, lat: 46.9 } },
           { id: "b", position: { lon: 8.5, lat: 47.3 } },
@@ -26,6 +27,7 @@ describe("route storage", () => {
     );
 
     expect(loadStoredRoute(storage)).toEqual({
+      routingProfile: "hike",
       waypoints: [
         { id: "a", position: { lon: 7.4, lat: 46.9 } },
         { id: "b", position: { lon: 8.5, lat: 47.3 } },
@@ -46,6 +48,10 @@ describe("route storage", () => {
     storage.clear();
     storage.setItem("swiss-route-planner.active-route.v1", "bad json");
 
-    expect(loadStoredRoute(storage)).toEqual({ waypoints: [], segments: [] });
+    expect(loadStoredRoute(storage)).toEqual({
+      routingProfile: "hike",
+      waypoints: [],
+      segments: [],
+    });
   });
 });

@@ -20,6 +20,7 @@ class SegmentRequestSerializer(serializers.Serializer):
 class RouteComputeRequestSerializer(serializers.Serializer):
     waypoints = WaypointSerializer(many=True)
     segments = SegmentRequestSerializer(many=True, required=False)
+    profile = serializers.ChoiceField(choices=["hike", "bike"], default="hike")
 
 
 class AuthRegisterSerializer(serializers.Serializer):

@@ -31,6 +31,7 @@ export interface SavedTourListResponse {
 export interface RouteComputeRequest {
   waypoints: RouteWaypointDto[];
   segments: RouteSegmentRequestDto[];
+  profile: "hike" | "bike";
 }
 
 export interface RouteWaypointDto {

@@ -292,6 +292,7 @@ class RouteComputeView(APIView):
                     profile=settings.GRAPHHOPPER_PROFILE,
                     timeout_seconds=settings.GRAPHHOPPER_TIMEOUT_SECONDS,
                 ),
+                profile=data["profile"],
             )
         except RouteValidationError as error:
             raise UnprocessableEntity(error.code, error.message, error.details) from error

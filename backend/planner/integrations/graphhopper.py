@@ -11,6 +11,7 @@ from planner.domain.route import Waypoint
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 ROUTE_DETAILS = ["hike_rating", "foot_network", "road_class"]
+SUPPORTED_PROFILES = {"hike", "bike"}
 HIKING_MODEL_PATH = Path(__file__).resolve().parent / "graphhopper_models" / "hiking.json"
 
 
@@ -68,6 +69,9 @@ class GraphHopperClient:
         profile: str | None = None,
     ) -> GraphHopperRoute:
         routing_profile = profile or self.profile
+        if routing_profile not in SUPPORTED_PROFILES:
+            raise GraphHopperUnavailableError("The routing profile is not configured.")
+
         payload = {
             "points": [
                 [start.longitude, start.latitude],
@@ -78,8 +82,9 @@ class GraphHopperClient:
             "instructions": False,
             "calc_points": True,
             "details": ROUTE_DETAILS,
-            "custom_model": load_hiking_custom_model(),
         }
+        if routing_profile == "hike":
+            payload["custom_model"] = load_hiking_custom_model()
 
         try:
             response = httpx.post(

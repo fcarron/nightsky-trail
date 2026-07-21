@@ -184,10 +184,33 @@ describe("route planner reducer", () => {
     ]);
   });
 
+  it("keeps the selected routing profile while editing", () => {
+    let history = routePlannerReducer(initialPlannerHistory, {
+      type: "set-routing-profile",
+      profile: "bike",
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "a", position: { lon: 7.4, lat: 46.9 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "b", position: { lon: 8.0, lat: 47.0 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "move-waypoint",
+      id: "a",
+      position: { lon: 7.45, lat: 46.95 },
+    });
+
+    expect(history.present.routingProfile).toBe("bike");
+  });
+
   it("replaces the active plan when loading a saved tour", () => {
     const history = routePlannerReducer(initialPlannerHistory, {
       type: "replace",
       plan: {
+        routingProfile: "hike",
         waypoints: [{ id: "loaded-a", position: { lon: 7.4, lat: 46.9 } }],
         segments: [],
       },
