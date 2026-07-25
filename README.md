@@ -39,6 +39,24 @@ Persistenz ist absichtlich klein:
 - Keine Cloud-Synchronisierung und keine öffentlichen Profile.
 - Karten, Routing, Höhenprofil und externe Overlays brauchen weiterhin Netzwerk.
 
+## GitHub Status
+
+Das Repository ist vorbereitet für Veröffentlichung als Projekt-Quellcode, aber vor einem öffentlichen Push sollten noch zwei Entscheidungen bewusst getroffen werden:
+
+- **Code-Lizenz festlegen:** Aktuell ist keine `LICENSE` Datei enthalten. Ohne explizite Lizenz bleiben die Rechte standardmässig vorbehalten. Eine permissive Lizenz wie MIT oder Apache-2.0 wäre möglich, muss aber bewusst gewählt werden.
+- **Produktionsbetrieb klären:** Die Docker-Compose-Konfiguration ist primär für lokale Entwicklung. Für öffentliche Nutzung sollten `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=false`, `DJANGO_ALLOWED_HOSTS`, HTTPS, persistente Volumes, Backups und Dienstlimits sauber gesetzt werden.
+
+Nicht im Repo enthalten und bewusst durch `.gitignore` ausgeschlossen:
+
+- `.env`
+- SQLite-Datenbanken
+- OSM `.osm.pbf` Extrakte
+- GraphHopper Graph-Cache
+- swisstopo GeoPackage/ZIP-Daten
+- Frontend `node_modules` und Build-Artefakte
+
+Weitere Vorbereitungspunkte stehen in [docs/github-prep.md](docs/github-prep.md).
+
 ## Architektur
 
 ```text
@@ -81,6 +99,8 @@ Für lokale Entwicklung ohne Docker:
 - Node `^20.19.0 || >=22.12.0`
 - npm
 - Docker trotzdem für GraphHopper
+
+Die lokale System-Node-Version muss die in `frontend/package.json` definierte Engine erfüllen. Falls lokale Checks wegen einer älteren Node-Version scheitern, nutze die Docker-Frontend-Umgebung.
 
 ## Installation Mit Docker Compose
 
@@ -268,6 +288,8 @@ http://127.0.0.1:8000/api/docs/
 - swisstopo OGD: offizielle Wanderweg-Kategorien für Matching
 
 Details und Einschränkungen stehen in [docs/data-sources.md](docs/data-sources.md).
+
+Die Datenquellen und Karten-/Routingdaten haben eigene Nutzungsbedingungen und Lizenzen. Eine spätere Code-Lizenz für dieses Repository ändert diese Datenquellen-Lizenzen nicht.
 
 ## Konfiguration
 
