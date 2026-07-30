@@ -765,6 +765,55 @@ button:disabled {
   padding: 7px 0;
 }
 
+.compactDetails {
+  border-top: 1px solid #d8dee5;
+  padding: 6px 0;
+}
+
+.compactDetails > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 750;
+  list-style: none;
+}
+
+.compactDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.compactDetails > summary::before {
+  color: #66717d;
+  content: "▸";
+  font-size: 11px;
+}
+
+.compactDetails[open] > summary::before {
+  content: "▾";
+}
+
+.compactDetails > summary span {
+  margin-right: auto;
+}
+
+.compactDetails > summary small {
+  overflow: hidden;
+  color: #66717d;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactDetails[open] > summary {
+  margin-bottom: 8px;
+}
+
 .surfaceBar {
   display: flex;
   overflow: hidden;
@@ -1396,12 +1445,50 @@ button:disabled {
 .mapLayerSelector {
   right: min(386px, calc(100vw - 320px));
   top: 12px;
+  min-width: 160px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.mapLayerSelector > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  cursor: pointer;
+  list-style: none;
+  padding: 0 10px;
+  color: #dce7ee;
+  font-weight: 750;
+}
+
+.mapLayerSelector > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mapLayerSelector > summary::after {
+  color: #8fa1ad;
+  content: "▸";
+  font-size: 11px;
+}
+
+.mapLayerSelector[open] > summary::after {
+  content: "▾";
+}
+
+.mapLayerSelector > summary span {
+  color: #8fa1ad;
+  font-weight: 500;
+}
+
+.mapLayerContent {
   display: grid;
   grid-template-columns: auto minmax(150px, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
+  border-top: 1px solid #263545;
+  padding: 8px 10px 10px;
 }
 
 .mapLayerSelector label {

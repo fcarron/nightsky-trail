@@ -1318,14 +1318,11 @@ export function App() {
             ) : null}
 
             {surfaceSummary.length ? (
-              <section
-                className="surfacePanel"
-                aria-label="Wegbeschaffenheit"
-              >
-                <div className="sectionHeader">
-                  <h2>Wegbeschaffenheit</h2>
-                  <span>OSM Wegtyp</span>
-                </div>
+              <details className="surfacePanel compactDetails" aria-label="Wegbeschaffenheit">
+                <summary>
+                  <span>Weg</span>
+                  <small>{formatSurfaceSummary(surfaceSummary)}</small>
+                </summary>
                 <div className="surfaceBar" aria-hidden="true">
                   {surfaceSummary.map((item) => (
                     <span
@@ -1351,20 +1348,20 @@ export function App() {
                     </div>
                   ))}
                 </dl>
-              </section>
+              </details>
             ) : null}
 
-            <section
-              className="waypointPanel routeEditorPanel"
+            <details
+              className="waypointPanel routeEditorPanel compactDetails"
               aria-label="Wegpunkte"
             >
-              <div className="sectionHeader">
-                <h2>Wegpunkte</h2>
-                <span>
+              <summary>
+                <span>Wegpunkte</span>
+                <small>
                   {routeSummary.waypointCount} Punkte ·{" "}
                   {routeSummary.segmentCount} Abschnitte
-                </span>
-              </div>
+                </small>
+              </summary>
 
               {firstWaypoint ? (
                 <>
@@ -1416,7 +1413,7 @@ export function App() {
                   Klick auf die Karte setzt den Start.
                 </p>
               )}
-            </section>
+            </details>
 
             {history.present.segments.length ? (
               <details className="segmentPanel editorDetails">
@@ -1543,6 +1540,22 @@ function summarizeGraphhopperDebug(route: ComputedRoute | null) {
 
 function countDetailEntries(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
+}
+
+function formatSurfaceSummary(items: SurfaceSummaryItem[]): string {
+  const totalMeters = items.reduce((total, item) => total + item.distanceMeters, 0);
+  if (totalMeters <= 0) {
+    return "Keine Angaben";
+  }
+
+  return items
+    .filter((item) => item.category !== "unknown")
+    .slice(0, 3)
+    .map((item) => {
+      const percent = Math.round((item.distanceMeters / totalMeters) * 100);
+      return `${percent}% ${item.label}`;
+    })
+    .join(" · ");
 }
 
 function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {

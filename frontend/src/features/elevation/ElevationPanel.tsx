@@ -6,7 +6,7 @@ import {
   GridComponent,
   TooltipComponent,
 } from "echarts/components";
-import * as echarts from "echarts/core";
+import { init, use as registerEChartsModules } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
 import { formatDistance } from "../route/routeGeometry";
@@ -18,7 +18,7 @@ import {
   gradientGroupForPercent,
 } from "./elevationModel";
 
-echarts.use([
+registerEChartsModules([
   BarChart,
   LineChart,
   DataZoomComponent,
@@ -87,7 +87,7 @@ export function ElevationPanel({
       return;
     }
 
-    const chart = echarts.init(chartRef.current);
+    const chart = init(chartRef.current);
     let hoverFrame: number | null = null;
     let pendingHoverEvent: { offsetX: number; offsetY: number } | null = null;
     const elevationRange = Math.max(

@@ -890,84 +890,94 @@ export function MapPanel({
   return (
     <section className="mapSurface" aria-label="Karte">
       <div ref={targetRef} className="mapTarget" />
-      <div className="mapLayerSelector" aria-label="Kartenauswahl">
-        <label htmlFor="base-layer-select">Karte</label>
-        <select
-          id="base-layer-select"
-          value={baseLayerId}
-          onChange={(event) =>
-            setBaseLayerId(toBaseLayerId(event.target.value))
-          }
-        >
-          <option value="light">swisstopo Light</option>
-          <option value="standard">swisstopo Standard</option>
-          <option value="osm-topo">OSM Topo</option>
-        </select>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={hikingTrailsVisible}
-            onChange={(event) => setHikingTrailsVisible(event.target.checked)}
-          />
-          Offizielle Wanderwege
-        </label>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={hikingRoutesVisible}
-            onChange={(event) => setHikingRoutesVisible(event.target.checked)}
-          />
-          Wanderland
-        </label>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={hikingClosuresVisible}
-            onChange={(event) => setHikingClosuresVisible(event.target.checked)}
-          />
-          Sperrungen
-        </label>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={cyclingRoutesVisible}
-            onChange={(event) => setCyclingRoutesVisible(event.target.checked)}
-          />
-          Veloland
-        </label>
-        <label className="mapOverlayToggle">
-          <input
-            type="checkbox"
-            checked={difficultyVisible}
-            onChange={(event) => {
-              const enabled = event.target.checked;
-              setSelectedDifficultyWay(null);
-              setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
-              setDifficultyLimitedToKnown(false);
-              setDifficultyStatus(
-                enabled
-                  ? "Schwierigkeitshinweise laden"
-                  : "Schwierigkeitshinweise aus",
-              );
-              setDifficultyVisible(enabled);
-            }}
-          />
-          Schwierigkeitshinweise
-        </label>
-        {ENABLE_DEV_TOOLS ? (
+      <details className="mapLayerSelector" aria-label="Kartenauswahl">
+        <summary>
+          Karte
+          <span>{baseLayerLabel(baseLayerId)}</span>
+        </summary>
+        <div className="mapLayerContent">
+          <label htmlFor="base-layer-select">Basiskarte</label>
+          <select
+            id="base-layer-select"
+            value={baseLayerId}
+            onChange={(event) =>
+              setBaseLayerId(toBaseLayerId(event.target.value))
+            }
+          >
+            <option value="light">swisstopo Light</option>
+            <option value="standard">swisstopo Standard</option>
+            <option value="osm-topo">OSM Topo</option>
+          </select>
           <label className="mapOverlayToggle">
             <input
               type="checkbox"
-              checked={trailMatchDebugVisible}
+              checked={hikingTrailsVisible}
+              onChange={(event) => setHikingTrailsVisible(event.target.checked)}
+            />
+            Offizielle Wanderwege
+          </label>
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={hikingRoutesVisible}
+              onChange={(event) => setHikingRoutesVisible(event.target.checked)}
+            />
+            Wanderland
+          </label>
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={hikingClosuresVisible}
+              onChange={(event) =>
+                setHikingClosuresVisible(event.target.checked)
+              }
+            />
+            Sperrungen
+          </label>
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={cyclingRoutesVisible}
+              onChange={(event) =>
+                setCyclingRoutesVisible(event.target.checked)
+              }
+            />
+            Veloland
+          </label>
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={difficultyVisible}
               onChange={(event) => {
+                const enabled = event.target.checked;
                 setSelectedDifficultyWay(null);
-                setTrailMatchDebugVisible(event.target.checked);
+                setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
+                setDifficultyLimitedToKnown(false);
+                setDifficultyStatus(
+                  enabled
+                    ? "Schwierigkeitshinweise laden"
+                    : "Schwierigkeitshinweise aus",
+                );
+                setDifficultyVisible(enabled);
               }}
             />
-            Match Debug
+            Schwierigkeit
           </label>
-        ) : null}
-      </div>
+          {ENABLE_DEV_TOOLS ? (
+            <label className="mapOverlayToggle">
+              <input
+                type="checkbox"
+                checked={trailMatchDebugVisible}
+                onChange={(event) => {
+                  setSelectedDifficultyWay(null);
+                  setTrailMatchDebugVisible(event.target.checked);
+                }}
+              />
+              Match Debug
+            </label>
+          ) : null}
+        </div>
+      </details>
       {showDifficultyPanel ? (
         <DifficultyPanel
           difficultyLimitedToKnown={difficultyLimitedToKnown}
@@ -1047,6 +1057,16 @@ function toBaseLayerId(value: string): BaseLayerId {
     return "osm-topo";
   }
   return value === "standard" ? "standard" : "light";
+}
+
+function baseLayerLabel(value: BaseLayerId): string {
+  if (value === "standard") {
+    return "Standard";
+  }
+  if (value === "osm-topo") {
+    return "OSM Topo";
+  }
+  return "Light";
 }
 
 function isComputedRouteSegment(

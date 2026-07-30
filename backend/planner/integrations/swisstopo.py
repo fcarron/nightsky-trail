@@ -97,7 +97,6 @@ class SwisstopoClient:
                     "type": "locations",
                     "limit": str(limit),
                     "sr": "4326",
-                    "returnGeometry": "false",
                 },
                 timeout=self.timeout,
             )

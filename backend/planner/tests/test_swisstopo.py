@@ -131,6 +131,51 @@ def test_parse_search_response_returns_locations() -> None:
     ]
 
 
+def test_swisstopo_client_search_requests_geometry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def fake_get(
+        url: str,
+        params: dict[str, str],
+        timeout: httpx.Timeout,
+    ) -> httpx.Response:
+        requests.append({"url": url, "params": params, "timeout": timeout})
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": 53,
+                        "attrs": {
+                            "label": "<b>Wil (ZH)</b>",
+                            "origin": "gg25",
+                            "lon": 8.5016,
+                            "lat": 47.6101,
+                            "zoomlevel": 14,
+                        },
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr("planner.integrations.swisstopo.httpx.get", fake_get)
+    client = SwisstopoClient("https://api3.geo.admin.ch/")
+
+    results = client.search_locations("wil", limit=5)
+
+    assert results[0].label == "Wil (ZH)"
+    assert requests[0]["url"] == "https://api3.geo.admin.ch/rest/services/ech/SearchServer"
+    params = requests[0]["params"]
+    assert params == {
+        "searchText": "wil",
+        "type": "locations",
+        "limit": "5",
+        "sr": "4326",
+    }
+
+
 def test_parse_search_response_rejects_invalid_payload() -> None:
     response = httpx.Response(200, json={"unexpected": []})
 
