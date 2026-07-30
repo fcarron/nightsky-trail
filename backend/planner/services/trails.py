@@ -25,7 +25,7 @@ from planner.integrations.swisstopo_trails import (
 )
 
 logger = logging.getLogger(__name__)
-TRAILS_MIN_ZOOM = 11
+TRAILS_MIN_ZOOM = 13
 
 WARNING_RELEVANT_SAC_SCALES = {
     "demanding_mountain_hiking",
@@ -70,8 +70,7 @@ def build_trails_response(
     ways = []
     swisstopo_trails = []
     if include_debug and (
-        zoom < settings.TRAILS_DEBUG_MIN_ZOOM
-        or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
+        zoom < settings.TRAILS_DEBUG_MIN_ZOOM or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
     ):
         include_debug = False
         warnings.append("Match Debug is limited to small viewports. Zoom in to enable it.")
@@ -221,11 +220,7 @@ def line_string_to_geojson_wgs84(geometry: LineString) -> dict[str, object]:
 
 
 def warning_relevant_ways(ways: list[OsmWay]) -> list[OsmWay]:
-    return [
-        way
-        for way in ways
-        if way.tags.get("sac_scale") in WARNING_RELEVANT_SAC_SCALES
-    ]
+    return [way for way in ways if way.tags.get("sac_scale") in WARNING_RELEVANT_SAC_SCALES]
 
 
 def trails_cache_key(

@@ -80,7 +80,10 @@ def test_route_compute_returns_routed_segment(monkeypatch: pytest.MonkeyPatch) -
             "type": "LineString",
             "coordinates": [[7.4474, 46.948], [8.2, 47.2], [8.5417, 47.3769]],
         },
-        "details": {"hike_rating": [[0, 2, "hiking"]]},
+        "details": {
+            "hike_rating": [[0, 2, "hiking"]],
+            "surface": [[0, 1, "asphalt"], [1, 2, "ground"]],
+        },
     }
 
 
@@ -223,7 +226,10 @@ class FakeGraphHopperClient:
                 [8.2, 47.2],
                 [end.longitude, end.latitude],
             ],
-            details={"hike_rating": [[0, 2, "hiking"]]},
+            details={
+                "hike_rating": [[0, 2, "hiking"]],
+                "surface": [[0, 1, "asphalt"], [1, 2, "ground"]],
+            },
         )
 
 

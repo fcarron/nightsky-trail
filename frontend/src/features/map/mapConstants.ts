@@ -7,6 +7,8 @@ export const SWISSTOPO_STANDARD_WMTS_URL =
 export const SWISSTOPO_HIKING_TRAILS_WMTS_URL =
   "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swisstlm3d-wanderwege/default/current/3857/{z}/{x}/{y}.png";
 
+export const HIKING_TRAIL_OVERLAY_MIN_ZOOM = 13;
+
 export const SWISSTOPO_WMS_URL = "https://wms.geo.admin.ch/";
 
 export const SWISSTOPO_CYCLING_ROUTES_LAYER = "ch.astra.veloland";

@@ -77,7 +77,12 @@ export function ElevationPanel({
   }, [elevationFloor, profile]);
 
   useEffect(() => {
-    if (!chartRef.current || !profile || !chartData || profile.points.length === 0) {
+    if (
+      !chartRef.current ||
+      !profile ||
+      !chartData ||
+      profile.points.length === 0
+    ) {
       onHoverPointChange?.(null);
       return;
     }
@@ -155,7 +160,9 @@ export function ElevationPanel({
           formatter: (value: number) => `${Math.round(value)} m`,
         },
         axisLine: { lineStyle: { color: "#334657" } },
-        max: Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) * 20,
+        max:
+          Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) *
+          20,
         min: elevationFloor,
         splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.16)" } },
         type: "value",
@@ -221,7 +228,9 @@ export function ElevationPanel({
     };
 
     const updateHoverPoint = (event: { offsetX: number; offsetY: number }) => {
-      if (!chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])) {
+      if (
+        !chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])
+      ) {
         onHoverPointChange?.(null);
         return;
       }
@@ -265,22 +274,23 @@ export function ElevationPanel({
     };
   }, [chartData, elevationFloor, onHoverPointChange, profile, panelSize]);
 
-  return (
+  const statusLabel =
+    status === "loading"
+      ? "Wird berechnet"
+      : status === "error"
+        ? message
+        : profile
+          ? "Bereit"
+          : "Keine Route";
+
+  const panel = (
     <section
       className={`elevationPanel elevationPanel-${panelSize}`}
       aria-label="Höhenprofil"
     >
       <div className="panelHeader">
         <h2>Höhenprofil</h2>
-        <span aria-live="polite">
-          {status === "loading"
-            ? "Wird berechnet"
-            : status === "error"
-              ? message
-              : profile
-                ? "Bereit"
-                : "Keine Route"}
-        </span>
+        <span aria-live="polite">{statusLabel}</span>
       </div>
 
       {profile ? (
@@ -301,7 +311,9 @@ export function ElevationPanel({
               </div>
               <div>
                 <dt>Wanderzeit</dt>
-                <dd>{formatDurationMinutes(profile.hikingTime.durationMinutes)}</dd>
+                <dd>
+                  {formatDurationMinutes(profile.hikingTime.durationMinutes)}
+                </dd>
               </div>
               <div>
                 <dt>Höhe</dt>
@@ -342,6 +354,34 @@ export function ElevationPanel({
       )}
     </section>
   );
+
+  if (panelSize === "large") {
+    return (
+      <>
+        <section className="elevationPanel elevationPanel-compact elevationPanelDockControl">
+          <div className="panelHeader">
+            <h2>Höhenprofil</h2>
+            <span aria-live="polite">{statusLabel}</span>
+          </div>
+          <div className="elevationPanelControls" aria-label="Profilgrösse">
+            <button
+              type="button"
+              aria-pressed={false}
+              onClick={() => setPanelSize("compact")}
+            >
+              Klein
+            </button>
+            <button type="button" aria-pressed={true}>
+              Gross
+            </button>
+          </div>
+        </section>
+        {panel}
+      </>
+    );
+  }
+
+  return panel;
 }
 
 function gradientBarWidth(profile: ElevationProfile): number {
@@ -378,10 +418,7 @@ function formatElevationTooltip(
   ].join("<br />");
 }
 
-function pointFromTooltipParams(
-  params: unknown,
-  profile: ElevationProfile,
-) {
+function pointFromTooltipParams(params: unknown, profile: ElevationProfile) {
   const firstParam = Array.isArray(params) ? params[0] : params;
   if (
     typeof firstParam === "object" &&

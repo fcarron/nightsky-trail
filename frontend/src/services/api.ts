@@ -14,6 +14,8 @@ import type {
   RouteComputeResponse,
   SavedTourListResponse,
   SavedTourResponse,
+  SearchResponse,
+  SearchResultDto,
   TrailsResponse,
 } from "../types/api";
 
@@ -71,7 +73,9 @@ export async function logoutAccount(): Promise<AuthSessionResponse> {
   });
   const payload: unknown = await response.json();
   if (!response.ok) {
-    throw new ApiRequestError(toApiError(payload, "Logout failed", response.status));
+    throw new ApiRequestError(
+      toApiError(payload, "Logout failed", response.status),
+    );
   }
   if (!isAuthSessionResponse(payload)) {
     throw new Error("Logout returned an invalid response.");
@@ -88,7 +92,9 @@ export async function listSavedTours(
   });
   const payload: unknown = await response.json();
   if (!response.ok) {
-    throw new ApiRequestError(toApiError(payload, "Tour list failed", response.status));
+    throw new ApiRequestError(
+      toApiError(payload, "Tour list failed", response.status),
+    );
   }
   if (!isSavedTourListResponse(payload)) {
     throw new Error("Tour list returned an invalid response.");
@@ -117,7 +123,9 @@ export async function deleteSavedTour(id: string): Promise<void> {
   });
   const payload: unknown = await response.json();
   if (!response.ok) {
-    throw new ApiRequestError(toApiError(payload, "Tour delete failed", response.status));
+    throw new ApiRequestError(
+      toApiError(payload, "Tour delete failed", response.status),
+    );
   }
 }
 
@@ -226,6 +234,38 @@ export async function getTrailDifficultyWays(
   return payload;
 }
 
+export async function searchLocations(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({
+    limit: "8",
+    q: query,
+  });
+  const response = await fetch(`${API_BASE_URL}/api/v1/search?${params}`, {
+    signal,
+  });
+
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    throw new ApiRequestError(
+      isApiErrorResponse(payload)
+        ? payload
+        : {
+            code: "request_failed",
+            message: `Search failed with HTTP ${response.status}`,
+            details: {},
+          },
+    );
+  }
+
+  if (!isSearchResponse(payload)) {
+    throw new Error("Search returned an invalid response.");
+  }
+
+  return payload;
+}
+
 export class ApiRequestError extends Error {
   readonly code: string;
   readonly details: Record<string, unknown>;
@@ -251,7 +291,9 @@ async function submitAuthRequest(
   });
   const payload: unknown = await response.json();
   if (!response.ok) {
-    throw new ApiRequestError(toApiError(payload, "Authentication failed", response.status));
+    throw new ApiRequestError(
+      toApiError(payload, "Authentication failed", response.status),
+    );
   }
   if (!isAuthSessionResponse(payload)) {
     throw new Error("Authentication returned an invalid response.");
@@ -272,7 +314,9 @@ async function submitTourRequest(
   });
   const payload: unknown = await response.json();
   if (!response.ok) {
-    throw new ApiRequestError(toApiError(payload, "Tour request failed", response.status));
+    throw new ApiRequestError(
+      toApiError(payload, "Tour request failed", response.status),
+    );
   }
   if (!isSavedTourResponse(payload)) {
     throw new Error("Tour request returned an invalid response.");
@@ -280,7 +324,11 @@ async function submitTourRequest(
   return payload;
 }
 
-function toApiError(payload: unknown, message: string, status: number): ApiErrorResponse {
+function toApiError(
+  payload: unknown,
+  message: string,
+  status: number,
+): ApiErrorResponse {
   return isApiErrorResponse(payload)
     ? payload
     : {
@@ -404,7 +452,32 @@ function isTrailsResponse(payload: unknown): payload is TrailsResponse {
   );
 }
 
-function isTrailSummary(payload: unknown): payload is TrailsResponse["trailSummary"] {
+function isSearchResponse(payload: unknown): payload is SearchResponse {
+  return (
+    isRecord(payload) &&
+    Array.isArray(payload.results) &&
+    payload.results.every(isSearchResult)
+  );
+}
+
+function isSearchResult(payload: unknown): payload is SearchResultDto {
+  return (
+    isRecord(payload) &&
+    typeof payload.id === "string" &&
+    typeof payload.label === "string" &&
+    typeof payload.origin === "string" &&
+    typeof payload.longitude === "number" &&
+    Number.isFinite(payload.longitude) &&
+    typeof payload.latitude === "number" &&
+    Number.isFinite(payload.latitude) &&
+    typeof payload.zoom === "number" &&
+    Number.isFinite(payload.zoom)
+  );
+}
+
+function isTrailSummary(
+  payload: unknown,
+): payload is TrailsResponse["trailSummary"] {
   return (
     isRecord(payload) &&
     typeof payload.totalWays === "number" &&
@@ -435,7 +508,9 @@ function isOsmWay(payload: unknown): payload is OsmWayDto {
   );
 }
 
-function isOfficialTrailSegment(payload: unknown): payload is OfficialTrailSegmentDto {
+function isOfficialTrailSegment(
+  payload: unknown,
+): payload is OfficialTrailSegmentDto {
   return (
     isRecord(payload) &&
     typeof payload.id === "string" &&
@@ -444,13 +519,16 @@ function isOfficialTrailSegment(payload: unknown): payload is OfficialTrailSegme
   );
 }
 
-function isCombinedTrailSegment(payload: unknown): payload is CombinedTrailSegmentDto {
+function isCombinedTrailSegment(
+  payload: unknown,
+): payload is CombinedTrailSegmentDto {
   return (
     isRecord(payload) &&
     typeof payload.osmWayId === "number" &&
     Number.isFinite(payload.osmWayId) &&
     (typeof payload.swisstopoId === "string" || payload.swisstopoId === null) &&
-    (typeof payload.officialCategory === "string" || payload.officialCategory === null) &&
+    (typeof payload.officialCategory === "string" ||
+      payload.officialCategory === null) &&
     (typeof payload.osmSacScale === "string" || payload.osmSacScale === null) &&
     (typeof payload.tLevel === "number" || payload.tLevel === null) &&
     typeof payload.matchScore === "number" &&

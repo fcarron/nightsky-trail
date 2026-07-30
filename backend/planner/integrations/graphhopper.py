@@ -10,7 +10,11 @@ import httpx
 from planner.domain.route import Waypoint
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
-ROUTE_DETAILS = ["hike_rating", "foot_network", "road_class"]
+ROUTE_DETAILS = [
+    "hike_rating",
+    "foot_network",
+    "road_class",
+]
 SUPPORTED_PROFILES = {"hike", "bike"}
 HIKING_MODEL_PATH = Path(__file__).resolve().parent / "graphhopper_models" / "hiking.json"
 

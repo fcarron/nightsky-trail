@@ -27,6 +27,7 @@ import type {
   Waypoint,
 } from "../route/routeModel";
 import {
+  HIKING_TRAIL_OVERLAY_MIN_ZOOM,
   OPEN_TOPO_MAP_URL,
   SWISSTOPO_CYCLING_ROUTES_LAYER,
   SWISSTOPO_HIKING_CLOSURES_LAYER,
@@ -44,17 +45,14 @@ import {
   routeStyle,
   waypointStyle,
 } from "./mapStyles";
-import {
-  DifficultyPanel,
-  TrailLegend,
-} from "./TrailOverlayInfo";
+import { DifficultyPanel, TrailLegend } from "./TrailOverlayInfo";
 import {
   EMPTY_DIFFICULTY_SUMMARY,
   type DifficultySummary,
   toDifficultySummary,
 } from "./trailDifficulty";
 
-const DIFFICULTY_MIN_ZOOM = 11;
+const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
 
 type BaseLayerId = "light" | "standard" | "osm-topo";
 type LayerRole =
@@ -72,6 +70,12 @@ interface MapPanelProps {
   elevationHoverPoint: LonLat | null;
   fitGeometry?: LonLat[];
   fitRequestId: number;
+  searchFocus: {
+    lon: number;
+    lat: number;
+    zoom: number;
+    requestId: number;
+  } | null;
   selectedWaypointId: string | null;
   onAddWaypoint: (position: LonLat) => void;
   onInsertWaypoint: (segmentId: string, position: LonLat) => string;
@@ -87,6 +91,7 @@ export function MapPanel({
   elevationHoverPoint,
   fitGeometry,
   fitRequestId,
+  searchFocus,
   selectedWaypointId,
   onAddWaypoint,
   onInsertWaypoint,
@@ -115,6 +120,7 @@ export function MapPanel({
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
   const lastHandledFitRequestIdRef = useRef(0);
+  const lastHandledSearchRequestIdRef = useRef(0);
   const callbacksRef = useRef({
     onAddWaypoint,
     onInsertWaypoint,
@@ -136,8 +142,11 @@ export function MapPanel({
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
-  const [difficultyStatus, setDifficultyStatus] = useState("Schwierigkeitshinweise aus");
-  const [difficultyLimitedToKnown, setDifficultyLimitedToKnown] = useState(false);
+  const [difficultyStatus, setDifficultyStatus] = useState(
+    "Schwierigkeitshinweise aus",
+  );
+  const [difficultyLimitedToKnown, setDifficultyLimitedToKnown] =
+    useState(false);
   const [difficultySummary, setDifficultySummary] = useState<DifficultySummary>(
     EMPTY_DIFFICULTY_SUMMARY,
   );
@@ -203,7 +212,7 @@ export function MapPanel({
     });
     osmTopoLayer.set("layerRole", "base-osm-topo" satisfies LayerRole);
     const hikingTrailsLayer = new TileLayer({
-      minZoom: 13,
+      minZoom: HIKING_TRAIL_OVERLAY_MIN_ZOOM,
       opacity: 0.92,
       source: new XYZ({
         attributions: "© swisstopo",
@@ -539,7 +548,10 @@ export function MapPanel({
         isComputedRouteSegment(segment) && segment.details.importedGpx === true;
       const feature = new Feature(new LineString(geometry));
       feature.set("segmentId", segment.id);
-      feature.set("segmentMode", isImportedGpxSegment ? "routed" : segment.mode);
+      feature.set(
+        "segmentMode",
+        isImportedGpxSegment ? "routed" : segment.mode,
+      );
       routeSource.addFeature(feature);
 
       if (
@@ -634,10 +646,33 @@ export function MapPanel({
     }
     source.addFeature(
       new Feature(
-        new Point(fromLonLat([elevationHoverPoint.lon, elevationHoverPoint.lat])),
+        new Point(
+          fromLonLat([elevationHoverPoint.lon, elevationHoverPoint.lat]),
+        ),
       ),
     );
   }, [elevationHoverPoint]);
+
+  useEffect(() => {
+    if (
+      !mapReady ||
+      !searchFocus ||
+      searchFocus.requestId === lastHandledSearchRequestIdRef.current
+    ) {
+      return;
+    }
+
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    lastHandledSearchRequestIdRef.current = searchFocus.requestId;
+    map.getView().animate({
+      center: fromLonLat([searchFocus.lon, searchFocus.lat]),
+      duration: 350,
+      zoom: searchFocus.zoom,
+    });
+  }, [mapReady, searchFocus]);
 
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);
@@ -692,7 +727,10 @@ export function MapPanel({
       if (difficultyTimerRef.current !== null) {
         window.clearTimeout(difficultyTimerRef.current);
       }
-      difficultyTimerRef.current = window.setTimeout(loadDifficultyWays, delayMs);
+      difficultyTimerRef.current = window.setTimeout(
+        loadDifficultyWays,
+        delayMs,
+      );
     }
 
     function loadDifficultyWays() {
@@ -706,7 +744,9 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus(`Schwierigkeitshinweise ab Zoom ${DIFFICULTY_MIN_ZOOM}`);
+        setDifficultyStatus(
+          `Schwierigkeitshinweise ab Zoom ${DIFFICULTY_MIN_ZOOM}`,
+        );
         return;
       }
 
@@ -732,13 +772,17 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus("Schwierigkeitshinweise: bitte weiter hineinzoomen");
+        setDifficultyStatus(
+          "Schwierigkeitshinweise: bitte weiter hineinzoomen",
+        );
         return;
       }
 
       if (difficultyRequestInFlightRef.current) {
         difficultyQueuedLoadRef.current = true;
-        setDifficultyStatus("Schwierigkeitshinweise laden · neuer Ausschnitt vorgemerkt");
+        setDifficultyStatus(
+          "Schwierigkeitshinweise laden · neuer Ausschnitt vorgemerkt",
+        );
         return;
       }
 
@@ -748,13 +792,7 @@ export function MapPanel({
       difficultyQueuedLoadRef.current = false;
       setDifficultyStatus("Schwierigkeitshinweise laden");
 
-      getTrailDifficultyWays(
-        bbox,
-        zoom,
-        true,
-        false,
-        trailMatchDebugEnabled,
-      )
+      getTrailDifficultyWays(bbox, zoom, true, false, trailMatchDebugEnabled)
         .then((response) => {
           if (difficultyRequestIdRef.current !== requestId) {
             return;
@@ -842,7 +880,12 @@ export function MapPanel({
       difficultyQueuedLoadRef.current = false;
       unByKey(moveEndListener);
     };
-  }, [difficultyVisible, hikingTrailsVisible, mapReady, trailMatchDebugEnabled]);
+  }, [
+    difficultyVisible,
+    hikingTrailsVisible,
+    mapReady,
+    trailMatchDebugEnabled,
+  ]);
 
   return (
     <section className="mapSurface" aria-label="Karte">
@@ -902,7 +945,9 @@ export function MapPanel({
               setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
               setDifficultyLimitedToKnown(false);
               setDifficultyStatus(
-                enabled ? "Schwierigkeitshinweise laden" : "Schwierigkeitshinweise aus",
+                enabled
+                  ? "Schwierigkeitshinweise laden"
+                  : "Schwierigkeitshinweise aus",
               );
               setDifficultyVisible(enabled);
             }}
@@ -940,14 +985,26 @@ export function MapPanel({
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
       <div className="attribution" aria-label="Datenquellen">
-        <a href="https://www.swisstopo.admin.ch/" target="_blank" rel="noreferrer">
+        <a
+          href="https://www.swisstopo.admin.ch/"
+          target="_blank"
+          rel="noreferrer"
+        >
           © swisstopo
         </a>
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+        >
           © OpenStreetMap contributors
         </a>
         {baseLayerId === "osm-topo" ? (
-          <a href="https://opentopomap.org/about" target="_blank" rel="noreferrer">
+          <a
+            href="https://opentopomap.org/about"
+            target="_blank"
+            rel="noreferrer"
+          >
             © OpenTopoMap (CC-BY-SA)
           </a>
         ) : null}

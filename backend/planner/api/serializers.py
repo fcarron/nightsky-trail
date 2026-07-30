@@ -112,3 +112,8 @@ class TrailsQuerySerializer(serializers.Serializer):
             raise serializers.ValidationError("BBox is too large for trail overlay loading.")
 
         return min_lon, min_lat, max_lon, max_lat
+
+
+class SearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(min_length=2, max_length=120, trim_whitespace=True)
+    limit = serializers.IntegerField(min_value=1, max_value=12, default=8)

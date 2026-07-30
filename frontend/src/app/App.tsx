@@ -50,9 +50,14 @@ import {
   loginAccount,
   logoutAccount,
   registerAccount,
+  searchLocations,
   updateSavedTour,
 } from "../services/api";
-import type { AuthSessionResponse, SavedTourDto } from "../types/api";
+import type {
+  AuthSessionResponse,
+  SavedTourDto,
+  SearchResultDto,
+} from "../types/api";
 import "./App.css";
 import { ENABLE_DEV_TOOLS } from "./config";
 
@@ -60,9 +65,23 @@ type HealthState = "checking" | "ok" | "unavailable";
 type RouteComputeStatus = "idle" | "loading" | "ready" | "error";
 type RouteStatusKind = "idle" | "loading" | "ready" | "error" | "imported";
 type ElevationStatus = "idle" | "loading" | "ready" | "error";
+type SearchStatus = "idle" | "loading" | "ready" | "error";
+type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
+
+interface SurfaceSummaryItem {
+  category: SurfaceCategory;
+  label: string;
+  distanceMeters: number;
+}
+
+interface DetailRange {
+  from: number;
+  to: number;
+  value: string | null;
+}
 
 interface RouteComputeState {
   route: ComputedRoute | null;
@@ -103,6 +122,65 @@ const SWISS_HIKING_FLAT_PACE_MIN_PER_KM = 14.271;
 const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
 const CALIBRATED_TIME_STORAGE_KEY =
   "swiss-route-planner.calibrated-time-enabled.v1";
+const SURFACE_CATEGORY_ORDER: SurfaceCategory[] = [
+  "paved",
+  "gravel",
+  "natural",
+  "unknown",
+];
+const SURFACE_CATEGORY_LABELS: Record<SurfaceCategory, string> = {
+  gravel: "Kies/Forstweg",
+  natural: "Trail/Natur",
+  paved: "Strasse",
+  unknown: "Unbekannt",
+};
+const PAVED_SURFACES = new Set([
+  "asphalt",
+  "chipseal",
+  "concrete",
+  "concrete:lanes",
+  "concrete:plates",
+  "cycleway",
+  "living_street",
+  "paved",
+  "paving_stones",
+  "primary",
+  "residential",
+  "road",
+  "secondary",
+  "service",
+  "sett",
+  "tertiary",
+  "trunk",
+  "unclassified",
+]);
+const GRAVEL_SURFACES = new Set([
+  "compacted",
+  "fine_gravel",
+  "grade1",
+  "grade2",
+  "grade3",
+  "gravel",
+  "pebblestone",
+  "track",
+  "unpaved",
+]);
+const NATURAL_SURFACES = new Set([
+  "dirt",
+  "earth",
+  "footway",
+  "grade4",
+  "grade5",
+  "grass",
+  "grass_paver",
+  "ground",
+  "mud",
+  "path",
+  "rock",
+  "sand",
+  "steps",
+  "wood",
+]);
 
 export function App() {
   const [health, setHealth] = useState<HealthState>("checking");
@@ -119,6 +197,15 @@ export function App() {
   const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [tourMessage, setTourMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchStatus, setSearchStatus] = useState<SearchStatus>("idle");
+  const [searchResults, setSearchResults] = useState<SearchResultDto[]>([]);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  const [searchFocus, setSearchFocus] = useState<{
+    lon: number;
+    lat: number;
+    zoom: number;
+    requestId: number;
+  } | null>(null);
   const [graphhopperDebugVisible, setGraphhopperDebugVisible] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(
     null,
@@ -151,6 +238,7 @@ export function App() {
   const waypointCounterRef = useRef(0);
   const routeRequestIdRef = useRef(0);
   const elevationRequestIdRef = useRef(0);
+  const searchRequestIdRef = useRef(0);
   const gpxInputRef = useRef<HTMLInputElement | null>(null);
   const manageMenuRef = useRef<HTMLDivElement | null>(null);
   const effectiveComputedRoute =
@@ -217,6 +305,10 @@ export function App() {
     : null;
   const graphhopperDebugSummary = useMemo(
     () => summarizeGraphhopperDebug(effectiveComputedRoute),
+    [effectiveComputedRoute],
+  );
+  const surfaceSummary = useMemo(
+    () => summarizeSurface(effectiveComputedRoute),
     [effectiveComputedRoute],
   );
   const activeTour =
@@ -688,6 +780,53 @@ export function App() {
     });
   }
 
+  async function submitSearch() {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchStatus("idle");
+      setSearchResults([]);
+      setSearchMessage("Mindestens zwei Zeichen eingeben.");
+      return;
+    }
+
+    const requestId = searchRequestIdRef.current + 1;
+    searchRequestIdRef.current = requestId;
+    setSearchStatus("loading");
+    setSearchMessage(null);
+
+    try {
+      const response = await searchLocations(query);
+      if (searchRequestIdRef.current !== requestId) {
+        return;
+      }
+      setSearchResults(response.results);
+      setSearchStatus("ready");
+      setSearchMessage(
+        response.results.length ? null : "Keine Treffer gefunden.",
+      );
+    } catch (error: unknown) {
+      if (searchRequestIdRef.current !== requestId) {
+        return;
+      }
+      setSearchResults([]);
+      setSearchStatus("error");
+      setSearchMessage(errorMessage(error));
+    }
+  }
+
+  function selectSearchResult(result: SearchResultDto) {
+    setSearchQuery(result.label);
+    setSearchResults([]);
+    setSearchStatus("idle");
+    setSearchMessage(null);
+    setSearchFocus((currentFocus) => ({
+      lat: result.latitude,
+      lon: result.longitude,
+      requestId: (currentFocus?.requestId ?? 0) + 1,
+      zoom: result.zoom,
+    }));
+  }
+
   return (
     <main className="appShell">
       <header className="topBar">
@@ -700,17 +839,41 @@ export function App() {
           role="search"
           onSubmit={(event) => {
             event.preventDefault();
-            if (searchQuery.trim()) {
-              setTourMessage("Suche ist noch nicht verbunden.");
-            }
+            void submitSearch();
           }}
         >
-          <input
-            aria-label="Ort, Adresse oder Route suchen"
-            placeholder="Ort, Adresse, Gipfel suchen"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.currentTarget.value)}
-          />
+          <div className="topSearchField">
+            <input
+              aria-label="Ort, Adresse oder Route suchen"
+              aria-controls="search-results"
+              aria-expanded={searchResults.length > 0}
+              placeholder="Ort, Adresse, Gipfel suchen"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.currentTarget.value);
+                setSearchStatus("idle");
+                setSearchMessage(null);
+              }}
+            />
+            <button type="submit" disabled={searchStatus === "loading"}>
+              {searchStatus === "loading" ? "Sucht" : "Suchen"}
+            </button>
+          </div>
+          {searchResults.length || searchMessage ? (
+            <div className="searchResults" id="search-results">
+              {searchMessage ? <p>{searchMessage}</p> : null}
+              {searchResults.map((result) => (
+                <button
+                  key={result.id}
+                  type="button"
+                  onClick={() => selectSearchResult(result)}
+                >
+                  <strong>{result.label}</strong>
+                  <span>{formatSearchOrigin(result.origin)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </form>
         <span className="status" aria-live="polite">
           {healthLabel}
@@ -719,119 +882,124 @@ export function App() {
 
       <section className="plannerLayout" aria-label="Routenplaner">
         <aside className="sidebar routeDock">
-          <div className="sidebarHeader">
-            <h1>
-              {selectedWaypoint
-                ? `Punkt ${selectedWaypointIndex + 1}`
-                : hasWaypoints
-                  ? "Tour bearbeiten"
-                  : "Tour zeichnen"}
-            </h1>
-            <p>
-              {selectedWaypoint
-                ? "Punkt-Aktionen ohne Dialog"
-                : (activeTour?.name ??
-                  "Klick setzt Punkte. Linie ziehen verfeinert die Runde.")}
-            </p>
-          </div>
+          <div className="dockTop">
+            <div className="sidebarHeader">
+              <h1>
+                {selectedWaypoint
+                  ? `Punkt ${selectedWaypointIndex + 1}`
+                  : hasWaypoints
+                    ? "Tour bearbeiten"
+                    : "Tour zeichnen"}
+              </h1>
+              <p>
+                {selectedWaypoint
+                  ? "Punkt-Aktionen ohne Dialog"
+                  : (activeTour?.name ??
+                    "Klick setzt Punkte. Linie ziehen verfeinert die Runde.")}
+              </p>
+            </div>
 
-          <div className="manageMenu" ref={manageMenuRef}>
-            <button
-              type="button"
-              aria-expanded={manageMenuOpen}
-              onClick={() => setManageMenuOpen((open) => !open)}
-            >
-              Tour
-            </button>
-            {manageMenuOpen ? (
-              <div className="managePanel">
-                <section className="accountPanel" aria-label="Konto und Touren">
-                  {authState.authenticated ? (
-                    <>
-                      <div className="accountIdentity">
-                        <span>Angemeldet</span>
-                        <strong>{authState.user?.username}</strong>
-                      </div>
-                      <button type="button" onClick={saveTour}>
-                        Speichern
-                      </button>
-                      <select
-                        aria-label="Gespeicherte Tour laden"
-                        value={activeTourId ?? ""}
-                        onChange={(event) => {
-                          const tour = savedTours.find(
-                            (item) => item.id === event.currentTarget.value,
-                          );
-                          if (tour) {
-                            loadTour(tour);
+            <div className="manageMenu" ref={manageMenuRef}>
+              <button
+                type="button"
+                aria-expanded={manageMenuOpen}
+                onClick={() => setManageMenuOpen((open) => !open)}
+              >
+                Tour
+              </button>
+              {manageMenuOpen ? (
+                <div className="managePanel">
+                  <section
+                    className="accountPanel"
+                    aria-label="Konto und Touren"
+                  >
+                    {authState.authenticated ? (
+                      <>
+                        <div className="accountIdentity">
+                          <span>Angemeldet</span>
+                          <strong>{authState.user?.username}</strong>
+                        </div>
+                        <button type="button" onClick={saveTour}>
+                          Speichern
+                        </button>
+                        <select
+                          aria-label="Gespeicherte Tour laden"
+                          value={activeTourId ?? ""}
+                          onChange={(event) => {
+                            const tour = savedTours.find(
+                              (item) => item.id === event.currentTarget.value,
+                            );
+                            if (tour) {
+                              loadTour(tour);
+                            }
+                          }}
+                        >
+                          <option value="">Tour laden</option>
+                          {savedTours.map((tour) => (
+                            <option key={tour.id} value={tour.id}>
+                              {tour.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={submitLogout}>
+                          Logout
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          aria-label="Benutzername"
+                          placeholder="Benutzername"
+                          value={authUsername}
+                          onChange={(event) =>
+                            setAuthUsername(event.currentTarget.value)
                           }
-                        }}
-                      >
-                        <option value="">Tour laden</option>
-                        {savedTours.map((tour) => (
-                          <option key={tour.id} value={tour.id}>
-                            {tour.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button type="button" onClick={submitLogout}>
-                        Logout
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <input
-                        aria-label="Benutzername"
-                        placeholder="Benutzername"
-                        value={authUsername}
-                        onChange={(event) =>
-                          setAuthUsername(event.currentTarget.value)
-                        }
-                      />
-                      <input
-                        aria-label="Passwort"
-                        placeholder="Passwort"
-                        type="password"
-                        value={authPassword}
-                        onChange={(event) =>
-                          setAuthPassword(event.currentTarget.value)
-                        }
-                      />
-                      <button
-                        type="button"
-                        onClick={() => submitLogin("login")}
-                      >
-                        Login
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => submitLogin("register")}
-                      >
-                        Registrieren
-                      </button>
-                    </>
-                  )}
-                </section>
-                <div className="fileActions" aria-label="Dateiaktionen">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManageMenuOpen(false);
-                      gpxInputRef.current?.click();
-                    }}
-                  >
-                    GPX Import
-                  </button>
-                  <button
-                    type="button"
-                    disabled={history.present.waypoints.length < 2}
-                    onClick={exportGpx}
-                  >
-                    GPX Export
-                  </button>
+                        />
+                        <input
+                          aria-label="Passwort"
+                          placeholder="Passwort"
+                          type="password"
+                          value={authPassword}
+                          onChange={(event) =>
+                            setAuthPassword(event.currentTarget.value)
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => submitLogin("login")}
+                        >
+                          Login
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => submitLogin("register")}
+                        >
+                          Registrieren
+                        </button>
+                      </>
+                    )}
+                  </section>
+                  <div className="fileActions" aria-label="Dateiaktionen">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManageMenuOpen(false);
+                        gpxInputRef.current?.click();
+                      }}
+                    >
+                      GPX Import
+                    </button>
+                    <button
+                      type="button"
+                      disabled={history.present.waypoints.length < 2}
+                      onClick={exportGpx}
+                    >
+                      GPX Export
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
           {tourMessage ? (
@@ -950,7 +1118,7 @@ export function App() {
               disabled={history.past.length === 0}
               onClick={() => dispatch({ type: "undo" })}
             >
-              Rückgängig
+              Zurück
             </button>
             <button
               type="button"
@@ -958,18 +1126,7 @@ export function App() {
               disabled={history.future.length === 0}
               onClick={() => dispatch({ type: "redo" })}
             >
-              Wiederholen
-            </button>
-            <button
-              type="button"
-              className="primaryAction"
-              disabled={!authState.authenticated || !hasWaypoints}
-              onClick={() => void saveTour()}
-            >
-              Speichern
-            </button>
-            <button type="button" disabled={!hasRoute} onClick={exportGpx}>
-              GPX
+              Vorwärts
             </button>
             <button
               type="button"
@@ -980,17 +1137,18 @@ export function App() {
             </button>
             <button
               type="button"
+              className={selectedWaypointId ? "primaryAction" : undefined}
               disabled={!selectedWaypointId}
               onClick={deleteSelectedWaypoint}
             >
-              Punkt löschen
+              Punkt
             </button>
             <button
               type="button"
               disabled={!hasWaypoints}
               onClick={deleteLastWaypoint}
             >
-              Letzten löschen
+              Letzter
             </button>
             <button type="button" disabled={!hasWaypoints} onClick={clearRoute}>
               Leeren
@@ -1159,6 +1317,43 @@ export function App() {
               </ul>
             ) : null}
 
+            {surfaceSummary.length ? (
+              <section
+                className="surfacePanel"
+                aria-label="Wegbeschaffenheit"
+              >
+                <div className="sectionHeader">
+                  <h2>Wegbeschaffenheit</h2>
+                  <span>OSM Wegtyp</span>
+                </div>
+                <div className="surfaceBar" aria-hidden="true">
+                  {surfaceSummary.map((item) => (
+                    <span
+                      key={item.category}
+                      className={`surfaceBarPart surfaceBarPart-${item.category}`}
+                      style={{
+                        flexGrow: Math.max(1, Math.round(item.distanceMeters)),
+                      }}
+                    />
+                  ))}
+                </div>
+                <dl className="surfaceList">
+                  {surfaceSummary.map((item) => (
+                    <div key={item.category}>
+                      <dt>
+                        <span
+                          className={`surfaceDot surfaceDot-${item.category}`}
+                          aria-hidden="true"
+                        />
+                        {item.label}
+                      </dt>
+                      <dd>{formatDistance(item.distanceMeters)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : null}
+
             <section
               className="waypointPanel routeEditorPanel"
               aria-label="Wegpunkte"
@@ -1308,6 +1503,7 @@ export function App() {
           elevationHoverPoint={elevationHoverPoint}
           fitGeometry={history.present.importedGeometry}
           fitRequestId={routeFitRequestId}
+          searchFocus={searchFocus}
           selectedWaypointId={selectedWaypointId}
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}
@@ -1347,6 +1543,130 @@ function summarizeGraphhopperDebug(route: ComputedRoute | null) {
 
 function countDetailEntries(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
+}
+
+function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
+  if (!route) {
+    return [];
+  }
+
+  const distances = new Map<SurfaceCategory, number>();
+  for (const segment of route.segments) {
+    if (segment.mode !== "routed") {
+      addSurfaceDistance(distances, "unknown", segment.distanceMeters);
+      continue;
+    }
+
+    const details =
+      firstDetailRanges(segment.details.surface, segment.details.track_type) ??
+      readDetailRanges(segment.details.road_class);
+    if (!details.length) {
+      addSurfaceDistance(distances, "unknown", segment.distanceMeters);
+      continue;
+    }
+
+    for (const detail of details) {
+      addSurfaceDistance(
+        distances,
+        surfaceCategoryFor(detail.value),
+        detailDistanceMeters(segment.geometry, detail.from, detail.to),
+      );
+    }
+  }
+
+  const hasKnownSurface = SURFACE_CATEGORY_ORDER.some(
+    (category) => category !== "unknown" && (distances.get(category) ?? 0) > 1,
+  );
+  if (!hasKnownSurface) {
+    return [];
+  }
+
+  return SURFACE_CATEGORY_ORDER.map((category) => ({
+    category,
+    distanceMeters: distances.get(category) ?? 0,
+    label: SURFACE_CATEGORY_LABELS[category],
+  })).filter((item) => item.distanceMeters > 1);
+}
+
+function readDetailRanges(value: unknown): DetailRange[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (
+      Array.isArray(entry) &&
+      entry.length >= 3 &&
+      Number.isInteger(entry[0]) &&
+      Number.isInteger(entry[1])
+    ) {
+      return [
+        {
+          from: Math.max(0, Number(entry[0])),
+          to: Math.max(0, Number(entry[1])),
+          value: typeof entry[2] === "string" ? entry[2] : null,
+        },
+      ];
+    }
+    return [];
+  });
+}
+
+function firstDetailRanges(...values: unknown[]): DetailRange[] | null {
+  for (const value of values) {
+    const ranges = readDetailRanges(value);
+    if (ranges.length) {
+      return ranges;
+    }
+  }
+  return null;
+}
+
+function detailDistanceMeters(
+  geometry: LonLat[],
+  fromIndex: number,
+  toIndex: number,
+): number {
+  if (geometry.length < 2) {
+    return 0;
+  }
+
+  const from = Math.min(fromIndex, geometry.length - 1);
+  const to = Math.min(Math.max(toIndex, from + 1), geometry.length - 1);
+  let distance = 0;
+  for (let index = from; index < to; index += 1) {
+    distance += distanceMetersBetween(geometry[index], geometry[index + 1]);
+  }
+  return distance;
+}
+
+function addSurfaceDistance(
+  distances: Map<SurfaceCategory, number>,
+  category: SurfaceCategory,
+  distanceMeters: number,
+) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    return;
+  }
+  distances.set(category, (distances.get(category) ?? 0) + distanceMeters);
+}
+
+function surfaceCategoryFor(value: string | null): SurfaceCategory {
+  if (!value) {
+    return "unknown";
+  }
+
+  const normalizedValue = value.toLowerCase();
+  if (PAVED_SURFACES.has(normalizedValue)) {
+    return "paved";
+  }
+  if (GRAVEL_SURFACES.has(normalizedValue)) {
+    return "gravel";
+  }
+  if (NATURAL_SURFACES.has(normalizedValue)) {
+    return "natural";
+  }
+  return "unknown";
 }
 
 function nextWaypointId(counterRef: MutableRefObject<number>): string {
@@ -1438,6 +1758,17 @@ function formatPaceInput(minPerKm: number): string {
 
 function formatSpeedKmh(minPerKm: number): string {
   return `${(60 / minPerKm).toFixed(1)} km/h`;
+}
+
+function formatSearchOrigin(origin: string): string {
+  const labels: Record<string, string> = {
+    address: "Adresse",
+    district: "Ortsteil",
+    gazetteer: "Ort",
+    parcel: "Parzelle",
+    sn25: "Karte",
+  };
+  return labels[origin] ?? origin;
 }
 
 function routeStatusClassName(

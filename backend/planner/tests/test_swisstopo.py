@@ -7,9 +7,12 @@ import pytest
 
 from planner.integrations.swisstopo import (
     LineStringGeometry,
+    SearchResult,
     SwisstopoClient,
+    SwisstopoSearchUnavailableError,
     SwisstopoUnavailableError,
     parse_profile_response,
+    parse_search_response,
 )
 
 
@@ -93,3 +96,43 @@ def test_swisstopo_client_posts_expected_request(monkeypatch: pytest.MonkeyPatch
     assert geometry["type"] == "LineString"
     assert geometry["coordinates"][0][0] > 2_600_000
     assert geometry["coordinates"][0][1] > 1_195_000
+
+
+def test_parse_search_response_returns_locations() -> None:
+    response = httpx.Response(
+        200,
+        json={
+            "results": [
+                {
+                    "id": 123,
+                    "attrs": {
+                        "label": "<b>Bern</b>",
+                        "origin": "gazetteer",
+                        "lon": 7.4474,
+                        "lat": 46.948,
+                        "zoomlevel": 12,
+                    },
+                }
+            ]
+        },
+    )
+
+    results = parse_search_response(response)
+
+    assert results == [
+        SearchResult(
+            id="123",
+            label="Bern",
+            origin="gazetteer",
+            longitude=7.4474,
+            latitude=46.948,
+            zoom=12,
+        )
+    ]
+
+
+def test_parse_search_response_rejects_invalid_payload() -> None:
+    response = httpx.Response(200, json={"unexpected": []})
+
+    with pytest.raises(SwisstopoSearchUnavailableError):
+        parse_search_response(response)

@@ -28,6 +28,19 @@ export interface SavedTourListResponse {
   tours: SavedTourDto[];
 }
 
+export interface SearchResponse {
+  results: SearchResultDto[];
+}
+
+export interface SearchResultDto {
+  id: string;
+  label: string;
+  origin: string;
+  longitude: number;
+  latitude: number;
+  zoom: number;
+}
+
 export interface RouteComputeRequest {
   waypoints: RouteWaypointDto[];
   segments: RouteSegmentRequestDto[];
@@ -114,7 +127,8 @@ export interface CombinedTrailSegmentDto {
   osmSacScale: string | null;
   tLevel: number | null;
   matchScore: number;
-  matchStatus: "matched" | "ambiguous" | "osm_only" | "swisstopo_only" | "unknown";
+  matchStatus:
+    "matched" | "ambiguous" | "osm_only" | "swisstopo_only" | "unknown";
   warningOverlay: boolean;
   geometry: LineStringGeometryDto;
 }

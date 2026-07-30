@@ -13,6 +13,7 @@ from planner.api.serializers import (
     ElevationProfileRequestSerializer,
     RouteComputeRequestSerializer,
     SavedTourSerializer,
+    SearchQuerySerializer,
     TrailsQuerySerializer,
 )
 from planner.domain.elevation import ElevationValidationError, build_elevation_profile
@@ -28,6 +29,7 @@ from planner.integrations.overpass import (
 from planner.integrations.swisstopo import (
     LineStringGeometry,
     SwisstopoClient,
+    SwisstopoSearchUnavailableError,
     SwisstopoUnavailableError,
 )
 from planner.models import SavedTour
@@ -379,6 +381,49 @@ class ElevationProfileView(APIView):
                     }
                     for point in profile.points
                 ],
+            }
+        )
+
+
+class SearchView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="search",
+        responses={200: dict[str, object]},
+    )
+    def get(self, request: object) -> Response:
+        serializer = SearchQuerySerializer(data=getattr(request, "query_params", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_search_request",
+                "Search request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        data = serializer.validated_data
+        try:
+            results = SwisstopoClient(
+                settings.SWISSTOPO_BASE_URL,
+                timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
+            ).search_locations(data["q"], limit=data["limit"])
+        except SwisstopoSearchUnavailableError as error:
+            raise UnprocessableEntity(error.code, error.message, {}) from error
+
+        return Response(
+            {
+                "results": [
+                    {
+                        "id": result.id,
+                        "label": result.label,
+                        "origin": result.origin,
+                        "longitude": result.longitude,
+                        "latitude": result.latitude,
+                        "zoom": result.zoom,
+                    }
+                    for result in results
+                ]
             }
         )
 

@@ -95,6 +95,37 @@ describe("App", () => {
     expect(screen.getByText("Route berechnet")).toBeInTheDocument();
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Gerade");
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Routing");
+    expect(screen.queryByLabelText("Wegbeschaffenheit")).not.toBeInTheDocument();
+  });
+
+  it("summarizes classified route surface details", async () => {
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        routeResponses: [
+          routeResponse({
+            distanceMeters: 1234,
+            mode: "routed",
+            surfaceDetails: [
+              [0, 1, "asphalt"],
+              [1, 2, "ground"],
+            ],
+          }),
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Wegbeschaffenheit")).toHaveTextContent(
+        "Strasse",
+      ),
+    );
+    expect(screen.getByLabelText("Wegbeschaffenheit")).toHaveTextContent(
+      "Trail/Natur",
+    );
   });
 
   it("loads the elevation profile after route computation", async () => {
@@ -262,6 +293,22 @@ describe("App", () => {
     );
     expect(screen.queryByText("1.23 km")).not.toBeInTheDocument();
   });
+
+  it("searches places and shows selectable results", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.type(
+      screen.getByLabelText("Ort, Adresse oder Route suchen"),
+      "Bern",
+    );
+    await user.click(screen.getByRole("button", { name: "Suchen" }));
+
+    await waitFor(() => expect(screen.getByText("Bern")).toBeInTheDocument());
+    expect(screen.getByText("Ort")).toBeInTheDocument();
+  });
 });
 
 function storeRouteWithTwoWaypoints() {
@@ -310,6 +357,26 @@ function createFetchMock(
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
+      );
+    }
+
+    if (url.includes("/api/v1/search?")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "bern",
+                label: "Bern",
+                origin: "gazetteer",
+                longitude: 7.4474,
+                latitude: 46.948,
+                zoom: 12,
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
       );
     }
 
@@ -383,9 +450,11 @@ function elevationResponse({
 function routeResponse({
   distanceMeters,
   mode = "straight",
+  surfaceDetails,
 }: {
   distanceMeters: number;
   mode?: "straight" | "routed";
+  surfaceDetails?: Array<[number, number, string]>;
 }) {
   return new Response(
     JSON.stringify({
@@ -393,6 +462,7 @@ function routeResponse({
         type: "LineString",
         coordinates: [
           [7.4, 46.9],
+          [7.95, 47.1],
           [8.5, 47.3],
         ],
       },
@@ -404,11 +474,15 @@ function routeResponse({
           toWaypointId: "waypoint-2",
           mode,
           distanceMeters,
-          details: { hike_rating: [[0, 1, 0]] },
+          details: {
+            hike_rating: [[0, 1, 0]],
+            ...(surfaceDetails ? { surface: surfaceDetails } : {}),
+          },
           geometry: {
             type: "LineString",
             coordinates: [
               [7.4, 46.9],
+              [7.95, 47.1],
               [8.5, 47.3],
             ],
           },

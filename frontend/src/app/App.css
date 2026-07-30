@@ -70,25 +70,105 @@ button:disabled {
 }
 
 .topSearch {
+  position: relative;
   flex: 1 1 360px;
   max-width: 520px;
 }
 
-.topSearch input {
+.topSearchField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.topSearch input,
+.topSearch button {
   width: 100%;
   min-height: 34px;
   border: 1px solid #d8dee5;
-  border-radius: 2px;
   background: #f7f9fb;
   color: #111827;
   padding: 0 11px;
   font-size: 13px;
 }
 
+.topSearch input {
+  border-radius: 2px 0 0 2px;
+}
+
+.topSearch button {
+  width: auto;
+  border-left: 0;
+  border-radius: 0 2px 2px 0;
+  background: #ffffff;
+  color: #d8001f;
+  font-weight: 750;
+}
+
 .topSearch input:focus {
   outline: 2px solid rgba(216, 0, 31, 0.16);
   border-color: #d8001f;
   background: #ffffff;
+}
+
+.topSearch button:hover:not(:disabled) {
+  background: #fff5f6;
+}
+
+.topSearch button:disabled {
+  color: #66717d;
+}
+
+.searchResults {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 80;
+  display: grid;
+  max-height: min(340px, calc(100vh - 92px));
+  overflow: auto;
+  border: 1px solid #d4dbe3;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
+}
+
+.searchResults p {
+  margin: 0;
+  color: #66717d;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.searchResults button {
+  display: grid;
+  justify-items: start;
+  min-height: auto;
+  border: 0;
+  border-bottom: 1px solid #e3e8ee;
+  border-radius: 0;
+  background: #ffffff;
+  color: #111827;
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.searchResults button:last-child {
+  border-bottom: 0;
+}
+
+.searchResults button:hover {
+  background: #fff5f6;
+}
+
+.searchResults strong {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.searchResults span {
+  color: #66717d;
+  font-size: 11px;
 }
 
 .plannerLayout {
@@ -161,9 +241,24 @@ button:disabled {
   white-space: nowrap;
 }
 
+.dockTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.dockTop .sidebarHeader {
+  min-width: 0;
+}
+
 .manageMenu {
   position: relative;
   justify-self: stretch;
+}
+
+.dockTop .manageMenu {
+  justify-self: end;
 }
 
 .manageMenu > button {
@@ -177,6 +272,11 @@ button:disabled {
   padding: 0 10px;
   font-size: 12px;
   font-weight: 750;
+}
+
+.dockTop .manageMenu > button {
+  width: auto;
+  min-width: 58px;
 }
 
 .manageMenu > button[aria-expanded="true"],
@@ -565,6 +665,7 @@ button:disabled {
 .segmentList button,
 .quickToolbar button,
 .fileActions button {
+  flex: 1 1 calc(33.333% - 6px);
   min-height: 30px;
   border: 1px solid #cbd5df;
   border-radius: 2px;
@@ -572,6 +673,10 @@ button:disabled {
   color: #111827;
   padding: 0 9px;
   font-size: 12px;
+}
+
+.quickToolbar button {
+  padding-inline: 7px;
 }
 
 .toolbar button:hover:not(:disabled),
@@ -651,6 +756,85 @@ button:disabled {
   border-color: rgba(9, 105, 218, 0.28);
   background: rgba(9, 105, 218, 0.08);
   color: #0a5ca8;
+}
+
+.surfacePanel {
+  display: grid;
+  gap: 7px;
+  border-bottom: 1px solid #d8dee5;
+  padding: 7px 0;
+}
+
+.surfaceBar {
+  display: flex;
+  overflow: hidden;
+  height: 7px;
+  border: 1px solid #d8dee5;
+  border-radius: 999px;
+  background: #edf1f5;
+}
+
+.surfaceBarPart {
+  min-width: 4px;
+}
+
+.surfaceBarPart-paved,
+.surfaceDot-paved {
+  background: #aab4bf;
+}
+
+.surfaceBarPart-gravel,
+.surfaceDot-gravel {
+  background: #c49a4b;
+}
+
+.surfaceBarPart-natural,
+.surfaceDot-natural {
+  background: #4f9d66;
+}
+
+.surfaceBarPart-unknown,
+.surfaceDot-unknown {
+  background: #d4dbe3;
+}
+
+.surfaceList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 10px;
+  margin: 0;
+}
+
+.surfaceList div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.surfaceList dt {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  color: #66717d;
+  font-size: 11px;
+}
+
+.surfaceList dd {
+  margin: 0;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.surfaceDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  margin-right: 5px;
+  border-radius: 999px;
 }
 
 .contextPanel {
@@ -1105,22 +1289,49 @@ button:disabled {
 }
 
 .elevationPanel-large .elevationChart {
-  height: 190px;
+  height: 230px;
 }
 
 .elevationPanel-large {
-  position: static;
+  position: fixed;
+  right: 384px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 34;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(190px, 260px) minmax(420px, 1fr);
   align-items: start;
-  gap: 7px;
-  margin-top: 6px;
-  border: 0;
-  border-top: 1px solid #d8dee5;
-  border-radius: 0;
-  background: #ffffff;
-  box-shadow: none;
-  padding: 6px 0 0;
+  gap: 8px 12px;
+  max-height: min(36vh, 320px);
+  overflow: hidden;
+  border: 1px solid #d4dbe3;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
+  padding: 10px;
+}
+
+.elevationPanel-large .panelHeader {
+  grid-column: 1;
+}
+
+.elevationPanel-large .elevationStats {
+  grid-column: 1;
+}
+
+.elevationPanel-large .elevationPanelControls {
+  grid-column: 1;
+  justify-content: flex-start;
+}
+
+.elevationPanel-large .elevationChart {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  min-width: 0;
+}
+
+.elevationPanelDockControl .elevationPanelControls {
+  justify-content: flex-start;
 }
 
 .elevationPanelControls {
@@ -1510,12 +1721,15 @@ button:disabled {
   }
 
   .elevationPanel-large {
-    right: 10px;
-    bottom: 10px;
+    position: static;
     left: 10px;
     grid-template-columns: 1fr;
     max-height: calc(100vh - 20px);
     overflow: auto;
+    border: 0;
+    border-top: 1px solid #d8dee5;
+    box-shadow: none;
+    padding: 6px 0 0;
   }
 
   .elevationPanel-large .panelHeader,
@@ -1524,5 +1738,9 @@ button:disabled {
   .elevationPanel-large .elevationChart {
     grid-column: 1;
     grid-row: auto;
+  }
+
+  .elevationPanel-large .elevationChart {
+    height: 210px;
   }
 }
