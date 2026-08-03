@@ -575,7 +575,7 @@ button:disabled {
 }
 
 .drawModeButtons button[aria-pressed="true"] {
-  background: #d8001f;
+  background: #111827;
   color: #ffffff;
   font-weight: 750;
 }
@@ -676,6 +676,7 @@ button:disabled {
 }
 
 .quickToolbar button {
+  flex-basis: calc(50% - 5px);
   padding-inline: 7px;
 }
 
@@ -697,14 +698,14 @@ button:disabled {
 
 .quickToolbar .primaryAction {
   border-color: #d8001f;
-  background: #d8001f;
-  color: #ffffff;
+  background: #fff5f6;
+  color: #b60018;
   font-weight: 750;
 }
 
 .quickToolbar .primaryAction:hover:not(:disabled) {
-  background: #b60018;
-  color: #ffffff;
+  background: #ffe7eb;
+  color: #a30016;
 }
 
 .quickToolbar .quietAction {
@@ -1420,6 +1421,74 @@ button:disabled {
 .mapTarget {
   position: absolute;
   inset: 0;
+}
+
+.mapWaypointDelete {
+  position: absolute;
+  z-index: 36;
+  transform: translate(-50%, calc(-100% - 18px));
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(216, 0, 31, 0.28);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #d8001f;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.mapWaypointDelete::after {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid rgba(216, 0, 31, 0.28);
+  border-bottom: 1px solid rgba(216, 0, 31, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  content: "";
+}
+
+.mapWaypointDelete:hover,
+.mapWaypointDelete:focus-visible {
+  background: #fff5f6;
+  border-color: #d8001f;
+}
+
+.mapWaypointDeleteIcon {
+  position: relative;
+  width: 14px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top: 0;
+  border-radius: 0 0 2px 2px;
+}
+
+.mapWaypointDeleteIcon::before {
+  position: absolute;
+  top: -6px;
+  left: -3px;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+
+.mapWaypointDeleteIcon::after {
+  position: absolute;
+  top: -9px;
+  left: 3px;
+  width: 6px;
+  height: 3px;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  content: "";
 }
 
 .mapNotice,

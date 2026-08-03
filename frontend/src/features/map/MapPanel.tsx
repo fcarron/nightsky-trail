@@ -81,6 +81,7 @@ interface MapPanelProps {
   onInsertWaypoint: (segmentId: string, position: LonLat) => string;
   onMoveWaypoint: (id: string, position: LonLat) => void;
   onSelectWaypoint: (id: string | null) => void;
+  onDeleteWaypoint: (id: string) => void;
 }
 
 export function MapPanel({
@@ -97,6 +98,7 @@ export function MapPanel({
   onInsertWaypoint,
   onMoveWaypoint,
   onSelectWaypoint,
+  onDeleteWaypoint,
 }: MapPanelProps) {
   const targetRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -126,6 +128,7 @@ export function MapPanel({
     onInsertWaypoint,
     onMoveWaypoint,
     onSelectWaypoint,
+    onDeleteWaypoint,
   });
   const selectedWaypointIdRef = useRef(selectedWaypointId);
   const baseLayerIdRef = useRef<BaseLayerId>("light");
@@ -150,9 +153,18 @@ export function MapPanel({
   const [difficultySummary, setDifficultySummary] = useState<DifficultySummary>(
     EMPTY_DIFFICULTY_SUMMARY,
   );
+  const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
+  const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
+    [number, number] | null
+  >(null);
   const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
     segment: CombinedTrailSegmentDto;
   } | null>(null);
+  const selectedWaypointIndex = waypoints.findIndex(
+    (waypoint) => waypoint.id === selectedWaypointId,
+  );
+  const selectedWaypoint =
+    selectedWaypointIndex >= 0 ? waypoints[selectedWaypointIndex] : null;
   const trailMatchDebugEnabled = ENABLE_DEV_TOOLS && trailMatchDebugVisible;
   const showDifficultyPanel =
     (difficultyVisible || trailMatchDebugEnabled) &&
@@ -167,12 +179,57 @@ export function MapPanel({
       onInsertWaypoint,
       onMoveWaypoint,
       onSelectWaypoint,
+      onDeleteWaypoint,
     };
-  }, [onAddWaypoint, onInsertWaypoint, onMoveWaypoint, onSelectWaypoint]);
+  }, [
+    onAddWaypoint,
+    onDeleteWaypoint,
+    onInsertWaypoint,
+    onMoveWaypoint,
+    onSelectWaypoint,
+  ]);
 
   useEffect(() => {
     selectedWaypointIdRef.current = selectedWaypointId;
   }, [selectedWaypointId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !selectedWaypoint) {
+      setSelectedWaypointPixel(null);
+      return;
+    }
+
+    const updatePixel = () => {
+      const pixel = map.getPixelFromCoordinate(
+        fromLonLat([
+          selectedWaypoint.position.lon,
+          selectedWaypoint.position.lat,
+        ]),
+      );
+      setSelectedWaypointPixel([
+        Math.round(pixel[0]),
+        Math.round(pixel[1]),
+      ]);
+    };
+
+    updatePixel();
+    const view = map.getView();
+    const listeners = [
+      map.on("moveend", updatePixel),
+      view.on("change:center", updatePixel),
+      view.on("change:resolution", updatePixel),
+    ];
+
+    return () => {
+      unByKey(listeners);
+    };
+  }, [
+    mapReady,
+    selectedWaypoint,
+    selectedWaypoint?.position.lat,
+    selectedWaypoint?.position.lon,
+  ]);
 
   useEffect(() => {
     difficultyVisibleRef.current = difficultyVisible;
@@ -890,7 +947,35 @@ export function MapPanel({
   return (
     <section className="mapSurface" aria-label="Karte">
       <div ref={targetRef} className="mapTarget" />
-      <details className="mapLayerSelector" aria-label="Kartenauswahl">
+      {selectedWaypoint && selectedWaypointPixel ? (
+        <button
+          type="button"
+          className="mapWaypointDelete"
+          style={{
+            left: selectedWaypointPixel[0],
+            top: selectedWaypointPixel[1],
+          }}
+          aria-label={`Wegpunkt ${selectedWaypointIndex + 1} löschen`}
+          title={`Wegpunkt ${selectedWaypointIndex + 1} löschen`}
+          onClick={(event) => {
+            event.stopPropagation();
+            callbacksRef.current.onDeleteWaypoint(selectedWaypoint.id);
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <span className="mapWaypointDeleteIcon" aria-hidden="true" />
+        </button>
+      ) : null}
+      <details
+        className="mapLayerSelector"
+        aria-label="Kartenauswahl"
+        open={mapLayerMenuOpen}
+        onToggle={(event) =>
+          setMapLayerMenuOpen(event.currentTarget.open)
+        }
+      >
         <summary>
           Karte
           <span>{baseLayerLabel(baseLayerId)}</span>
@@ -900,9 +985,10 @@ export function MapPanel({
           <select
             id="base-layer-select"
             value={baseLayerId}
-            onChange={(event) =>
-              setBaseLayerId(toBaseLayerId(event.target.value))
-            }
+            onChange={(event) => {
+              setBaseLayerId(toBaseLayerId(event.target.value));
+              setMapLayerMenuOpen(false);
+            }}
           >
             <option value="light">swisstopo Light</option>
             <option value="standard">swisstopo Standard</option>
@@ -912,7 +998,10 @@ export function MapPanel({
             <input
               type="checkbox"
               checked={hikingTrailsVisible}
-              onChange={(event) => setHikingTrailsVisible(event.target.checked)}
+              onChange={(event) => {
+                setHikingTrailsVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
             />
             Offizielle Wanderwege
           </label>
@@ -920,7 +1009,10 @@ export function MapPanel({
             <input
               type="checkbox"
               checked={hikingRoutesVisible}
-              onChange={(event) => setHikingRoutesVisible(event.target.checked)}
+              onChange={(event) => {
+                setHikingRoutesVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
             />
             Wanderland
           </label>
@@ -928,9 +1020,10 @@ export function MapPanel({
             <input
               type="checkbox"
               checked={hikingClosuresVisible}
-              onChange={(event) =>
-                setHikingClosuresVisible(event.target.checked)
-              }
+              onChange={(event) => {
+                setHikingClosuresVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
             />
             Sperrungen
           </label>
@@ -938,9 +1031,10 @@ export function MapPanel({
             <input
               type="checkbox"
               checked={cyclingRoutesVisible}
-              onChange={(event) =>
-                setCyclingRoutesVisible(event.target.checked)
-              }
+              onChange={(event) => {
+                setCyclingRoutesVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
             />
             Veloland
           </label>
@@ -959,6 +1053,7 @@ export function MapPanel({
                     : "Schwierigkeitshinweise aus",
                 );
                 setDifficultyVisible(enabled);
+                setMapLayerMenuOpen(false);
               }}
             />
             Schwierigkeit
@@ -969,9 +1064,10 @@ export function MapPanel({
                 type="checkbox"
                 checked={trailMatchDebugVisible}
                 onChange={(event) => {
-                  setSelectedDifficultyWay(null);
-                  setTrailMatchDebugVisible(event.target.checked);
-                }}
+                setSelectedDifficultyWay(null);
+                setTrailMatchDebugVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
               />
               Match Debug
             </label>

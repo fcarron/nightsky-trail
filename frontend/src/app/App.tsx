@@ -596,13 +596,17 @@ export function App() {
     dispatch({ type: "move-waypoint", id, position });
   }
 
-  function deleteSelectedWaypoint() {
-    if (!selectedWaypointId) {
-      return;
+  function deleteWaypoint(id: string) {
+    dispatch({ type: "delete-waypoint", id });
+    if (selectedWaypointId === id) {
+      setSelectedWaypointId(null);
     }
+  }
 
-    dispatch({ type: "delete-waypoint", id: selectedWaypointId });
-    setSelectedWaypointId(null);
+  function deleteSelectedWaypoint() {
+    if (selectedWaypointId) {
+      deleteWaypoint(selectedWaypointId);
+    }
   }
 
   function deleteLastWaypoint() {
@@ -611,10 +615,7 @@ export function App() {
       return;
     }
 
-    dispatch({ type: "delete-waypoint", id: waypoint.id });
-    if (selectedWaypointId === waypoint.id) {
-      setSelectedWaypointId(null);
-    }
+    deleteWaypoint(waypoint.id);
   }
 
   function clearRoute() {
@@ -1141,17 +1142,17 @@ export function App() {
               disabled={!selectedWaypointId}
               onClick={deleteSelectedWaypoint}
             >
-              Punkt
+              Punkt löschen
             </button>
             <button
               type="button"
               disabled={!hasWaypoints}
               onClick={deleteLastWaypoint}
             >
-              Letzter
+              Letzten löschen
             </button>
             <button type="button" disabled={!hasWaypoints} onClick={clearRoute}>
-              Leeren
+              Route löschen
             </button>
           </div>
 
@@ -1232,50 +1233,59 @@ export function App() {
               </small>
             </summary>
 
-            <div className="paceCalibration" aria-label="Zeit-Schätzung">
-              <label className="paceModeToggle">
+            <details className="compactDetails">
+              <summary>
+                <span>Zeit</span>
+                <small>
+                  {calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"} ·{" "}
+                  {formatSpeedKmh(basePaceMinPerKm)}
+                </small>
+              </summary>
+              <div className="paceCalibration" aria-label="Zeit-Schätzung">
+                <label className="paceModeToggle">
+                  <input
+                    type="checkbox"
+                    checked={calibratedTimeEnabled}
+                    onChange={(event) =>
+                      setCalibratedTimeEnabled(event.currentTarget.checked)
+                    }
+                  />
+                  <span>Zeit</span>
+                  <strong>
+                    {calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"}
+                  </strong>
+                </label>
+                <label htmlFor="base-pace-input">Pace</label>
+                <button
+                  type="button"
+                  aria-label="Basispace 10 Sekunden schneller"
+                  onClick={() => stepBasePace(-10)}
+                >
+                  -10s
+                </button>
                 <input
-                  type="checkbox"
-                  checked={calibratedTimeEnabled}
+                  id="base-pace-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={basePaceInput}
                   onChange={(event) =>
-                    setCalibratedTimeEnabled(event.currentTarget.checked)
+                    updateBasePaceInput(event.currentTarget.value)
+                  }
+                  onBlur={() =>
+                    setBasePaceInput(formatPaceInput(basePaceMinPerKm))
                   }
                 />
-                <span>Zeit</span>
-                <strong>
-                  {calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"}
-                </strong>
-              </label>
-              <label htmlFor="base-pace-input">Pace</label>
-              <button
-                type="button"
-                aria-label="Basispace 10 Sekunden schneller"
-                onClick={() => stepBasePace(-10)}
-              >
-                -10s
-              </button>
-              <input
-                id="base-pace-input"
-                type="text"
-                inputMode="decimal"
-                value={basePaceInput}
-                onChange={(event) =>
-                  updateBasePaceInput(event.currentTarget.value)
-                }
-                onBlur={() =>
-                  setBasePaceInput(formatPaceInput(basePaceMinPerKm))
-                }
-              />
-              <button
-                type="button"
-                aria-label="Basispace 10 Sekunden langsamer"
-                onClick={() => stepBasePace(10)}
-              >
-                +10s
-              </button>
-              <span>min/km</span>
-              <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
-            </div>
+                <button
+                  type="button"
+                  aria-label="Basispace 10 Sekunden langsamer"
+                  onClick={() => stepBasePace(10)}
+                >
+                  +10s
+                </button>
+                <span>min/km</span>
+                <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
+              </div>
+            </details>
 
             <ElevationPanel
               profile={elevationState.profile}
@@ -1284,31 +1294,44 @@ export function App() {
               onHoverPointChange={setElevationHoverPoint}
             />
 
-            <div className="loopCard" aria-label="Rundenstatus">
-              <div>
-                <span
-                  className={isClosedLoop ? "loopStateClosed" : "loopStateOpen"}
-                >
-                  {isClosedLoop ? "Runde geschlossen" : "Runde offen"}
-                </span>
-                <strong>
+            <details className="compactDetails">
+              <summary>
+                <span>Runde</span>
+                <small>
+                  {isClosedLoop ? "geschlossen" : "offen"} ·{" "}
                   {loopGapMeters !== null
                     ? formatDistance(loopGapMeters)
                     : "Start setzen"}
-                </strong>
+                </small>
+              </summary>
+              <div className="loopCard" aria-label="Rundenstatus">
+                <div>
+                  <span
+                    className={
+                      isClosedLoop ? "loopStateClosed" : "loopStateOpen"
+                    }
+                  >
+                    {isClosedLoop ? "Runde geschlossen" : "Runde offen"}
+                  </span>
+                  <strong>
+                    {loopGapMeters !== null
+                      ? formatDistance(loopGapMeters)
+                      : "Start setzen"}
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    !firstWaypoint ||
+                    history.present.waypoints.length < 2 ||
+                    isClosedLoop
+                  }
+                  onClick={closeLoop}
+                >
+                  Schliessen
+                </button>
               </div>
-              <button
-                type="button"
-                disabled={
-                  !firstWaypoint ||
-                  history.present.waypoints.length < 2 ||
-                  isClosedLoop
-                }
-                onClick={closeLoop}
-              >
-                Schliessen
-              </button>
-            </div>
+            </details>
             {effectiveComputedRoute?.warnings.length ? (
               <ul className="routeWarnings" aria-label="Routenwarnungen">
                 {effectiveComputedRoute.warnings.map((warning) => (
@@ -1506,6 +1529,7 @@ export function App() {
           onInsertWaypoint={insertWaypoint}
           onMoveWaypoint={moveWaypoint}
           onSelectWaypoint={setSelectedWaypointId}
+          onDeleteWaypoint={deleteWaypoint}
         />
       </section>
     </main>

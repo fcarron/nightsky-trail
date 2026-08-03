@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { BarChart, LineChart } from "echarts/charts";
+import { CustomChart, LineChart } from "echarts/charts";
 import {
   DataZoomComponent,
   GridComponent,
   TooltipComponent,
 } from "echarts/components";
-import { init, use as registerEChartsModules } from "echarts/core";
+import { graphic, init, use as registerEChartsModules } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
 import { formatDistance } from "../route/routeGeometry";
@@ -19,7 +19,7 @@ import {
 } from "./elevationModel";
 
 registerEChartsModules([
-  BarChart,
+  CustomChart,
   LineChart,
   DataZoomComponent,
   GridComponent,
@@ -28,6 +28,30 @@ registerEChartsModules([
 ]);
 
 type ElevationPanelSize = "compact" | "large";
+
+type ProfileBandDatum = [
+  centerKm: number,
+  startKm: number,
+  endKm: number,
+  baseMeters: number,
+  topMeters: number,
+  gradientPercent: number,
+];
+
+interface CustomRenderParams {
+  coordSys?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+interface CustomRenderApi {
+  value: (dimension: number) => number;
+  coord: (data: [number, number]) => [number, number];
+  style: (extra?: Record<string, unknown>) => Record<string, unknown>;
+}
 
 interface ElevationHoverPoint {
   lon: number;
@@ -61,14 +85,7 @@ export function ElevationPanel({
     }
 
     return {
-      base: profile.points.map((point) => [
-        point.distanceMeters / 1000,
-        elevationFloor,
-      ]),
-      gradient: profile.points.map((point) => [
-        point.distanceMeters / 1000,
-        point.smoothedElevationMeters - elevationFloor,
-      ]),
+      bands: createProfileBands(profile, elevationFloor),
       line: profile.points.map((point) => [
         point.distanceMeters / 1000,
         point.smoothedElevationMeters,
@@ -169,35 +186,31 @@ export function ElevationPanel({
       },
       series: [
         {
-          data: chartData.base,
-          itemStyle: { color: "rgba(0, 0, 0, 0)" },
-          large: true,
-          name: "Basis",
-          stack: "profile",
-          type: "bar",
-          tooltip: { show: false },
-        },
-        {
-          data: chartData.gradient,
-          barCategoryGap: "0%",
-          barGap: "0%",
-          barMinWidth: 1,
-          barWidth: gradientBarWidth(profile),
-          barMaxWidth: gradientBarWidth(profile),
+          data: chartData.bands,
           coordinateSystem: "cartesian2d",
-          encode: { x: 0, y: 1 },
+          dimensions: [
+            "distance",
+            "start",
+            "end",
+            "base",
+            "elevation",
+            "gradient",
+          ],
+          encode: { x: 0, y: 4 },
           itemStyle: {
             borderWidth: 0,
             color: (params: { dataIndex: number }) =>
               gradientGroupForPercent(
                 profile.points[params.dataIndex]?.gradientPercent ?? 0,
               ).color,
-            opacity: 0.94,
+            opacity: 0.96,
           },
           name: "Steigung",
-          showBackground: false,
-          stack: "profile",
-          type: "bar",
+          renderItem: (
+            params: CustomRenderParams,
+            api: CustomRenderApi,
+          ) => renderProfileBand(params, api),
+          type: "custom",
         },
         {
           data: chartData.line,
@@ -384,11 +397,81 @@ export function ElevationPanel({
   return panel;
 }
 
-function gradientBarWidth(profile: ElevationProfile): number {
-  if (profile.points.length < 2) {
-    return 4;
+function createProfileBands(
+  profile: ElevationProfile,
+  elevationFloor: number,
+): ProfileBandDatum[] {
+  const routeEndKm = profile.distanceMeters / 1000;
+
+  return profile.points.map((point, index) => {
+    const distanceKm = point.distanceMeters / 1000;
+    const previousDistanceKm =
+      index > 0
+        ? profile.points[index - 1].distanceMeters / 1000
+        : distanceKm;
+    const nextDistanceKm =
+      index < profile.points.length - 1
+        ? profile.points[index + 1].distanceMeters / 1000
+        : distanceKm;
+
+    const startKm =
+      index === 0
+        ? 0
+        : distanceKm - (distanceKm - previousDistanceKm) / 2;
+    const endKm =
+      index === profile.points.length - 1
+        ? routeEndKm
+        : distanceKm + (nextDistanceKm - distanceKm) / 2;
+
+    return [
+      distanceKm,
+      Math.max(0, startKm),
+      Math.max(distanceKm, endKm),
+      elevationFloor,
+      point.smoothedElevationMeters,
+      point.gradientPercent,
+    ];
+  });
+}
+
+function renderProfileBand(
+  params: CustomRenderParams,
+  api: CustomRenderApi,
+) {
+  if (!params.coordSys) {
+    return null;
   }
-  return Math.max(4, Math.min(18, 1_550 / profile.points.length));
+
+  const startKm = api.value(1);
+  const endKm = api.value(2);
+  const baseMeters = api.value(3);
+  const topMeters = api.value(4);
+  const gradientPercent = api.value(5);
+  const bottomLeft = api.coord([startKm, baseMeters]);
+  const topRight = api.coord([endKm, topMeters]);
+  const shape = graphic.clipRectByRect(
+    {
+      x: bottomLeft[0],
+      y: topRight[1],
+      width: Math.max(1, topRight[0] - bottomLeft[0] + 0.75),
+      height: Math.max(0, bottomLeft[1] - topRight[1]),
+    },
+    params.coordSys,
+  );
+
+  if (!shape) {
+    return null;
+  }
+
+  return {
+    shape,
+    style: api.style({
+      fill: gradientGroupForPercent(gradientPercent).color,
+      opacity: 0.96,
+      stroke: "transparent",
+    }),
+    type: "rect",
+  };
 }
 
 function nearestElevationPoint(
