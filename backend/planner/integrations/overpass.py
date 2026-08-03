@@ -75,7 +75,7 @@ class OverpassClient:
                 data={"data": query},
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "SwissRoutePlanner/0.1 trail difficulty layer",
+                    "User-Agent": "nightsky-trail/0.1 trail difficulty layer",
                 },
                 timeout=self.timeout,
             )

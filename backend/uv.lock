@@ -677,7 +677,7 @@ wheels = [
 ]
 
 [[package]]
-name = "swiss-route-planner-backend"
+name = "nightsky-trail-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

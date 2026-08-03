@@ -1,7 +1,7 @@
 {
-  "name": "Swiss Route Planner",
-  "short_name": "Swiss Route",
-  "description": "Schweiz-first route planner for trails, hiking routes, elevation profiles, GPX, and map overlays.",
+  "name": "nightsky trail",
+  "short_name": "nightsky trail",
+  "description": "Schweizer Trails, Wanderwege und Höhenprofile mit swisstopo-Karten, GPX und Schwierigkeitshinweisen planen.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

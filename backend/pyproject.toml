@@ -1,7 +1,7 @@
 [project]
-name = "swiss-route-planner-backend"
+name = "nightsky-trail-backend"
 version = "0.1.0"
-description = "Backend API for Swiss Route Planner"
+description = "Backend API for nightsky trail"
 requires-python = ">=3.12"
 dependencies = [
   "Django==5.2.4",

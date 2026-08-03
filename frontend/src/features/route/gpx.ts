@@ -10,7 +10,7 @@ export function exportPointsToGpx(points: LonLat[], name: string): string {
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Swiss Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="nightsky trail" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>${escapedName}</name>
   </metadata>

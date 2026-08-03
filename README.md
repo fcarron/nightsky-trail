@@ -1,6 +1,6 @@
-# Swiss Route Planner
+# nightsky trail
 
-Swiss Route Planner ist eine fokussierte Web-App zum Planen von Routen in der Schweiz. Sie ist bewusst kleiner gehalten als Komoot, Strava oder OpenRunner: Karte, Route zeichnen, Wege folgen, Höhenprofil, Wanderzeit, Schwierigkeitshinweise, GPX und gespeicherte Touren.
+nightsky trail ist eine fokussierte Web-App zum Planen von Routen in der Schweiz. Sie ist bewusst kleiner gehalten als Komoot, Strava oder OpenRunner: Karte, Route zeichnen, Wege folgen, Höhenprofil, Wanderzeit, Schwierigkeitshinweise, GPX und gespeicherte Touren.
 
 Keine Social Features, keine Aktivitätsaufzeichnung, keine Trainingsanalyse, keine Empfehlungen und keine Zahlungen.
 

@@ -411,6 +411,15 @@ button:disabled {
   font-weight: 750;
 }
 
+.runSummaryGrid dd small {
+  display: block;
+  margin-top: 3px;
+  color: #66717d;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
 .runSummaryGrid div:first-child {
   border-color: #c7d8ec;
   background: #f3f8ff;
@@ -419,6 +428,127 @@ button:disabled {
 .runSummaryGrid div:first-child dd {
   color: #111827;
   font-size: 16px;
+}
+
+.runSummaryTimeCard {
+  position: relative;
+}
+
+.runSummaryTimeCard dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.summaryPaceSettings {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.summaryPaceSettings > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid #cbd5df;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #66717d;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.summaryPaceSettings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.summaryPaceSettings[open] > summary {
+  border-color: #d8001f;
+  color: #d8001f;
+  background: #fff5f6;
+}
+
+.summaryPaceSettings .paceCalibration {
+  position: absolute;
+  z-index: 38;
+  right: 0;
+  top: calc(100% + 7px);
+  width: 184px;
+  grid-template-columns: 40px minmax(54px, 1fr) 40px;
+  border: 1px solid #d8dee5;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 6px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+}
+
+.summaryPaceSettings .paceCalibration > label,
+.summaryPaceSettings .paceCalibration > span {
+  display: none;
+}
+
+.summaryPaceSettings .paceCalibration > strong {
+  grid-column: 1 / 3;
+  text-align: left;
+}
+
+.summaryPaceSettings .paceCalibration input {
+  min-height: 26px;
+  padding-inline: 6px;
+}
+
+.summaryPaceSettings .paceCalibration button {
+  min-height: 26px;
+  padding-inline: 5px;
+}
+
+.summaryPaceSettings .paceModeToggle {
+  min-height: 24px;
+  margin-bottom: 1px;
+}
+
+.paceInfo {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  justify-self: stretch;
+}
+
+.paceInfo > summary {
+  grid-column: 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid #cbd5df;
+  border-radius: 999px;
+  color: #66717d;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.paceInfo > summary::-webkit-details-marker {
+  display: none;
+}
+
+.paceInfo[open] > summary {
+  border-color: #d8001f;
+  color: #d8001f;
+  background: #fff5f6;
+}
+
+.paceInfo p {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  color: #66717d;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .paceCalibration {
@@ -442,56 +572,36 @@ button:disabled {
 
 .paceModeToggle {
   grid-column: 1 / -1;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
-  justify-content: start;
-  gap: 8px;
-  min-height: 28px;
+  gap: 2px;
+  min-height: 26px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #f7f9fb;
+  padding: 2px;
 }
 
-.paceModeToggle input {
-  position: relative;
-  width: 34px;
-  height: 18px;
-  flex: 0 0 auto;
-  appearance: none;
-  border: 1px solid #cbd5df;
-  border-radius: 999px;
-  background: #e9eef3;
-  accent-color: #d8001f;
+.paceModeToggle button {
+  min-height: 21px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #66717d;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.paceModeToggle input::after {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: #8fa1ad;
-  content: "";
-  transition:
-    transform 120ms ease,
-    background 120ms ease;
+.paceModeToggle button[aria-pressed="true"] {
+  background: #111827;
+  color: #ffffff;
 }
 
-.paceModeToggle input:checked {
-  border-color: #d8001f;
-  background: rgba(216, 0, 31, 0.12);
-}
-
-.paceModeToggle input:checked::after {
-  transform: translateX(16px);
-  background: #d8001f;
-}
-
-.paceModeToggle span {
-  margin-right: 0;
-}
-
-.paceModeToggle strong {
-  color: #111827;
-  font-size: 12px;
+.paceModeToggle button:hover:not([aria-pressed="true"]) {
+  background: #fff5f6;
+  color: #d8001f;
 }
 
 .paceCalibration input {
@@ -530,7 +640,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin: 0 0 0;
   border: 0;
   border-bottom: 0;
@@ -561,17 +671,18 @@ button:disabled {
   border: 1px solid #d8dee5;
   border-radius: 2px;
   background: #ffffff;
-  padding: 3px;
+  padding: 2px;
 }
 
 .drawModeButtons button {
-  min-height: 28px;
+  min-height: 24px;
   border: 0;
   border-radius: 2px;
   background: transparent;
   color: #66717d;
-  padding: 0 9px;
-  font-size: 12px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .drawModeButtons button[aria-pressed="true"] {

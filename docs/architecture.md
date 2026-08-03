@@ -1,6 +1,6 @@
 # Architecture
 
-Swiss Route Planner is split into a Django API and a React frontend. The active route stays in frontend state and browser local storage during editing. The first persistence slice adds lightweight Django session login plus user-owned saved tours, without social features, sync, payments, or activity recording.
+nightsky trail is split into a Django API and a React frontend. The active route stays in frontend state and browser local storage during editing. The first persistence slice adds lightweight Django session login plus user-owned saved tours, without social features, sync, payments, or activity recording.
 
 ## Backend
 

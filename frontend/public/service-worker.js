@@ -1,5 +1,5 @@
 /* global self, caches, fetch, Response, URL */
-const CACHE_NAME = "swiss-route-planner-v1";
+const CACHE_NAME = "nightsky-trail-v1";
 const APP_SHELL_URLS = ["/", "/manifest.webmanifest", "/favicon.svg", "/pwa-icon.svg"];
 
 self.addEventListener("install", (event) => {

@@ -57,7 +57,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Swiss Route Planner API",
+    "TITLE": "nightsky trail API",
     "DESCRIPTION": "Planning-first route API for Switzerland.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,

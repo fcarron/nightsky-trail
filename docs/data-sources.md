@@ -1,6 +1,6 @@
 # Data Sources
 
-Swiss Route Planner is Switzerland-first and planning-first. Data sources must be visible to users together with their limitations.
+nightsky trail is Switzerland-first and planning-first. Data sources must be visible to users together with their limitations.
 
 ## License / Fair Use
 

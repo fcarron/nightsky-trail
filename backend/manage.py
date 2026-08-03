@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Django command-line utility for Swiss Route Planner."""
+"""Django command-line utility for nightsky trail."""
 
 from __future__ import annotations
 

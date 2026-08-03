@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build **Swiss Route Planner**, a focused route-planning web app for Switzerland.
+Build **nightsky trail**, a focused route-planning web app for Switzerland.
 
 Required features:
 

@@ -31,7 +31,6 @@ import {
 import type {
   ComputedRoute,
   LonLat,
-  RoutingProfile,
   SegmentMode,
 } from "../features/route/routeModel";
 import {
@@ -288,9 +287,14 @@ export function App() {
     history.present.waypoints.length >= 3 &&
     loopGapMeters <= 30;
   const ascentMeters = elevationState.profile?.ascentMeters ?? null;
+  const descentMeters = elevationState.profile?.descentMeters ?? null;
   const climbMetersPerKilometer =
     ascentMeters !== null && routeSummary.distanceMeters > 0
       ? ascentMeters / (routeSummary.distanceMeters / 1000)
+      : null;
+  const effortKilometers =
+    ascentMeters !== null && routeSummary.distanceMeters > 0
+      ? routeSummary.distanceMeters / 1000 + ascentMeters / 100
       : null;
   const estimatedEffortMinutes = elevationState.profile
     ? estimateEffortMinutes(
@@ -758,10 +762,6 @@ export function App() {
     setBasePaceInput(formatPaceInput(nextValue));
   }
 
-  function setRoutingProfile(profile: RoutingProfile) {
-    dispatch({ type: "set-routing-profile", profile });
-  }
-
   function setSegmentMode(segmentId: string, mode: SegmentMode) {
     dispatch({ type: "set-segment-mode", id: segmentId, mode });
   }
@@ -832,7 +832,7 @@ export function App() {
     <main className="appShell">
       <header className="topBar">
         <div className="brand">
-          <strong>Swiss Route Planner</strong>
+          <strong>nightsky trail</strong>
           <span>Planung für Schweizer Wege</span>
         </div>
         <form
@@ -1027,32 +1027,9 @@ export function App() {
             <div>
               <strong>Zeichnen</strong>
               <span>
-                {history.present.routingProfile === "bike"
-                  ? "Velo-Routing"
-                  : "Trailrunning"}
-                {" · "}
+                Trailrunning ·{" "}
                 {drawingMode === "routed" ? "Magnet folgt Wegen" : "Gerade"}
               </span>
-            </div>
-            <div
-              className="drawModeButtons"
-              role="group"
-              aria-label="Aktivität"
-            >
-              <button
-                type="button"
-                aria-pressed={history.present.routingProfile === "hike"}
-                onClick={() => setRoutingProfile("hike")}
-              >
-                Trail
-              </button>
-              <button
-                type="button"
-                aria-pressed={history.present.routingProfile === "bike"}
-                onClick={() => setRoutingProfile("bike")}
-              >
-                Velo
-              </button>
             </div>
             <div
               className="drawModeButtons"
@@ -1085,22 +1062,92 @@ export function App() {
               <dt>Aufstieg</dt>
               <dd>
                 {ascentMeters !== null ? formatMeters(ascentMeters) : "-"}
+                {descentMeters !== null ? (
+                  <small>{formatMeters(descentMeters)} Abstieg</small>
+                ) : null}
               </dd>
             </div>
-            <div>
+            <div className="runSummaryTimeCard">
               <dt>Zeit</dt>
               <dd>
-                {displayedDurationMinutes !== null
-                  ? formatDurationMinutes(displayedDurationMinutes)
-                  : "-"}
+                <span>
+                  {displayedDurationMinutes !== null
+                    ? formatDurationMinutes(displayedDurationMinutes)
+                    : "-"}
+                </span>
+                <details className="summaryPaceSettings">
+                  <summary aria-label="Zeit-Schätzung einstellen">Pace</summary>
+                  <div className="paceCalibration" aria-label="Zeit-Schätzung">
+                    <div
+                      className="paceModeToggle"
+                      role="group"
+                      aria-label="Zeitberechnung"
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={!calibratedTimeEnabled}
+                        onClick={() => setCalibratedTimeEnabled(false)}
+                      >
+                        Wanderzeit
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={calibratedTimeEnabled}
+                        onClick={() => setCalibratedTimeEnabled(true)}
+                      >
+                        Meine Pace
+                      </button>
+                    </div>
+                    <label htmlFor="base-pace-input">Pace</label>
+                    <button
+                      type="button"
+                      aria-label="Basispace 10 Sekunden schneller"
+                      onClick={() => stepBasePace(-10)}
+                    >
+                      -10s
+                    </button>
+                    <input
+                      id="base-pace-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={basePaceInput}
+                      onChange={(event) =>
+                        updateBasePaceInput(event.currentTarget.value)
+                      }
+                      onBlur={() =>
+                        setBasePaceInput(formatPaceInput(basePaceMinPerKm))
+                      }
+                    />
+                    <button
+                      type="button"
+                      aria-label="Basispace 10 Sekunden langsamer"
+                      onClick={() => stepBasePace(10)}
+                    >
+                      +10s
+                    </button>
+                    <span>min/km</span>
+                    <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
+                    <details className="paceInfo">
+                      <summary aria-label="Zeitberechnung erklären">i</summary>
+                      <p>
+                        Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace
+                        skaliert diese Schätzung mit deiner flachen
+                        Grundpace.
+                      </p>
+                    </details>
+                  </div>
+                </details>
               </dd>
             </div>
             <div>
-              <dt>hm/km</dt>
+              <dt>Leistung</dt>
               <dd>
-                {climbMetersPerKilometer !== null
-                  ? Math.round(climbMetersPerKilometer)
+                {effortKilometers !== null
+                  ? `${formatKilometers(effortKilometers)} Lkm`
                   : "-"}
+                {climbMetersPerKilometer !== null ? (
+                  <small>{Math.round(climbMetersPerKilometer)} hm/km</small>
+                ) : null}
               </dd>
             </div>
           </dl>
@@ -1232,60 +1279,6 @@ export function App() {
                   : "Profil · Wegpunkte · Abschnitte"}
               </small>
             </summary>
-
-            <details className="compactDetails">
-              <summary>
-                <span>Zeit</span>
-                <small>
-                  {calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"} ·{" "}
-                  {formatSpeedKmh(basePaceMinPerKm)}
-                </small>
-              </summary>
-              <div className="paceCalibration" aria-label="Zeit-Schätzung">
-                <label className="paceModeToggle">
-                  <input
-                    type="checkbox"
-                    checked={calibratedTimeEnabled}
-                    onChange={(event) =>
-                      setCalibratedTimeEnabled(event.currentTarget.checked)
-                    }
-                  />
-                  <span>Zeit</span>
-                  <strong>
-                    {calibratedTimeEnabled ? "Meine Pace" : "Wanderzeit"}
-                  </strong>
-                </label>
-                <label htmlFor="base-pace-input">Pace</label>
-                <button
-                  type="button"
-                  aria-label="Basispace 10 Sekunden schneller"
-                  onClick={() => stepBasePace(-10)}
-                >
-                  -10s
-                </button>
-                <input
-                  id="base-pace-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={basePaceInput}
-                  onChange={(event) =>
-                    updateBasePaceInput(event.currentTarget.value)
-                  }
-                  onBlur={() =>
-                    setBasePaceInput(formatPaceInput(basePaceMinPerKm))
-                  }
-                />
-                <button
-                  type="button"
-                  aria-label="Basispace 10 Sekunden langsamer"
-                  onClick={() => stepBasePace(10)}
-                >
-                  +10s
-                </button>
-                <span>min/km</span>
-                <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
-              </div>
-            </details>
 
             <ElevationPanel
               profile={elevationState.profile}
@@ -1718,6 +1711,13 @@ function formatCoordinate(position: LonLat): string {
 
 function formatMeters(value: number): string {
   return `${Math.round(value).toLocaleString("de-CH")} m`;
+}
+
+function formatKilometers(value: number): string {
+  return value.toLocaleString("de-CH", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: value < 10 ? 1 : 0,
+  });
 }
 
 function currentRoutePoints(
