@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
+  estimatePersonalRunningMinutes,
   formatDurationMinutes,
   toElevationProfile,
   toElevationProfileRequest,
@@ -125,7 +126,6 @@ const initialElevationState: ElevationState = {
   message: null,
 };
 const DEFAULT_BASE_PACE_MIN_PER_KM = 6.5;
-const SWISS_HIKING_FLAT_PACE_MIN_PER_KM = 14.271;
 const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
 const CALIBRATED_TIME_STORAGE_KEY =
   "swiss-route-planner.calibrated-time-enabled.v1";
@@ -311,10 +311,7 @@ export function App() {
       ? routeSummary.distanceMeters / 1000 + ascentMeters / 100
       : null;
   const estimatedEffortMinutes = elevationState.profile
-    ? estimateEffortMinutes(
-        elevationState.profile.hikingTime.durationMinutes,
-        basePaceMinPerKm,
-      )
+    ? estimatePersonalRunningMinutes(elevationState.profile, basePaceMinPerKm)
     : null;
   const displayedDurationMinutes = elevationState.profile
     ? calibratedTimeEnabled
@@ -1149,8 +1146,8 @@ export function App() {
                       <summary aria-label="Zeitberechnung erklären">i</summary>
                       <p>
                         Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace
-                        skaliert diese Schätzung mit deiner flachen
-                        Grundpace.
+                        behält deine flache Grundpace bei und passt die Zeit
+                        pro Höhenprofil-Abschnitt an.
                       </p>
                     </details>
                   </div>
@@ -1861,16 +1858,6 @@ function currentRoutePoints(
     return computedRoute.geometry;
   }
   return waypointPositions;
-}
-
-function estimateEffortMinutes(
-  hikingDurationMinutes: number,
-  basePaceMinPerKm: number,
-): number {
-  return (
-    hikingDurationMinutes *
-    (basePaceMinPerKm / SWISS_HIKING_FLAT_PACE_MIN_PER_KM)
-  );
 }
 
 function loadBasePaceMinPerKm(): number {

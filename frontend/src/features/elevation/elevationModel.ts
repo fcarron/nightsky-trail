@@ -54,6 +54,13 @@ export const GRADIENT_GROUPS: GradientGroup[] = [
   { id: "very-steep", label: "20-30%", color: "#b91c1c" },
   { id: "extreme", label: ">30%", color: "#7f1d1d" },
 ];
+export const FLAT_HIKING_PACE_MIN_PER_KM = 14.271;
+export const DEFAULT_RUNNING_UPHILL_CORRECTION = 1.2;
+const SWISS_HIKING_COEFFICIENTS = [
+  14.271, 3.6991, 2.5922, -1.4384, 0.32105, 0.81542, -0.090261, -0.20757,
+  0.010192, 0.028588, -0.00057466, -0.0021842, 0.000015176, 0.000086894,
+  -0.00000013584, -0.0000014026,
+];
 
 export function toElevationProfileRequest(
   route: ComputedRoute,
@@ -195,6 +202,125 @@ export function gradientGroupForPercent(
     return GRADIENT_GROUPS[4];
   }
   return GRADIENT_GROUPS[5];
+}
+
+export function estimatePersonalRunningMinutes(
+  profile: ElevationProfile,
+  flatRunningPaceMinPerKm: number,
+  uphillCorrection = DEFAULT_RUNNING_UPHILL_CORRECTION,
+): number {
+  const monotonicPoints = profile.points.filter(
+    (point, index, points) =>
+      index === 0 || point.distanceMeters > points[index - 1].distanceMeters,
+  );
+  if (monotonicPoints.length < 2 || profile.distanceMeters <= 0) {
+    return 0;
+  }
+
+  const segmentLengthMeters = profile.hikingTime.segmentLengthMeters;
+  const segmentBoundaries = fixedSegmentBoundaries(
+    monotonicPoints[monotonicPoints.length - 1].distanceMeters,
+    segmentLengthMeters,
+  );
+  const scale = flatRunningPaceMinPerKm / FLAT_HIKING_PACE_MIN_PER_KM;
+  let totalMinutes = 0;
+
+  for (let index = 1; index < segmentBoundaries.length; index += 1) {
+    const startDistance = segmentBoundaries[index - 1];
+    const endDistance = segmentBoundaries[index];
+    const horizontalDistance = endDistance - startDistance;
+    if (horizontalDistance <= 0) {
+      continue;
+    }
+
+    const startElevation = interpolateSmoothedElevationAtDistance(
+      monotonicPoints,
+      startDistance,
+    );
+    const endElevation = interpolateSmoothedElevationAtDistance(
+      monotonicPoints,
+      endDistance,
+    );
+    const slopePercent =
+      (100 * (endElevation - startElevation)) / horizontalDistance;
+    const hikingPace = swissHikingMinutesPerKm(slopePercent);
+    const slopePenalty = hikingPace - FLAT_HIKING_PACE_MIN_PER_KM;
+    const correction = slopePercent > 0 ? uphillCorrection : 1;
+    const runningPace =
+      flatRunningPaceMinPerKm + slopePenalty * scale * correction;
+    totalMinutes += (horizontalDistance / 1000) * runningPace;
+  }
+
+  return Math.round(totalMinutes);
+}
+
+function swissHikingMinutesPerKm(slopePercent: number): number {
+  const s = slopePercent / 10;
+  if (s > -4 && s < 4) {
+    return evaluateSwissHikingPolynomial(s);
+  }
+  if (s >= 4) {
+    return 17 * s;
+  }
+  return -9 * s;
+}
+
+function evaluateSwissHikingPolynomial(s: number): number {
+  return SWISS_HIKING_COEFFICIENTS.reduceRight(
+    (result, coefficient) => result * s + coefficient,
+    0,
+  );
+}
+
+function fixedSegmentBoundaries(
+  totalDistanceMeters: number,
+  segmentLengthMeters: number,
+): number[] {
+  if (totalDistanceMeters <= 0) {
+    return [0];
+  }
+
+  const boundaries = [0];
+  let nextDistance = segmentLengthMeters;
+  while (nextDistance < totalDistanceMeters) {
+    boundaries.push(nextDistance);
+    nextDistance += segmentLengthMeters;
+  }
+  boundaries.push(totalDistanceMeters);
+  return boundaries;
+}
+
+function interpolateSmoothedElevationAtDistance(
+  points: ElevationPoint[],
+  distanceMeters: number,
+): number {
+  if (distanceMeters <= points[0].distanceMeters) {
+    return points[0].smoothedElevationMeters;
+  }
+  const lastPoint = points[points.length - 1];
+  if (distanceMeters >= lastPoint.distanceMeters) {
+    return lastPoint.smoothedElevationMeters;
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (current.distanceMeters < distanceMeters) {
+      continue;
+    }
+    const distanceDelta = current.distanceMeters - previous.distanceMeters;
+    if (distanceDelta <= 0) {
+      return current.smoothedElevationMeters;
+    }
+    const ratio = (distanceMeters - previous.distanceMeters) / distanceDelta;
+    return (
+      previous.smoothedElevationMeters +
+      (current.smoothedElevationMeters - previous.smoothedElevationMeters) *
+        ratio
+    );
+  }
+
+  return lastPoint.smoothedElevationMeters;
 }
 
 function buildGradientBands(points: ElevationPoint[]): ElevationGradientBand[] {
