@@ -34,9 +34,26 @@ type ProfileBandDatum = [
   startKm: number,
   endKm: number,
   baseMeters: number,
-  topMeters: number,
+  startTopMeters: number,
+  endTopMeters: number,
   gradientPercent: number,
 ];
+
+type SurfaceBandDatum = [
+  centerKm: number,
+  startKm: number,
+  endKm: number,
+  lane: number,
+  color: string,
+  label: string,
+];
+
+export interface ElevationSurfaceSegment {
+  startDistanceMeters: number;
+  endDistanceMeters: number;
+  label: string;
+  color: string;
+}
 
 interface CustomRenderParams {
   coordSys?: {
@@ -48,7 +65,7 @@ interface CustomRenderParams {
 }
 
 interface CustomRenderApi {
-  value: (dimension: number) => number;
+  value: (dimension: number) => number | string;
   coord: (data: [number, number]) => [number, number];
   style: (extra?: Record<string, unknown>) => Record<string, unknown>;
 }
@@ -60,6 +77,7 @@ interface ElevationHoverPoint {
 
 interface ElevationPanelProps {
   profile: ElevationProfile | null;
+  surfaceSegments?: ElevationSurfaceSegment[];
   status: "idle" | "loading" | "ready" | "error";
   message: string | null;
   onHoverPointChange?: (point: ElevationHoverPoint | null) => void;
@@ -67,6 +85,7 @@ interface ElevationPanelProps {
 
 export function ElevationPanel({
   profile,
+  surfaceSegments = [],
   status,
   message,
   onHoverPointChange,
@@ -90,8 +109,9 @@ export function ElevationPanel({
         point.distanceMeters / 1000,
         point.smoothedElevationMeters,
       ]),
+      surfaceBands: createSurfaceBands(surfaceSegments, profile.distanceMeters),
     };
-  }, [elevationFloor, profile]);
+  }, [elevationFloor, profile, surfaceSegments]);
 
   useEffect(() => {
     if (
@@ -118,14 +138,15 @@ export function ElevationPanel({
         left: 44,
         right: 14,
         top: panelSize === "large" ? 18 : 8,
-        bottom: panelSize === "large" ? 42 : 28,
+        bottom: panelSize === "large" ? 58 : 38,
       },
       tooltip: {
         backgroundColor: "#101923",
         borderColor: "#334657",
         borderWidth: 1,
         confine: true,
-        formatter: (params: unknown) => formatElevationTooltip(params, profile),
+        formatter: (params: unknown) =>
+          formatElevationTooltip(params, profile, surfaceSegments),
         textStyle: { color: "#f4f8fb" },
         trigger: "axis",
       },
@@ -152,7 +173,7 @@ export function ElevationPanel({
           realtime: false,
           fillerColor: "rgba(79, 140, 255, 0.16)",
           handleStyle: { color: "#8fa1ad" },
-          height: panelSize === "large" ? 16 : 12,
+          height: panelSize === "large" ? 14 : 9,
           labelFormatter: (value: number) => `${value.toFixed(1)} km`,
           selectedDataBackground: {
             areaStyle: { color: "rgba(79, 140, 255, 0.18)" },
@@ -166,24 +187,36 @@ export function ElevationPanel({
         axisLabel: {
           color: "#8fa1ad",
           formatter: (value: number) => `${value.toFixed(1)} km`,
+          margin: panelSize === "large" ? 8 : 10,
         },
         axisLine: { lineStyle: { color: "#334657" } },
         splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.14)" } },
         type: "value",
       },
-      yAxis: {
-        axisLabel: {
-          color: "#8fa1ad",
-          formatter: (value: number) => `${Math.round(value)} m`,
+      yAxis: [
+        {
+          axisLabel: {
+            color: "#8fa1ad",
+            formatter: (value: number) => `${Math.round(value)} m`,
+          },
+          axisLine: { lineStyle: { color: "#334657" } },
+          max:
+            Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) *
+            20,
+          min: elevationFloor,
+          splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.16)" } },
+          type: "value",
         },
-        axisLine: { lineStyle: { color: "#334657" } },
-        max:
-          Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) *
-          20,
-        min: elevationFloor,
-        splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.16)" } },
-        type: "value",
-      },
+        {
+          axisLabel: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          max: 1,
+          min: 0,
+          splitLine: { show: false },
+          type: "value",
+        },
+      ],
       series: [
         {
           data: chartData.bands,
@@ -193,10 +226,11 @@ export function ElevationPanel({
             "start",
             "end",
             "base",
-            "elevation",
+            "startElevation",
+            "endElevation",
             "gradient",
           ],
-          encode: { x: 0, y: 4 },
+          encode: { x: 0, y: 5 },
           itemStyle: {
             borderWidth: 0,
             color: (params: { dataIndex: number }) =>
@@ -211,6 +245,7 @@ export function ElevationPanel({
             api: CustomRenderApi,
           ) => renderProfileBand(params, api),
           type: "custom",
+          yAxisIndex: 0,
         },
         {
           data: chartData.line,
@@ -221,7 +256,33 @@ export function ElevationPanel({
           smooth: 0.15,
           progressive: 300,
           type: "line",
+          yAxisIndex: 0,
         },
+        ...(panelSize === "large" && chartData.surfaceBands.length
+          ? [
+              {
+                data: chartData.surfaceBands,
+                coordinateSystem: "cartesian2d",
+                dimensions: [
+                  "distance",
+                  "start",
+                  "end",
+                  "lane",
+                  "color",
+                  "label",
+                ],
+                encode: { x: 0, y: 3 },
+                name: "Weg",
+                renderItem: (
+                  params: CustomRenderParams,
+                  api: CustomRenderApi,
+                ) => renderSurfaceBand(params, api),
+                silent: true,
+                type: "custom",
+                yAxisIndex: 1,
+              },
+            ]
+          : []),
       ],
     });
 
@@ -285,7 +346,14 @@ export function ElevationPanel({
       chart.dispose();
       onHoverPointChange?.(null);
     };
-  }, [chartData, elevationFloor, onHoverPointChange, profile, panelSize]);
+  }, [
+    chartData,
+    elevationFloor,
+    onHoverPointChange,
+    profile,
+    panelSize,
+    surfaceSegments,
+  ]);
 
   const statusLabel =
     status === "loading"
@@ -428,10 +496,68 @@ function createProfileBands(
       Math.max(0, startKm),
       Math.max(distanceKm, endKm),
       elevationFloor,
-      point.smoothedElevationMeters,
+      interpolatedBandElevation(profile, index, "start"),
+      interpolatedBandElevation(profile, index, "end"),
       point.gradientPercent,
     ];
   });
+}
+
+function interpolatedBandElevation(
+  profile: ElevationProfile,
+  index: number,
+  side: "start" | "end",
+): number {
+  const point = profile.points[index];
+  if (!point) {
+    return 0;
+  }
+
+  if (side === "start") {
+    const previousPoint = profile.points[index - 1];
+    if (!previousPoint) {
+      return point.smoothedElevationMeters;
+    }
+    return (
+      (previousPoint.smoothedElevationMeters + point.smoothedElevationMeters) /
+      2
+    );
+  }
+
+  const nextPoint = profile.points[index + 1];
+  if (!nextPoint) {
+    return point.smoothedElevationMeters;
+  }
+  return (point.smoothedElevationMeters + nextPoint.smoothedElevationMeters) / 2;
+}
+
+function createSurfaceBands(
+  segments: ElevationSurfaceSegment[],
+  routeDistanceMeters: number,
+): SurfaceBandDatum[] {
+  if (routeDistanceMeters <= 0) {
+    return [];
+  }
+
+  return segments
+    .map((segment): SurfaceBandDatum | null => {
+      const startMeters = Math.max(0, segment.startDistanceMeters);
+      const endMeters = Math.min(routeDistanceMeters, segment.endDistanceMeters);
+      if (endMeters <= startMeters) {
+        return null;
+      }
+      const startKm = startMeters / 1000;
+      const endKm = endMeters / 1000;
+      return [
+        (startKm + endKm) / 2,
+        startKm,
+        endKm,
+        0.5,
+        segment.color,
+        segment.label,
+      ];
+    })
+    .filter((segment): segment is SurfaceBandDatum => segment !== null);
 }
 
 function renderProfileBand(
@@ -442,34 +568,66 @@ function renderProfileBand(
     return null;
   }
 
-  const startKm = api.value(1);
-  const endKm = api.value(2);
-  const baseMeters = api.value(3);
-  const topMeters = api.value(4);
-  const gradientPercent = api.value(5);
+  const startKm = Number(api.value(1));
+  const endKm = Number(api.value(2));
+  const baseMeters = Number(api.value(3));
+  const startTopMeters = Number(api.value(4));
+  const endTopMeters = Number(api.value(5));
+  const gradientPercent = Number(api.value(6));
   const bottomLeft = api.coord([startKm, baseMeters]);
-  const topRight = api.coord([endKm, topMeters]);
-  const shape = graphic.clipRectByRect(
-    {
-      x: bottomLeft[0],
-      y: topRight[1],
-      width: Math.max(1, topRight[0] - bottomLeft[0] + 0.75),
-      height: Math.max(0, bottomLeft[1] - topRight[1]),
-    },
+  const bottomRight = api.coord([endKm, baseMeters]);
+  const topLeft = api.coord([startKm, startTopMeters]);
+  const topRight = api.coord([endKm, endTopMeters]);
+  const points = graphic.clipPointsByRect(
+    [
+      [bottomLeft[0] - 0.25, bottomLeft[1]],
+      [topLeft[0] - 0.25, topLeft[1]],
+      [topRight[0] + 0.25, topRight[1]],
+      [bottomRight[0] + 0.25, bottomRight[1]],
+    ],
     params.coordSys,
   );
 
-  if (!shape) {
+  if (points.length < 3) {
     return null;
   }
 
   return {
-    shape,
+    shape: { points },
     style: api.style({
       fill: gradientGroupForPercent(gradientPercent).color,
       opacity: 0.96,
       stroke: "transparent",
     }),
+    type: "polygon",
+  };
+}
+
+function renderSurfaceBand(
+  params: CustomRenderParams,
+  api: CustomRenderApi,
+) {
+  if (!params.coordSys) {
+    return null;
+  }
+
+  const startKm = Number(api.value(1));
+  const endKm = Number(api.value(2));
+  const color = String(api.value(4));
+  const startX = api.coord([startKm, 0.5])[0];
+  const endX = api.coord([endKm, 0.5])[0];
+
+  return {
+    shape: {
+      height: 7,
+      width: Math.max(1, endX - startX + 0.75),
+      x: startX,
+      y: params.coordSys.y + params.coordSys.height + 26,
+    },
+    style: {
+      fill: color,
+      opacity: 0.72,
+    },
     type: "rect",
   };
 }
@@ -489,16 +647,37 @@ function nearestElevationPoint(
 function formatElevationTooltip(
   params: unknown,
   profile: ElevationProfile,
+  surfaceSegments: ElevationSurfaceSegment[],
 ): string {
   const point = pointFromTooltipParams(params, profile);
   if (!point) {
     return "";
   }
+  const surfaceSegment = surfaceSegmentAtDistance(
+    surfaceSegments,
+    point.distanceMeters,
+  );
   return [
     `<strong>${formatDistance(point.distanceMeters)}</strong>`,
     `${formatElevationMeters(point.smoothedElevationMeters)}`,
     `${formatGradientPercent(point.gradientPercent)}`,
-  ].join("<br />");
+    surfaceSegment ? `Weg: ${surfaceSegment.label}` : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("<br />");
+}
+
+function surfaceSegmentAtDistance(
+  segments: ElevationSurfaceSegment[],
+  distanceMeters: number,
+): ElevationSurfaceSegment | null {
+  return (
+    segments.find(
+      (segment) =>
+        distanceMeters >= segment.startDistanceMeters &&
+        distanceMeters <= segment.endDistanceMeters,
+    ) ?? null
+  );
 }
 
 function pointFromTooltipParams(params: unknown, profile: ElevationProfile) {

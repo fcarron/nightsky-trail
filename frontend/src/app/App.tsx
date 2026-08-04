@@ -8,6 +8,7 @@ import {
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
 import type { ElevationProfile } from "../features/elevation/elevationModel";
+import type { ElevationSurfaceSegment } from "../features/elevation/ElevationPanel";
 import { MapPanel } from "../features/map/MapPanel";
 import {
   distanceMetersBetween,
@@ -76,6 +77,13 @@ interface SurfaceSummaryItem {
   distanceMeters: number;
 }
 
+interface RouteSurfaceSegment {
+  category: SurfaceCategory;
+  startDistanceMeters: number;
+  endDistanceMeters: number;
+  label: string;
+}
+
 interface DetailRange {
   from: number;
   to: number;
@@ -132,6 +140,12 @@ const SURFACE_CATEGORY_LABELS: Record<SurfaceCategory, string> = {
   natural: "Trail/Natur",
   paved: "Strasse",
   unknown: "Unbekannt",
+};
+const SURFACE_CATEGORY_COLORS: Record<SurfaceCategory, string> = {
+  gravel: "#c8923f",
+  natural: "#3f9b68",
+  paved: "#8fa1ad",
+  unknown: "#d8dee5",
 };
 const PAVED_SURFACES = new Set([
   "asphalt",
@@ -313,6 +327,10 @@ export function App() {
   );
   const surfaceSummary = useMemo(
     () => summarizeSurface(effectiveComputedRoute),
+    [effectiveComputedRoute],
+  );
+  const elevationSurfaceSegments = useMemo(
+    () => surfaceSegmentsForElevation(effectiveComputedRoute),
     [effectiveComputedRoute],
   );
   const activeTour =
@@ -1088,7 +1106,7 @@ export function App() {
                         aria-pressed={!calibratedTimeEnabled}
                         onClick={() => setCalibratedTimeEnabled(false)}
                       >
-                        Wanderzeit
+                        Wandern
                       </button>
                       <button
                         type="button"
@@ -1282,6 +1300,7 @@ export function App() {
 
             <ElevationPanel
               profile={elevationState.profile}
+              surfaceSegments={elevationSurfaceSegments}
               status={elevationState.status}
               message={elevationState.message}
               onHoverPointChange={setElevationHoverPoint}
@@ -1618,6 +1637,104 @@ function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
   })).filter((item) => item.distanceMeters > 1);
 }
 
+function surfaceSegmentsForElevation(
+  route: ComputedRoute | null,
+): ElevationSurfaceSegment[] {
+  if (!route) {
+    return [];
+  }
+
+  let routeOffsetMeters = 0;
+  const segments: RouteSurfaceSegment[] = [];
+
+  for (const segment of route.segments) {
+    if (segment.mode !== "routed") {
+      segments.push(
+        createSurfaceSegment("unknown", routeOffsetMeters, segment.distanceMeters),
+      );
+      routeOffsetMeters += segment.distanceMeters;
+      continue;
+    }
+
+    const details =
+      firstDetailRanges(segment.details.surface, segment.details.track_type) ??
+      readDetailRanges(segment.details.road_class);
+    if (!details.length) {
+      segments.push(
+        createSurfaceSegment("unknown", routeOffsetMeters, segment.distanceMeters),
+      );
+      routeOffsetMeters += segment.distanceMeters;
+      continue;
+    }
+
+    for (const detail of details) {
+      const category = surfaceCategoryFor(detail.value);
+      const startDistanceMeters =
+        routeOffsetMeters + detailDistanceFromStart(segment.geometry, detail.from);
+      const endDistanceMeters =
+        routeOffsetMeters + detailDistanceFromStart(segment.geometry, detail.to);
+      if (endDistanceMeters <= startDistanceMeters) {
+        continue;
+      }
+      segments.push({
+        category,
+        endDistanceMeters,
+        label: SURFACE_CATEGORY_LABELS[category],
+        startDistanceMeters,
+      });
+    }
+    routeOffsetMeters += segment.distanceMeters;
+  }
+
+  const hasKnownSurface = segments.some(
+    (segment) =>
+      segment.category !== "unknown" &&
+      segment.endDistanceMeters > segment.startDistanceMeters,
+  );
+  if (!hasKnownSurface) {
+    return [];
+  }
+
+  return mergeRouteSurfaceSegments(segments).map((segment) => ({
+    color: SURFACE_CATEGORY_COLORS[segment.category],
+    endDistanceMeters: segment.endDistanceMeters,
+    label: segment.label,
+    startDistanceMeters: segment.startDistanceMeters,
+  }));
+}
+
+function createSurfaceSegment(
+  category: SurfaceCategory,
+  offsetMeters: number,
+  distanceMeters: number,
+): RouteSurfaceSegment {
+  return {
+    category,
+    endDistanceMeters: offsetMeters + distanceMeters,
+    label: SURFACE_CATEGORY_LABELS[category],
+    startDistanceMeters: offsetMeters,
+  };
+}
+
+function mergeRouteSurfaceSegments(
+  segments: RouteSurfaceSegment[],
+): RouteSurfaceSegment[] {
+  const merged: RouteSurfaceSegment[] = [];
+  for (const segment of segments) {
+    const previous = merged.at(-1);
+    if (
+      previous &&
+      previous.category === segment.category &&
+      Math.abs(previous.endDistanceMeters - segment.startDistanceMeters) < 1
+    ) {
+      previous.endDistanceMeters = segment.endDistanceMeters;
+      continue;
+    }
+    merged.push({ ...segment });
+  }
+  return merged;
+}
+
 function readDetailRanges(value: unknown): DetailRange[] {
   if (!Array.isArray(value)) {
     return [];
@@ -1650,6 +1767,22 @@ function firstDetailRanges(...values: unknown[]): DetailRange[] | null {
     }
   }
   return null;
+}
+
+function detailDistanceFromStart(geometry: LonLat[], index: number): number {
+  if (geometry.length < 2) {
+    return 0;
+  }
+
+  const to = Math.min(Math.max(index, 0), geometry.length - 1);
+  let distance = 0;
+  for (let pointIndex = 0; pointIndex < to; pointIndex += 1) {
+    distance += distanceMetersBetween(
+      geometry[pointIndex],
+      geometry[pointIndex + 1],
+    );
+  }
+  return distance;
 }
 
 function detailDistanceMeters(

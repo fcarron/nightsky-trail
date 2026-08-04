@@ -6,7 +6,7 @@
   "scope": "/",
   "display": "standalone",
   "background_color": "#f4f6f8",
-  "theme_color": "#d8001f",
+  "theme_color": "#102a56",
   "orientation": "any",
   "categories": ["maps", "navigation", "sports"],
   "icons": [

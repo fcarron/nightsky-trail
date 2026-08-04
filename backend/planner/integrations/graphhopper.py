@@ -15,7 +15,7 @@ ROUTE_DETAILS = [
     "foot_network",
     "road_class",
 ]
-SUPPORTED_PROFILES = {"hike", "bike"}
+SUPPORTED_PROFILES = {"hike"}
 HIKING_MODEL_PATH = Path(__file__).resolve().parent / "graphhopper_models" / "hiking.json"
 
 

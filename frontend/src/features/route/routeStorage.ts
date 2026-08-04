@@ -43,12 +43,12 @@ export function parseRoutePlan(value: unknown): RoutePlan {
   const waypoints = parseWaypoints(value.waypoints);
   const segments = parseSegments(value.segments);
   const importedGeometry = parseImportedGeometry(value.importedGeometry);
-  const routingProfile = parseRoutingProfile(value.routingProfile);
+  const routingProfile = parseRoutingProfile();
   return { importedGeometry, routingProfile, waypoints, segments };
 }
 
-function parseRoutingProfile(value: unknown): RoutingProfile {
-  return value === "bike" ? "bike" : "hike";
+function parseRoutingProfile(): RoutingProfile {
+  return "hike";
 }
 
 function parseImportedGeometry(value: unknown): LonLat[] | undefined {

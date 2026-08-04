@@ -53,6 +53,7 @@ import {
 } from "./trailDifficulty";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
+const DIFFICULTY_MAX_BBOX_AREA = 0.08;
 
 type BaseLayerId = "light" | "standard" | "osm-topo";
 type LayerRole =
@@ -131,14 +132,14 @@ export function MapPanel({
     onDeleteWaypoint,
   });
   const selectedWaypointIdRef = useRef(selectedWaypointId);
-  const baseLayerIdRef = useRef<BaseLayerId>("light");
+  const baseLayerIdRef = useRef<BaseLayerId>("standard");
   const difficultyVisibleRef = useRef(false);
   const trailMatchDebugVisibleRef = useRef(false);
   const routeDragInsertRef = useRef<{ waypointId: string } | null>(null);
   const suppressNextSingleClickRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("light");
+  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("standard");
   const [hikingTrailsVisible, setHikingTrailsVisible] = useState(true);
   const [hikingRoutesVisible, setHikingRoutesVisible] = useState(false);
   const [hikingClosuresVisible, setHikingClosuresVisible] = useState(false);
@@ -400,12 +401,24 @@ export function MapPanel({
     map.addLayer(pointLayer);
     mapRef.current = map;
 
+    const layerAddListener = map.getLayers().on("add", (event) => {
+      const layer = event.element;
+      if (layer && !layer.get("layerRole")) {
+        layer.set("layerRole", "base-light" satisfies LayerRole);
+        updateBaseLayerVisibility(map, baseLayerIdRef.current);
+      }
+    });
+
     apply(map, SWISSTOPO_STYLE_URL)
       .then(() => {
         tagUntypedBaseLayers(map, "base-light");
         updateBaseLayerVisibility(map, baseLayerIdRef.current);
+        window.requestAnimationFrame(() => {
+          updateBaseLayerVisibility(map, baseLayerIdRef.current);
+        });
       })
       .catch(() => {
+        standardLayer.setVisible(true);
         setMapError("swisstopo-Karte konnte nicht geladen werden.");
       });
 
@@ -544,6 +557,7 @@ export function MapPanel({
 
     return () => {
       map.setTarget(undefined);
+      unByKey(layerAddListener);
       viewport.removeEventListener("pointerdown", handleRoutePointerDown);
       window.removeEventListener("pointerup", handleRoutePointerUp);
       mapRef.current = null;
@@ -825,7 +839,7 @@ export function MapPanel({
       ];
 
       const bboxArea = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]);
-      if (bboxArea > 0.02) {
+      if (bboxArea > DIFFICULTY_MAX_BBOX_AREA) {
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
@@ -1091,6 +1105,7 @@ export function MapPanel({
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
       <div className="attribution" aria-label="Datenquellen">
+        <span>Datenquellen:</span>
         <a
           href="https://www.swisstopo.admin.ch/"
           target="_blank"

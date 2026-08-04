@@ -8,7 +8,7 @@ import { totalStraightLineDistanceMeters } from "./routeGeometry";
 
 export function toRouteComputeRequest(plan: RoutePlan): RouteComputeRequest {
   return {
-    profile: plan.routingProfile,
+    profile: "hike",
     waypoints: plan.waypoints.map((waypoint) => ({
       id: waypoint.id,
       longitude: waypoint.position.lon,

@@ -2,6 +2,8 @@
 
 nightsky trail ist eine fokussierte Web-App zum Planen von Routen in der Schweiz. Sie ist bewusst kleiner gehalten als Komoot, Strava oder OpenRunner: Karte, Route zeichnen, Wege folgen, Höhenprofil, Wanderzeit, Schwierigkeitshinweise, GPX und gespeicherte Touren.
 
+Das Projekt ist unabhängig. Es wird nicht von swisstopo, OpenStreetMap, SchweizMobil oder GraphHopper betrieben, geprüft oder unterstützt; diese Dienste und Daten werden lediglich als externe Datenquellen verwendet und entsprechend genannt.
+
 Keine Social Features, keine Aktivitätsaufzeichnung, keine Trainingsanalyse, keine Empfehlungen und keine Zahlungen.
 
 ## Funktionen
@@ -289,7 +291,7 @@ http://127.0.0.1:8000/api/docs/
 
 Details und Einschränkungen stehen in [docs/data-sources.md](docs/data-sources.md).
 
-Die Datenquellen und Karten-/Routingdaten haben eigene Nutzungsbedingungen und Lizenzen. Eine spätere Code-Lizenz für dieses Repository ändert diese Datenquellen-Lizenzen nicht.
+Die Quellenangaben in der Kartenansicht sind Attributionshinweise, keine Sponsoring- oder Herausgeberhinweise. Die Datenquellen und Karten-/Routingdaten haben eigene Nutzungsbedingungen und Lizenzen. Eine spätere Code-Lizenz für dieses Repository ändert diese Datenquellen-Lizenzen nicht.
 
 ## Konfiguration
 

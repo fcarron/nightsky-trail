@@ -44,7 +44,7 @@ export interface SearchResultDto {
 export interface RouteComputeRequest {
   waypoints: RouteWaypointDto[];
   segments: RouteSegmentRequestDto[];
-  profile: "hike" | "bike";
+  profile: "hike";
 }
 
 export interface RouteWaypointDto {

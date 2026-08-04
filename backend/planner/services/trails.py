@@ -26,6 +26,7 @@ from planner.integrations.swisstopo_trails import (
 
 logger = logging.getLogger(__name__)
 TRAILS_MIN_ZOOM = 13
+TRAILS_MAX_BBOX_AREA = 0.08
 
 WARNING_RELEVANT_SAC_SCALES = {
     "demanding_mountain_hiking",
@@ -70,12 +71,15 @@ def build_trails_response(
     ways = []
     swisstopo_trails = []
     if include_debug and (
-        zoom < settings.TRAILS_DEBUG_MIN_ZOOM or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
+        zoom < settings.TRAILS_DEBUG_MIN_ZOOM
+        or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
     ):
         include_debug = False
         warnings.append("Match Debug is limited to small viewports. Zoom in to enable it.")
 
-    load_osm = include_osm and zoom >= TRAILS_MIN_ZOOM and bbox_area <= 0.02
+    load_osm = (
+        include_osm and zoom >= TRAILS_MIN_ZOOM and bbox_area <= TRAILS_MAX_BBOX_AREA
+    )
 
     osm_started_at = perf_counter()
     if load_osm:
@@ -234,7 +238,7 @@ def trails_cache_key(
     decimals = settings.TRAILS_CACHE_BBOX_DECIMALS
     rounded_bbox = ",".join(f"{coordinate:.{decimals}f}" for coordinate in bbox)
     flags = f"osm:{int(include_osm)}:official:{int(include_official)}:debug:{int(include_debug)}"
-    return f"trails:v3:zoom:{zoom}:bbox:{rounded_bbox}:{flags}"
+    return f"trails:v4:zoom:{zoom}:bbox:{rounded_bbox}:{flags}"
 
 
 def summarize_osm_ways(ways: list[OsmWay]) -> dict[str, object]:

@@ -153,7 +153,7 @@ export function routePlannerReducer(
 export function normalizeRoutePlan(plan: RoutePlan): RoutePlan {
   return {
     importedGeometry: normalizeImportedGeometry(plan.importedGeometry),
-    routingProfile: normalizeRoutingProfile(plan.routingProfile),
+    routingProfile: normalizeRoutingProfile(),
     waypoints: plan.waypoints,
     segments: plan.segments.length
       ? plan.segments
@@ -265,8 +265,8 @@ function normalizeImportedGeometry(
   return geometry && geometry.length >= 2 ? geometry : undefined;
 }
 
-function normalizeRoutingProfile(profile: unknown): RoutingProfile {
-  return profile === "bike" ? "bike" : "hike";
+function normalizeRoutingProfile(): RoutingProfile {
+  return "hike";
 }
 
 function createStraightSegment(

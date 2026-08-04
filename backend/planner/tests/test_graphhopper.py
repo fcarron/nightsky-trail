@@ -143,7 +143,7 @@ def test_graphhopper_client_defaults_to_hike_profile(monkeypatch: pytest.MonkeyP
     assert requests[0]["profile"] == "hike"
 
 
-def test_graphhopper_client_uses_bike_profile_without_hiking_model(
+def test_graphhopper_client_rejects_disabled_bike_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requests: list[dict[str, object]] = []
@@ -164,14 +164,14 @@ def test_graphhopper_client_uses_bike_profile_without_hiking_model(
 
     monkeypatch.setattr("planner.integrations.graphhopper.httpx.post", fake_post)
 
-    GraphHopperClient("http://graphhopper.test/").route_segment(
-        Waypoint(id="a", longitude=7.4, latitude=46.9),
-        Waypoint(id="b", longitude=7.5, latitude=47.0),
-        profile="bike",
-    )
+    with pytest.raises(GraphHopperUnavailableError):
+        GraphHopperClient("http://graphhopper.test/").route_segment(
+            Waypoint(id="a", longitude=7.4, latitude=46.9),
+            Waypoint(id="b", longitude=7.5, latitude=47.0),
+            profile="bike",
+        )
 
-    assert requests[0]["profile"] == "bike"
-    assert "custom_model" not in requests[0]
+    assert requests == []
 
 
 def test_hiking_custom_model_is_permissive() -> None:
