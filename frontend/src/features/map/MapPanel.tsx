@@ -33,6 +33,7 @@ import {
   SWISSTOPO_HIKING_CLOSURES_LAYER,
   SWISSTOPO_HIKING_ROUTES_LAYER,
   SWISSTOPO_HIKING_TRAILS_WMTS_URL,
+  SWISSTOPO_SATELLITE_WMTS_URL,
   SWISSTOPO_STANDARD_WMTS_URL,
   SWISSTOPO_STYLE_URL,
   SWISSTOPO_WMS_URL,
@@ -53,12 +54,15 @@ import {
 } from "./trailDifficulty";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
-const DIFFICULTY_MAX_BBOX_AREA = 0.08;
+// Permit the first viewport in which the official swisstopo trail layer is
+// visible. The backend applies the same limit.
+const DIFFICULTY_MAX_BBOX_AREA = 0.12;
 
-type BaseLayerId = "light" | "standard" | "osm-topo";
+type BaseLayerId = "light" | "standard" | "satellite" | "osm-topo";
 type LayerRole =
   | "base-light"
   | "base-standard"
+  | "base-satellite"
   | "base-osm-topo"
   | "overlay"
   | "trail-overlay";
@@ -257,6 +261,17 @@ export function MapPanel({
       zIndex: 0,
     });
     standardLayer.set("layerRole", "base-standard" satisfies LayerRole);
+    const satelliteLayer = new TileLayer({
+      source: new XYZ({
+        attributions: "© swisstopo",
+        crossOrigin: "anonymous",
+        maxZoom: 19,
+        url: SWISSTOPO_SATELLITE_WMTS_URL,
+      }),
+      visible: false,
+      zIndex: 0,
+    });
+    satelliteLayer.set("layerRole", "base-satellite" satisfies LayerRole);
     const osmTopoLayer = new TileLayer({
       source: new XYZ({
         attributions:
@@ -352,6 +367,7 @@ export function MapPanel({
     const difficultyLayer = new VectorLayer({
       source: difficultySourceRef.current,
       style: difficultyStyle,
+      minZoom: HIKING_TRAIL_OVERLAY_MIN_ZOOM,
       visible: false,
       zIndex: 24,
     });
@@ -389,6 +405,7 @@ export function MapPanel({
       }),
     });
     map.addLayer(standardLayer);
+    map.addLayer(satelliteLayer);
     map.addLayer(osmTopoLayer);
     map.addLayer(hikingTrailsLayer);
     map.addLayer(hikingRoutesLayer);
@@ -863,7 +880,7 @@ export function MapPanel({
       difficultyQueuedLoadRef.current = false;
       setDifficultyStatus("Schwierigkeitshinweise laden");
 
-      getTrailDifficultyWays(bbox, zoom, true, false, trailMatchDebugEnabled)
+      getTrailDifficultyWays(bbox, zoom, true, true, trailMatchDebugEnabled)
         .then((response) => {
           if (difficultyRequestIdRef.current !== requestId) {
             return;
@@ -1004,9 +1021,10 @@ export function MapPanel({
               setMapLayerMenuOpen(false);
             }}
           >
-            <option value="light">swisstopo Light</option>
-            <option value="standard">swisstopo Standard</option>
-            <option value="osm-topo">OSM Topo</option>
+          <option value="light">swisstopo Light</option>
+          <option value="standard">swisstopo Standard</option>
+          <option value="satellite">swisstopo Satellit</option>
+          <option value="osm-topo">OSM Topo</option>
           </select>
           <label className="mapOverlayToggle">
             <input
@@ -1157,6 +1175,9 @@ function updateBaseLayerVisibility(map: Map, activeBaseLayerId: BaseLayerId) {
       if (role === "base-standard") {
         layer.setVisible(activeBaseLayerId === "standard");
       }
+      if (role === "base-satellite") {
+        layer.setVisible(activeBaseLayerId === "satellite");
+      }
       if (role === "base-osm-topo") {
         layer.setVisible(activeBaseLayerId === "osm-topo");
       }
@@ -1167,6 +1188,9 @@ function toBaseLayerId(value: string): BaseLayerId {
   if (value === "osm-topo") {
     return "osm-topo";
   }
+  if (value === "satellite") {
+    return "satellite";
+  }
   return value === "standard" ? "standard" : "light";
 }
 
@@ -1176,6 +1200,9 @@ function baseLayerLabel(value: BaseLayerId): string {
   }
   if (value === "osm-topo") {
     return "OSM Topo";
+  }
+  if (value === "satellite") {
+    return "Satellit";
   }
   return "Light";
 }

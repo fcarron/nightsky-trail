@@ -26,7 +26,8 @@ from planner.integrations.swisstopo_trails import (
 
 logger = logging.getLogger(__name__)
 TRAILS_MIN_ZOOM = 13
-TRAILS_MAX_BBOX_AREA = 0.08
+# Keep the first OSM difficulty viewport aligned with the official trail layer.
+TRAILS_MAX_BBOX_AREA = 0.12
 
 WARNING_RELEVANT_SAC_SCALES = {
     "demanding_mountain_hiking",

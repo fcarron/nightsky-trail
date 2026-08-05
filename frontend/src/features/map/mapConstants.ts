@@ -4,6 +4,9 @@ export const SWISSTOPO_STYLE_URL =
 export const SWISSTOPO_STANDARD_WMTS_URL =
   "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg";
 
+export const SWISSTOPO_SATELLITE_WMTS_URL =
+  "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage-product/default/current/3857/{z}/{x}/{y}.jpeg";
+
 export const SWISSTOPO_HIKING_TRAILS_WMTS_URL =
   "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swisstlm3d-wanderwege/default/current/3857/{z}/{x}/{y}.png";
 

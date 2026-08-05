@@ -859,9 +859,9 @@ button:disabled {
 }
 
 .routeStatus-ready {
-  border-color: rgba(47, 143, 47, 0.28);
-  background: rgba(47, 143, 47, 0.08);
-  color: #2f6f2f;
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .routeStatus-loading {
