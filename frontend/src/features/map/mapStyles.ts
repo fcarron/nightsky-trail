@@ -1,5 +1,5 @@
 import type { FeatureLike } from "ol/Feature.js";
-import { LineString, MultiPoint } from "ol/geom.js";
+import { LineString } from "ol/geom.js";
 import { Circle, Fill, Stroke, Style, Text } from "ol/style.js";
 
 const routedRouteStyle = new Style({
@@ -100,25 +100,14 @@ const unknownDifficultyStyle = [
   }),
 ];
 
-const emptyWarningGeometry = new MultiPoint([]);
-const warningMarkerCache = new WeakMap<
-  FeatureLike,
-  { geometry: MultiPoint; spacingBucket: number }
->();
-
-const warningOverlayStyle = [
-  new Style({
-    geometry: (feature) => {
-      return warningMarkerCache.get(feature)?.geometry ?? emptyWarningGeometry;
-    },
-    text: new Text({
-      fill: new Fill({ color: "rgba(5, 7, 10, 0.78)" }),
-      font: "700 13px sans-serif",
-      stroke: new Stroke({ color: "rgba(255, 255, 255, 0.55)", width: 2 }),
-      text: "+",
-    }),
+const warningOverlayLineStyle = new Style({
+  stroke: new Stroke({
+    color: "rgba(5, 7, 10, 0.8)",
+    lineCap: "butt",
+    lineDash: [8, 8],
+    width: 3.5,
   }),
-];
+});
 
 export function routeStyle(mode: "straight" | "routed"): Style {
   return mode === "routed" ? routedRouteStyle : straightRouteStyle;
@@ -145,8 +134,7 @@ export function difficultyStyle(feature: FeatureLike, resolution: number): Style
     return difficultyDebugStyle(status);
   }
 
-  ensureWarningPlusMarkerGeometry(feature, resolution);
-  return warningOverlayStyle;
+  return [warningOverlayLineStyle];
 }
 
 function matchStatusFromFeature(feature: FeatureLike): string {
@@ -160,50 +148,6 @@ function matchStatusFromFeature(feature: FeatureLike): string {
     return segment.matchStatus;
   }
   return "unknown";
-}
-
-function ensureWarningPlusMarkerGeometry(
-  feature: FeatureLike,
-  resolution: number,
-): void {
-  const geometry = feature.getGeometry();
-  if (!(geometry instanceof LineString)) {
-    warningMarkerCache.set(feature, {
-      geometry: emptyWarningGeometry,
-      spacingBucket: 0,
-    });
-    return;
-  }
-
-  const length = geometry.getLength();
-  if (length <= 0) {
-    warningMarkerCache.set(feature, {
-      geometry: emptyWarningGeometry,
-      spacingBucket: 0,
-    });
-    return;
-  }
-
-  const spacing = Math.max(26 * resolution, 14);
-  const spacingBucket = Math.max(14, Math.round(spacing));
-  const cached = warningMarkerCache.get(feature);
-  if (cached?.spacingBucket === spacingBucket) {
-    return;
-  }
-
-  const coordinates = [];
-  for (
-    let distance = spacingBucket / 2;
-    distance < length;
-    distance += spacingBucket
-  ) {
-    coordinates.push(geometry.getCoordinateAt(distance / length));
-  }
-
-  warningMarkerCache.set(feature, {
-    geometry: new MultiPoint(coordinates),
-    spacingBucket,
-  });
 }
 
 function difficultyDebugStyle(status: string): Style[] {

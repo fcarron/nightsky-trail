@@ -45,6 +45,17 @@ def test_blue_swisstopo_line_with_matching_t3_osm_segment_does_not_warn() -> Non
     assert combined.warning_overlay is False
 
 
+def test_blue_swisstopo_line_with_matching_t5_osm_segment_warns() -> None:
+    official = official_trail("blue", OFFICIAL_CATEGORY_ALPINWANDERWEG, 0)
+    osm = osm_segment(1, "demanding_alpine_hiking", 1)
+
+    [combined] = match_osm_segments([osm], [official], THRESHOLDS)
+
+    assert combined.match_status == MATCH_STATUS_MATCHED
+    assert combined.t_level == 5
+    assert combined.warning_overlay is True
+
+
 def test_blue_line_only_short_t5_subsection_warns() -> None:
     official = official_trail("blue", OFFICIAL_CATEGORY_ALPINWANDERWEG, 0, length=2000)
     segments = [
