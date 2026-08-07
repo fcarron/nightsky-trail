@@ -1,0 +1,23 @@
+{
+  "distance_influence": 40,
+  "priority": [
+    {
+      "if": "true",
+      "multiply_by": "1"
+    },
+    {
+      "if": "road_class == PATH || road_class == TRACK",
+      "multiply_by": "0.25"
+    },
+    {
+      "if": "road_class == CYCLEWAY",
+      "multiply_by": "1.3"
+    }
+  ],
+  "speed": [
+    {
+      "if": "true",
+      "limit_to": "25"
+    }
+  ]
+}

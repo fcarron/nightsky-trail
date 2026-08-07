@@ -15,7 +15,8 @@ ROUTE_DETAILS = [
     "foot_network",
     "road_class",
 ]
-SUPPORTED_PROFILES = {"hike"}
+SUPPORTED_PROFILES = {"hike", "foot", "bike"}
+GRAPHHOPPER_PROFILE_NAMES = {"bike": "racingbike"}
 HIKING_MODEL_PATH = Path(__file__).resolve().parent / "graphhopper_models" / "hiking.json"
 
 
@@ -76,12 +77,16 @@ class GraphHopperClient:
         if routing_profile not in SUPPORTED_PROFILES:
             raise GraphHopperUnavailableError("The routing profile is not configured.")
 
+        graphhopper_profile = GRAPHHOPPER_PROFILE_NAMES.get(
+            routing_profile,
+            routing_profile,
+        )
         payload = {
             "points": [
                 [start.longitude, start.latitude],
                 [end.longitude, end.latitude],
             ],
-            "profile": routing_profile,
+            "profile": graphhopper_profile,
             "points_encoded": False,
             "instructions": False,
             "calc_points": True,

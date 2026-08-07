@@ -43,11 +43,14 @@ export function parseRoutePlan(value: unknown): RoutePlan {
   const waypoints = parseWaypoints(value.waypoints);
   const segments = parseSegments(value.segments);
   const importedGeometry = parseImportedGeometry(value.importedGeometry);
-  const routingProfile = parseRoutingProfile();
+  const routingProfile = parseRoutingProfile(value.routingProfile);
   return { importedGeometry, routingProfile, waypoints, segments };
 }
 
-function parseRoutingProfile(): RoutingProfile {
+function parseRoutingProfile(value: unknown): RoutingProfile {
+  if (value === "foot" || value === "bike") {
+    return value;
+  }
   return "hike";
 }
 

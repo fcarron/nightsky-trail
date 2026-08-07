@@ -23,5 +23,6 @@ graph-cache/
 graphhopper-data/
 data/osm/
 data/graphhopper/
+data/graphhopper-*/
 data/swisstopo/
 .DS_Store

@@ -1,21 +1,26 @@
 graphhopper:
   datareader.file: /osm/switzerland-latest.osm.pbf
   graph.location: /graph-cache
+  custom_models.directory: /config
 
   profiles:
     - name: hike
       custom_model_files: [hike.json]
     - name: foot
       custom_model_files: [foot.json]
+    - name: racingbike
+      navigation_mode: bike
+      custom_model_files: [racingbike_custom.json]
 
   profiles_ch: []
   profiles_lm: []
 
   graph.encoded_values: |
-    country, road_class, road_environment, foot_access, foot_priority,
-    foot_network, foot_average_speed, foot_road_access, hike_rating,
-    bike_access, bike_priority, bike_average_speed, bike_network,
-    mtb_rating, ferry_speed, smoothness
+    country, road_class, roundabout, max_speed, road_environment,
+    foot_access, foot_priority, foot_average_speed, foot_road_access,
+    hike_rating, foot_network, bike_access, bike_average_speed,
+    bike_priority, bike_road_access, bike_network, mtb_rating,
+    ferry_speed, smoothness
 
   prepare.min_network_size: 200
   prepare.subnetworks.threads: 1

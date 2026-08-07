@@ -9,7 +9,7 @@ export interface Waypoint {
 }
 
 export type SegmentMode = "straight" | "routed";
-export type RoutingProfile = "hike" | "bike";
+export type RoutingProfile = "hike" | "foot" | "bike";
 
 export interface RouteSegment {
   id: string;

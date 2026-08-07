@@ -184,10 +184,10 @@ describe("route planner reducer", () => {
     ]);
   });
 
-  it("normalizes disabled bike routing to hike while editing", () => {
+  it("supports the city foot routing profile while editing", () => {
     let history = routePlannerReducer(initialPlannerHistory, {
       type: "set-routing-profile",
-      profile: "bike",
+      profile: "foot",
     });
     history = routePlannerReducer(history, {
       type: "add-waypoint",
@@ -203,7 +203,7 @@ describe("route planner reducer", () => {
       position: { lon: 7.45, lat: 46.95 },
     });
 
-    expect(history.present.routingProfile).toBe("hike");
+    expect(history.present.routingProfile).toBe("foot");
   });
 
   it("replaces the active plan when loading a saved tour", () => {

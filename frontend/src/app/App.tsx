@@ -1042,9 +1042,47 @@ export function App() {
             <div>
               <strong>Zeichnen</strong>
               <span>
-                Trailrunning ·{" "}
+                {history.present.routingProfile === "foot"
+                  ? "Stadt · Einfache Wege"
+                  : history.present.routingProfile === "bike"
+                    ? "Velo · Velowege bevorzugt"
+                    : "Trail · Wanderwege bevorzugt"}
+                {" · "}
                 {drawingMode === "routed" ? "Magnet folgt Wegen" : "Gerade"}
               </span>
+            </div>
+            <div
+              className="routeProfileButtons"
+              role="group"
+              aria-label="Routing-Profil"
+            >
+              <button
+                type="button"
+                aria-pressed={history.present.routingProfile === "foot"}
+                onClick={() =>
+                  dispatch({ type: "set-routing-profile", profile: "foot" })
+                }
+              >
+                Stadt
+              </button>
+              <button
+                type="button"
+                aria-pressed={history.present.routingProfile === "hike"}
+                onClick={() =>
+                  dispatch({ type: "set-routing-profile", profile: "hike" })
+                }
+              >
+                Trail
+              </button>
+              <button
+                type="button"
+                aria-pressed={history.present.routingProfile === "bike"}
+                onClick={() =>
+                  dispatch({ type: "set-routing-profile", profile: "bike" })
+                }
+              >
+                Velo
+              </button>
             </div>
             <div
               className="drawModeButtons"

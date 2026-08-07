@@ -143,7 +143,7 @@ def test_graphhopper_client_defaults_to_hike_profile(monkeypatch: pytest.MonkeyP
     assert requests[0]["profile"] == "hike"
 
 
-def test_graphhopper_client_rejects_disabled_bike_profile(
+def test_graphhopper_client_supports_city_foot_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requests: list[dict[str, object]] = []
@@ -164,11 +164,62 @@ def test_graphhopper_client_rejects_disabled_bike_profile(
 
     monkeypatch.setattr("planner.integrations.graphhopper.httpx.post", fake_post)
 
+    GraphHopperClient("http://graphhopper.test/").route_segment(
+        Waypoint(id="a", longitude=7.4, latitude=46.9),
+        Waypoint(id="b", longitude=7.5, latitude=47.0),
+        profile="foot",
+    )
+
+    assert requests[0]["profile"] == "foot"
+    assert "custom_model" not in requests[0]
+
+
+def test_graphhopper_client_supports_bike_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def fake_post(url: str, json: dict[str, object], timeout: httpx.Timeout) -> httpx.Response:
+        requests.append(json)
+        return httpx.Response(
+            200,
+            json={
+                "paths": [
+                    {
+                        "distance": 12.0,
+                        "points": {"coordinates": [[7.4, 46.9], [7.5, 47.0]]},
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr("planner.integrations.graphhopper.httpx.post", fake_post)
+
+    GraphHopperClient("http://graphhopper.test/").route_segment(
+        Waypoint(id="a", longitude=7.4, latitude=46.9),
+        Waypoint(id="b", longitude=7.5, latitude=47.0),
+        profile="bike",
+    )
+
+    assert requests[0]["profile"] == "racingbike"
+
+
+def test_graphhopper_client_rejects_unknown_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def fake_post(url: str, json: dict[str, object], timeout: httpx.Timeout) -> httpx.Response:
+        requests.append(json)
+        return httpx.Response(200, json={"paths": []})
+
+    monkeypatch.setattr("planner.integrations.graphhopper.httpx.post", fake_post)
+
     with pytest.raises(GraphHopperUnavailableError):
         GraphHopperClient("http://graphhopper.test/").route_segment(
             Waypoint(id="a", longitude=7.4, latitude=46.9),
             Waypoint(id="b", longitude=7.5, latitude=47.0),
-            profile="bike",
+            profile="car",
         )
 
     assert requests == []

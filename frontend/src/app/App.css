@@ -686,6 +686,37 @@ button:disabled {
   padding: 2px;
 }
 
+.routeProfileButtons {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(60px, 1fr));
+  gap: 3px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #ffffff;
+  padding: 2px;
+}
+
+.routeProfileButtons button {
+  min-height: 24px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #66717d;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.routeProfileButtons button[aria-pressed="true"] {
+  background: var(--color-accent-strong);
+  color: #ffffff;
+}
+
+.routeProfileButtons button:hover:not([aria-pressed="true"]) {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
 .drawModeButtons button {
   min-height: 24px;
   border: 0;

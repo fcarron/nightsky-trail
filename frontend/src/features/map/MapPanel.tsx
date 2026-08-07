@@ -137,6 +137,9 @@ export function MapPanel({
   });
   const selectedWaypointIdRef = useRef(selectedWaypointId);
   const baseLayerIdRef = useRef<BaseLayerId>("standard");
+  const loadLightBaseLayerRef = useRef<(map: Map) => void>(() => undefined);
+  const lightBaseLayerLoadedRef = useRef(false);
+  const lightBaseLayerLoadingRef = useRef(false);
   const difficultyVisibleRef = useRef(false);
   const trailMatchDebugVisibleRef = useRef(false);
   const routeDragInsertRef = useRef<{ waypointId: string } | null>(null);
@@ -257,7 +260,7 @@ export function MapPanel({
         maxZoom: 19,
         url: SWISSTOPO_STANDARD_WMTS_URL,
       }),
-      visible: false,
+      visible: baseLayerIdRef.current === "standard",
       zIndex: 0,
     });
     standardLayer.set("layerRole", "base-standard" satisfies LayerRole);
@@ -426,18 +429,26 @@ export function MapPanel({
       }
     });
 
-    apply(map, SWISSTOPO_STYLE_URL)
-      .then(() => {
-        tagUntypedBaseLayers(map, "base-light");
-        updateBaseLayerVisibility(map, baseLayerIdRef.current);
-        window.requestAnimationFrame(() => {
-          updateBaseLayerVisibility(map, baseLayerIdRef.current);
+    loadLightBaseLayerRef.current = (targetMap) => {
+      if (lightBaseLayerLoadedRef.current || lightBaseLayerLoadingRef.current) {
+        return;
+      }
+
+      lightBaseLayerLoadingRef.current = true;
+      apply(targetMap, SWISSTOPO_STYLE_URL)
+        .then(() => {
+          lightBaseLayerLoadedRef.current = true;
+          tagUntypedBaseLayers(targetMap, "base-light");
+          updateBaseLayerVisibility(targetMap, baseLayerIdRef.current);
+        })
+        .catch(() => {
+          standardLayer.setVisible(true);
+          setMapError("swisstopo-Karte konnte nicht geladen werden.");
+        })
+        .finally(() => {
+          lightBaseLayerLoadingRef.current = false;
         });
-      })
-      .catch(() => {
-        standardLayer.setVisible(true);
-        setMapError("swisstopo-Karte konnte nicht geladen werden.");
-      });
+    };
 
     map.on("singleclick", (event) => {
       if (suppressNextSingleClickRef.current) {
@@ -587,6 +598,9 @@ export function MapPanel({
       hikingClosuresLayerRef.current = null;
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
+      loadLightBaseLayerRef.current = () => undefined;
+      lightBaseLayerLoadedRef.current = false;
+      lightBaseLayerLoadingRef.current = false;
     };
   }, []);
 
@@ -597,6 +611,9 @@ export function MapPanel({
       return;
     }
 
+    if (baseLayerId === "light") {
+      loadLightBaseLayerRef.current(map);
+    }
     updateBaseLayerVisibility(map, baseLayerId);
   }, [baseLayerId, mapReady]);
 
