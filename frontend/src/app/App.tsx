@@ -234,6 +234,7 @@ export function App() {
   const [calibratedTimeEnabled, setCalibratedTimeEnabled] = useState(
     loadCalibratedTimeEnabled,
   );
+  const [effortInfoOpen, setEffortInfoOpen] = useState(false);
   const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
   const [routeComputeState, dispatchRouteCompute] = useReducer(
     routeComputeReducer,
@@ -1043,7 +1044,7 @@ export function App() {
               <strong>Zeichnen</strong>
               <span>
                 {history.present.routingProfile === "foot"
-                  ? "Stadt · Einfache Wege"
+                  ? "Strasse · Einfache Wege"
                   : history.present.routingProfile === "bike"
                     ? "Velo · Velowege bevorzugt"
                     : "Trail · Wanderwege bevorzugt"}
@@ -1063,7 +1064,7 @@ export function App() {
                   dispatch({ type: "set-routing-profile", profile: "foot" })
                 }
               >
-                Stadt
+                Strasse
               </button>
               <button
                 type="button"
@@ -1110,15 +1111,6 @@ export function App() {
             <div>
               <dt>Distanz</dt>
               <dd>{formatDistance(routeSummary.distanceMeters)}</dd>
-            </div>
-            <div>
-              <dt>Aufstieg</dt>
-              <dd>
-                {ascentMeters !== null ? formatMeters(ascentMeters) : "-"}
-                {descentMeters !== null ? (
-                  <small>{formatMeters(descentMeters)} Abstieg</small>
-                ) : null}
-              </dd>
             </div>
             <div className="runSummaryTimeCard">
               <dt>Zeit</dt>
@@ -1193,10 +1185,36 @@ export function App() {
               </dd>
             </div>
             <div>
-              <dt>Leistung</dt>
+              <dt>Aufstieg</dt>
+              <dd>
+                {ascentMeters !== null ? formatMeters(ascentMeters) : "-"}
+                {descentMeters !== null ? (
+                  <small>{formatMeters(descentMeters)} Abstieg</small>
+                ) : null}
+              </dd>
+            </div>
+            <div>
+              <dt className="metricLabel">
+                Effort km
+                <button
+                  type="button"
+                  className="metricInfo"
+                  aria-expanded={effortInfoOpen}
+                  aria-label="Effort km erklären"
+                  onClick={() => setEffortInfoOpen((open) => !open)}
+                >
+                  i
+                </button>
+                {effortInfoOpen ? (
+                  <span className="metricInfoPopover" role="tooltip">
+                    Distanz in km plus Aufstieg in m geteilt durch 100. Ein
+                    Vergleichswert für die körperliche Belastung.
+                  </span>
+                ) : null}
+              </dt>
               <dd>
                 {effortKilometers !== null
-                  ? `${formatKilometers(effortKilometers)} Lkm`
+                  ? `${formatKilometers(effortKilometers)} km`
                   : "-"}
                 {climbMetersPerKilometer !== null ? (
                   <small>{Math.round(climbMetersPerKilometer)} hm/km</small>
@@ -1219,15 +1237,7 @@ export function App() {
               disabled={history.past.length === 0}
               onClick={() => dispatch({ type: "undo" })}
             >
-              Zurück
-            </button>
-            <button
-              type="button"
-              className="quietAction"
-              disabled={history.future.length === 0}
-              onClick={() => dispatch({ type: "redo" })}
-            >
-              Vorwärts
+              Rückgängig
             </button>
             <button
               type="button"
@@ -1251,9 +1261,24 @@ export function App() {
             >
               Letzten löschen
             </button>
-            <button type="button" disabled={!hasWaypoints} onClick={clearRoute}>
-              Route löschen
-            </button>
+            <details className="routeActionMenu">
+              <summary>Weitere Aktionen</summary>
+              <button
+                type="button"
+                disabled={history.future.length === 0}
+                onClick={() => dispatch({ type: "redo" })}
+              >
+                Wiederholen
+              </button>
+              <button
+                type="button"
+                className="dangerAction"
+                disabled={!hasWaypoints}
+                onClick={clearRoute}
+              >
+                Route löschen
+              </button>
+            </details>
           </div>
 
           {selectedWaypoint ? (
@@ -1267,9 +1292,6 @@ export function App() {
                 <small>{formatCoordinate(selectedWaypoint.position)}</small>
               </div>
               <div className="contextActions">
-                <button type="button" onClick={deleteSelectedWaypoint}>
-                  Löschen
-                </button>
                 {previousSelectedSegment ? (
                   <button
                     type="button"

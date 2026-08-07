@@ -1,21 +1,43 @@
 import type { FeatureLike } from "ol/Feature.js";
-import { LineString } from "ol/geom.js";
-import { Circle, Fill, Stroke, Style, Text } from "ol/style.js";
+import { Circle, Fill, Stroke, Style } from "ol/style.js";
 
-const routedRouteStyle = new Style({
-  stroke: new Stroke({
-    color: "#1967d2",
-    width: 4,
+const routedRouteStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(255, 255, 255, 0.9)",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 7,
+    }),
   }),
-});
+  new Style({
+    stroke: new Stroke({
+      color: "#1967d2",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 4.5,
+    }),
+  }),
+];
 
-const straightRouteStyle = new Style({
-  stroke: new Stroke({
-    color: "#1967d2",
-    lineDash: [10, 10],
-    width: 4,
+const straightRouteStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(255, 255, 255, 0.9)",
+      lineCap: "round",
+      lineDash: [10, 10],
+      width: 7,
+    }),
   }),
-});
+  new Style({
+    stroke: new Stroke({
+      color: "#1967d2",
+      lineCap: "round",
+      lineDash: [10, 10],
+      width: 4.5,
+    }),
+  }),
+];
 
 const graphhopperDebugLineStyle = new Style({
   stroke: new Stroke({
@@ -109,7 +131,7 @@ const warningOverlayLineStyle = new Style({
   }),
 });
 
-export function routeStyle(mode: "straight" | "routed"): Style {
+export function routeStyle(mode: "straight" | "routed"): Style[] {
   return mode === "routed" ? routedRouteStyle : straightRouteStyle;
 }
 
@@ -128,7 +150,7 @@ export function elevationHoverStyle(): Style {
   return elevationHoverMarkerStyle;
 }
 
-export function difficultyStyle(feature: FeatureLike, resolution: number): Style[] {
+export function difficultyStyle(feature: FeatureLike): Style[] {
   if (feature.get("warningOverlay") !== true) {
     const status = matchStatusFromFeature(feature);
     return difficultyDebugStyle(status);

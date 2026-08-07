@@ -72,6 +72,18 @@ describe("App", () => {
     );
   });
 
+  it("explains effort kilometres on demand", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Effort km erklären" }));
+    expect(
+      screen.getByText(/Distanz in km plus Aufstieg in m geteilt durch 100/),
+    ).toBeInTheDocument();
+  });
+
   it("restores a saved route and shows segment counts", async () => {
     storeRouteWithTwoWaypoints();
     vi.stubGlobal(
@@ -232,9 +244,13 @@ describe("App", () => {
     expect(routeRequest.segments[0].mode).toBe("routed");
   });
 
-  it("keeps bike routing hidden in the main planning UI", async () => {
+  it("switches to velo routing from the main planning UI", async () => {
+    const user = userEvent.setup();
     const fetchMock = createFetchMock({
-      routeResponses: [routeResponse({ distanceMeters: 1234 })],
+      routeResponses: [
+        routeResponse({ distanceMeters: 1234 }),
+        routeResponse({ distanceMeters: 1234 }),
+      ],
     });
     storeRouteWithTwoWaypoints();
     vi.stubGlobal("fetch", fetchMock);
@@ -244,16 +260,24 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
+    await user.click(screen.getByRole("button", { name: "Velo" }));
     expect(
-      screen.queryByRole("button", { name: "Velo" }),
-    ).not.toBeInTheDocument();
+      screen.getByText(/Velo · Velowege bevorzugt/),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          url.toString().endsWith("/api/v1/route/compute"),
+        ),
+      ).toHaveLength(2),
+    );
     const routeCall = fetchMock.mock.calls
       .filter(([url]) => url.toString().endsWith("/api/v1/route/compute"))
       .at(-1);
     const routeRequest = JSON.parse(String(routeCall?.[1]?.body)) as {
       profile: string;
     };
-    expect(routeRequest.profile).toBe("hike");
+    expect(routeRequest.profile).toBe("bike");
   });
 
   it("ignores stale route compute responses", async () => {

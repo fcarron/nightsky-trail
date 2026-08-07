@@ -6,8 +6,9 @@ graphhopper:
   profiles:
     - name: hike
       custom_model_files: [hike.json]
-    - name: foot
-      custom_model_files: [foot.json]
+    - name: street
+      navigation_mode: foot
+      custom_model_files: [street_custom.json]
     - name: racingbike
       navigation_mode: bike
       custom_model_files: [racingbike_custom.json]

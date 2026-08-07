@@ -170,7 +170,7 @@ def test_graphhopper_client_supports_city_foot_profile(
         profile="foot",
     )
 
-    assert requests[0]["profile"] == "foot"
+    assert requests[0]["profile"] == "street"
     assert "custom_model" not in requests[0]
 
 

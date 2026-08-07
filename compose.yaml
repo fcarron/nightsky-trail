@@ -5,11 +5,11 @@ services:
       - --config
       - /config/config.yml
       - --graph-cache
-      - /graph-cache-racingbike
+      - /graph-cache-street
     volumes:
       - ./docker/graphhopper:/config:ro
       - ./data/osm:/osm:ro
-      - ./data/graphhopper-racingbike:/graph-cache-racingbike
+      - ./data/graphhopper-street:/graph-cache-street
     ports:
       - "8989:8989"
 

@@ -13,7 +13,6 @@ import { formatDistance } from "../route/routeGeometry";
 import type { ElevationProfile } from "./elevationModel";
 import {
   formatElevationMeters,
-  formatDurationMinutes,
   formatGradientPercent,
   gradientGroupForPercent,
 } from "./elevationModel";
@@ -379,22 +378,8 @@ export function ElevationPanel({
           {panelSize === "large" ? (
             <dl className="elevationStats">
               <div>
-                <dt>Distanz</dt>
-                <dd>{formatDistance(profile.distanceMeters)}</dd>
-              </div>
-              <div>
-                <dt>Aufstieg</dt>
-                <dd>{formatElevationMeters(profile.ascentMeters)}</dd>
-              </div>
-              <div>
                 <dt>Abstieg</dt>
                 <dd>{formatElevationMeters(profile.descentMeters)}</dd>
-              </div>
-              <div>
-                <dt>Wanderzeit</dt>
-                <dd>
-                  {formatDurationMinutes(profile.hikingTime.durationMinutes)}
-                </dd>
               </div>
               <div>
                 <dt>Höhe</dt>
