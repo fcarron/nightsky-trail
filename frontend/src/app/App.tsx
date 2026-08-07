@@ -68,6 +68,7 @@ type RouteStatusKind = "idle" | "loading" | "ready" | "error" | "imported";
 type ElevationStatus = "idle" | "loading" | "ready" | "error";
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
+type MapInteractionMode = "explore" | "draw";
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
@@ -126,6 +127,7 @@ const initialElevationState: ElevationState = {
   message: null,
 };
 const DEFAULT_BASE_PACE_MIN_PER_KM = 6.5;
+const SEARCH_DEBOUNCE_MS = 250;
 const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
 const CALIBRATED_TIME_STORAGE_KEY =
   "swiss-route-planner.calibrated-time-enabled.v1";
@@ -236,6 +238,8 @@ export function App() {
   );
   const [effortInfoOpen, setEffortInfoOpen] = useState(false);
   const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
+  const [mapInteractionMode, setMapInteractionMode] =
+    useState<MapInteractionMode>("explore");
   const [routeComputeState, dispatchRouteCompute] = useReducer(
     routeComputeReducer,
     initialRouteComputeState,
@@ -253,6 +257,8 @@ export function App() {
   const routeRequestIdRef = useRef(0);
   const elevationRequestIdRef = useRef(0);
   const searchRequestIdRef = useRef(0);
+  const searchControllerRef = useRef<AbortController | null>(null);
+  const searchTimerRef = useRef<number | null>(null);
   const gpxInputRef = useRef<HTMLInputElement | null>(null);
   const manageMenuRef = useRef<HTMLDivElement | null>(null);
   const effectiveComputedRoute =
@@ -426,6 +432,16 @@ export function App() {
       calibratedTimeEnabled ? "true" : "false",
     );
   }, [calibratedTimeEnabled]);
+
+  useEffect(
+    () => () => {
+      if (searchTimerRef.current !== null) {
+        window.clearTimeout(searchTimerRef.current);
+      }
+      searchControllerRef.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (history.present.waypoints.length < 2) {
@@ -797,22 +813,48 @@ export function App() {
     });
   }
 
-  async function submitSearch() {
-    const query = searchQuery.trim();
+  function scheduleSearch(value: string) {
+    setSearchQuery(value);
+    searchRequestIdRef.current += 1;
+    searchControllerRef.current?.abort();
+    if (searchTimerRef.current !== null) {
+      window.clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+
+    const query = value.trim();
     if (query.length < 2) {
       setSearchStatus("idle");
       setSearchResults([]);
-      setSearchMessage("Mindestens zwei Zeichen eingeben.");
+      setSearchMessage(null);
+      return;
+    }
+
+    setSearchStatus("idle");
+    setSearchResults([]);
+    setSearchMessage(null);
+    searchTimerRef.current = window.setTimeout(() => {
+      searchTimerRef.current = null;
+      void submitSearch(query);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  async function submitSearch(queryInput = searchQuery) {
+    const query = queryInput.trim();
+    if (query.length < 2) {
       return;
     }
 
     const requestId = searchRequestIdRef.current + 1;
     searchRequestIdRef.current = requestId;
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
     setSearchStatus("loading");
     setSearchMessage(null);
 
     try {
-      const response = await searchLocations(query);
+      const response = await searchLocations(query, controller.signal);
       if (searchRequestIdRef.current !== requestId) {
         return;
       }
@@ -822,16 +864,29 @@ export function App() {
         response.results.length ? null : "Keine Treffer gefunden.",
       );
     } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
       if (searchRequestIdRef.current !== requestId) {
         return;
       }
       setSearchResults([]);
       setSearchStatus("error");
       setSearchMessage(errorMessage(error));
+    } finally {
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null;
+      }
     }
   }
 
   function selectSearchResult(result: SearchResultDto) {
+    searchRequestIdRef.current += 1;
+    searchControllerRef.current?.abort();
+    if (searchTimerRef.current !== null) {
+      window.clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
     setSearchQuery(result.label);
     setSearchResults([]);
     setSearchStatus("idle");
@@ -844,18 +899,118 @@ export function App() {
     }));
   }
 
+  const tourMenu = (
+    <div className="manageMenu topManageMenu" ref={manageMenuRef}>
+      <button
+        type="button"
+        aria-expanded={manageMenuOpen}
+        onClick={() => setManageMenuOpen((open) => !open)}
+      >
+        Tour
+      </button>
+      {manageMenuOpen ? (
+        <div className="managePanel">
+          <section className="accountPanel" aria-label="Konto und Touren">
+            {authState.authenticated ? (
+              <>
+                <div className="accountIdentity">
+                  <span>Angemeldet</span>
+                  <strong>{authState.user?.username}</strong>
+                </div>
+                <button type="button" onClick={saveTour}>
+                  Speichern
+                </button>
+                <select
+                  aria-label="Gespeicherte Tour laden"
+                  value={activeTourId ?? ""}
+                  onChange={(event) => {
+                    const tour = savedTours.find(
+                      (item) => item.id === event.currentTarget.value,
+                    );
+                    if (tour) {
+                      loadTour(tour);
+                    }
+                  }}
+                >
+                  <option value="">Tour laden</option>
+                  {savedTours.map((tour) => (
+                    <option key={tour.id} value={tour.id}>
+                      {tour.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={submitLogout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  aria-label="Benutzername"
+                  placeholder="Benutzername"
+                  value={authUsername}
+                  onChange={(event) => setAuthUsername(event.currentTarget.value)}
+                />
+                <input
+                  aria-label="Passwort"
+                  placeholder="Passwort"
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.currentTarget.value)}
+                />
+                <button type="button" onClick={() => submitLogin("login")}>
+                  Login
+                </button>
+                <button type="button" onClick={() => submitLogin("register")}>
+                  Registrieren
+                </button>
+              </>
+            )}
+          </section>
+          <div className="fileActions" aria-label="Dateiaktionen">
+            <button
+              type="button"
+              onClick={() => {
+                setManageMenuOpen(false);
+                gpxInputRef.current?.click();
+              }}
+            >
+              GPX Import
+            </button>
+            <button
+              type="button"
+              disabled={history.present.waypoints.length < 2}
+              onClick={exportGpx}
+            >
+              GPX Export
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <main className="appShell">
       <header className="topBar">
         <div className="brand">
-          <strong>nightsky trail</strong>
-          <span>Planung für Schweizer Wege</span>
+          <span className="brandMark" aria-hidden="true">
+            N
+          </span>
+          <div>
+            <strong>nightsky trail</strong>
+            <span>Routenplaner Schweiz</span>
+          </div>
         </div>
         <form
           className="topSearch"
           role="search"
           onSubmit={(event) => {
             event.preventDefault();
+            if (searchTimerRef.current !== null) {
+              window.clearTimeout(searchTimerRef.current);
+              searchTimerRef.current = null;
+            }
             void submitSearch();
           }}
         >
@@ -866,11 +1021,7 @@ export function App() {
               aria-expanded={searchResults.length > 0}
               placeholder="Ort, Adresse, Gipfel suchen"
               value={searchQuery}
-              onChange={(event) => {
-                setSearchQuery(event.currentTarget.value);
-                setSearchStatus("idle");
-                setSearchMessage(null);
-              }}
+              onChange={(event) => scheduleSearch(event.currentTarget.value)}
             />
             <button type="submit" disabled={searchStatus === "loading"}>
               {searchStatus === "loading" ? "Sucht" : "Suchen"}
@@ -892,9 +1043,14 @@ export function App() {
             </div>
           ) : null}
         </form>
-        <span className="status" aria-live="polite">
-          {healthLabel}
-        </span>
+        <div className="topBarActions">
+          {health === "unavailable" ? (
+            <span className="status" aria-live="polite">
+              {healthLabel}
+            </span>
+          ) : null}
+          {tourMenu}
+        </div>
       </header>
 
       <section className="plannerLayout" aria-label="Routenplaner">
@@ -912,111 +1068,12 @@ export function App() {
                 {selectedWaypoint
                   ? "Punkt-Aktionen ohne Dialog"
                   : (activeTour?.name ??
-                    "Klick setzt Punkte. Linie ziehen verfeinert die Runde.")}
+                    (mapInteractionMode === "draw"
+                      ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
+                      : "Klick auf Kartenobjekte zeigt Details."))}
               </p>
             </div>
 
-            <div className="manageMenu" ref={manageMenuRef}>
-              <button
-                type="button"
-                aria-expanded={manageMenuOpen}
-                onClick={() => setManageMenuOpen((open) => !open)}
-              >
-                Tour
-              </button>
-              {manageMenuOpen ? (
-                <div className="managePanel">
-                  <section
-                    className="accountPanel"
-                    aria-label="Konto und Touren"
-                  >
-                    {authState.authenticated ? (
-                      <>
-                        <div className="accountIdentity">
-                          <span>Angemeldet</span>
-                          <strong>{authState.user?.username}</strong>
-                        </div>
-                        <button type="button" onClick={saveTour}>
-                          Speichern
-                        </button>
-                        <select
-                          aria-label="Gespeicherte Tour laden"
-                          value={activeTourId ?? ""}
-                          onChange={(event) => {
-                            const tour = savedTours.find(
-                              (item) => item.id === event.currentTarget.value,
-                            );
-                            if (tour) {
-                              loadTour(tour);
-                            }
-                          }}
-                        >
-                          <option value="">Tour laden</option>
-                          {savedTours.map((tour) => (
-                            <option key={tour.id} value={tour.id}>
-                              {tour.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="button" onClick={submitLogout}>
-                          Logout
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          aria-label="Benutzername"
-                          placeholder="Benutzername"
-                          value={authUsername}
-                          onChange={(event) =>
-                            setAuthUsername(event.currentTarget.value)
-                          }
-                        />
-                        <input
-                          aria-label="Passwort"
-                          placeholder="Passwort"
-                          type="password"
-                          value={authPassword}
-                          onChange={(event) =>
-                            setAuthPassword(event.currentTarget.value)
-                          }
-                        />
-                        <button
-                          type="button"
-                          onClick={() => submitLogin("login")}
-                        >
-                          Login
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => submitLogin("register")}
-                        >
-                          Registrieren
-                        </button>
-                      </>
-                    )}
-                  </section>
-                  <div className="fileActions" aria-label="Dateiaktionen">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setManageMenuOpen(false);
-                        gpxInputRef.current?.click();
-                      }}
-                    >
-                      GPX Import
-                    </button>
-                    <button
-                      type="button"
-                      disabled={history.present.waypoints.length < 2}
-                      onClick={exportGpx}
-                    >
-                      GPX Export
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
           </div>
 
           {tourMessage ? (
@@ -1041,70 +1098,88 @@ export function App() {
 
           <section className="drawModePanel" aria-label="Zeichnen">
             <div>
-              <strong>Zeichnen</strong>
+              <strong>
+                {mapInteractionMode === "draw" ? "Zeichnen" : "Karte erkunden"}
+              </strong>
               <span>
-                {history.present.routingProfile === "foot"
-                  ? "Strasse · Einfache Wege"
-                  : history.present.routingProfile === "bike"
-                    ? "Velo · Velowege bevorzugt"
-                    : "Trail · Wanderwege bevorzugt"}
-                {" · "}
-                {drawingMode === "routed" ? "Magnet folgt Wegen" : "Gerade"}
+                {mapInteractionMode === "draw"
+                  ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
+                  : "Klick auf Kartenobjekte zeigt Details."}
               </span>
             </div>
-            <div
-              className="routeProfileButtons"
-              role="group"
-              aria-label="Routing-Profil"
-            >
+            <div className="mapInteractionButtons" role="group" aria-label="Kartenwerkzeug">
               <button
                 type="button"
-                aria-pressed={history.present.routingProfile === "foot"}
-                onClick={() =>
-                  dispatch({ type: "set-routing-profile", profile: "foot" })
-                }
+                aria-pressed={mapInteractionMode === "explore"}
+                onClick={() => setMapInteractionMode("explore")}
               >
-                Strasse
+                Erkunden
               </button>
               <button
                 type="button"
-                aria-pressed={history.present.routingProfile === "hike"}
-                onClick={() =>
-                  dispatch({ type: "set-routing-profile", profile: "hike" })
-                }
+                aria-pressed={mapInteractionMode === "draw"}
+                onClick={() => setMapInteractionMode("draw")}
               >
-                Trail
-              </button>
-              <button
-                type="button"
-                aria-pressed={history.present.routingProfile === "bike"}
-                onClick={() =>
-                  dispatch({ type: "set-routing-profile", profile: "bike" })
-                }
-              >
-                Velo
+                Route zeichnen
               </button>
             </div>
-            <div
-              className="drawModeButtons"
-              role="group"
-              aria-label="Zeichenmodus"
-            >
-              <button
-                type="button"
-                aria-pressed={drawingMode === "routed"}
-                onClick={() => setDrawingMode("routed")}
-              >
-                Magnet
-              </button>
-              <button
-                type="button"
-                aria-pressed={drawingMode === "straight"}
-                onClick={() => setDrawingMode("straight")}
-              >
-                Gerade
-              </button>
-            </div>
+            {mapInteractionMode === "draw" ? (
+              <>
+                <div
+                  className="routeProfileButtons"
+                  role="group"
+                  aria-label="Routing-Profil"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={history.present.routingProfile === "foot"}
+                    onClick={() =>
+                      dispatch({ type: "set-routing-profile", profile: "foot" })
+                    }
+                  >
+                    Strasse
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={history.present.routingProfile === "hike"}
+                    onClick={() =>
+                      dispatch({ type: "set-routing-profile", profile: "hike" })
+                    }
+                  >
+                    Trail
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={history.present.routingProfile === "bike"}
+                    onClick={() =>
+                      dispatch({ type: "set-routing-profile", profile: "bike" })
+                    }
+                  >
+                    Velo
+                  </button>
+                </div>
+                <div
+                  className="drawModeButtons"
+                  role="group"
+                  aria-label="Zeichenmodus"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={drawingMode === "routed"}
+                    onClick={() => setDrawingMode("routed")}
+                  >
+                    Magnet
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={drawingMode === "straight"}
+                    onClick={() => setDrawingMode("straight")}
+                  >
+                    Gerade
+                  </button>
+                </div>
+              </>
+            ) : null}
           </section>
 
           <dl className="runSummaryGrid" aria-label="Trailrunning Kennzahlen">
@@ -1594,6 +1669,8 @@ export function App() {
           fitRequestId={routeFitRequestId}
           searchFocus={searchFocus}
           selectedWaypointId={selectedWaypointId}
+          interactionMode={mapInteractionMode}
+          onInteractionModeChange={setMapInteractionMode}
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}
           onMoveWaypoint={moveWaypoint}

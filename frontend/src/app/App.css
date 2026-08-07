@@ -54,35 +54,51 @@ button:disabled {
 .topBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   border-bottom: 1px solid #d8dee5;
   background: #ffffff;
-  padding: 8px 24px;
+  padding: 6px 20px;
 }
 
 .brand {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 178px;
+}
+
+.brandMark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 5px;
+  background: #102b54;
+  color: #d7e8ff;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .brand strong {
+  display: block;
   color: #141821;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.15;
 }
 
-.brand span,
+.brand div > span,
 .status {
+  display: block;
   color: #66717d;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .topSearch {
   position: relative;
-  flex: 1 1 360px;
-  max-width: 520px;
+  flex: 1 1 320px;
+  max-width: 460px;
+  margin: 0 auto;
 }
 
 .topSearchField {
@@ -126,6 +142,24 @@ button:disabled {
 
 .topSearch button:disabled {
   color: #66717d;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 72px;
+}
+
+.topBar .manageMenu {
+  flex: 0 0 auto;
+  justify-self: auto;
+}
+
+.topBar .manageMenu > button {
+  width: auto;
+  min-width: 58px;
 }
 
 .searchResults {
@@ -461,20 +495,20 @@ button:disabled {
 
 .metricInfo {
   display: inline-grid;
+  flex: 0 0 14px;
   width: 14px;
   height: 14px;
   place-items: center;
-  margin-left: 4px;
   border: 1px solid #9aa8b6;
   border-radius: 50%;
   background: #ffffff;
   color: #66717d;
   cursor: pointer;
+  padding: 0;
   font-size: 9px;
   font-style: normal;
   font-weight: 750;
   line-height: 1;
-  vertical-align: 1px;
 }
 
 .metricInfo:hover,
@@ -486,6 +520,9 @@ button:disabled {
 
 .metricLabel {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .metricInfoPopover {
@@ -746,6 +783,37 @@ button:disabled {
   border-radius: 2px;
   background: #ffffff;
   padding: 2px;
+}
+
+.mapInteractionButtons {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #ffffff;
+  padding: 2px;
+}
+
+.mapInteractionButtons button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #66717d;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.mapInteractionButtons button[aria-pressed="true"] {
+  background: var(--color-accent-strong);
+  color: #ffffff;
+}
+
+.mapInteractionButtons button:hover:not([aria-pressed="true"]) {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .routeProfileButtons button {
@@ -1739,6 +1807,7 @@ button:disabled {
 .mapNotice,
 .mapLayerSelector,
 .difficultyPanel,
+.mapFeaturePanel,
 .trailLegend {
   position: absolute;
   border: 1px solid #263545;
@@ -1841,6 +1910,77 @@ button:disabled {
   overflow: auto;
   padding: 10px;
   font-size: 12px;
+}
+
+.mapFeaturePanel {
+  right: min(386px, calc(100vw - 320px));
+  top: 126px;
+  display: grid;
+  width: min(320px, calc(100vw - 370px));
+  gap: 8px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.mapFeaturePanelHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mapFeaturePanelHeader div {
+  display: grid;
+  gap: 2px;
+}
+
+.mapFeaturePanelHeader span,
+.mapFeaturePanel dt {
+  color: #8fa1ad;
+  font-size: 11px;
+}
+
+.mapFeaturePanelHeader strong {
+  color: #f4f8fb;
+  font-size: 14px;
+}
+
+.mapFeaturePanelHeader button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #334657;
+  border-radius: 3px;
+  background: #101923;
+  color: #dce7ee;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mapFeaturePanel dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.mapFeaturePanel dl div {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) 1fr;
+  gap: 8px;
+  border-top: 1px solid #263545;
+  padding-top: 6px;
+}
+
+.mapFeaturePanel dd,
+.mapFeaturePanel p {
+  margin: 0;
+  color: #f4f8fb;
+  overflow-wrap: anywhere;
+}
+
+.mapFeaturePanel a {
+  justify-self: start;
+  color: #9ec3ff;
+  font-weight: 700;
 }
 
 .difficultyPanel strong,
@@ -2022,12 +2162,33 @@ button:disabled {
 
   .brand {
     flex: 1 1 auto;
+    min-width: 0;
   }
 
   .topSearch {
     flex: 1 0 100%;
     order: 3;
     max-width: none;
+  }
+
+  .topBarActions {
+    flex: 0 0 auto;
+  }
+
+  .topBar .manageMenu {
+    width: auto;
+  }
+
+  .topBar .manageMenu > button {
+    width: auto;
+  }
+
+  .topBar .managePanel {
+    top: calc(100% + 6px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    width: min(340px, calc(100vw - 24px));
   }
 
   .plannerLayout {
@@ -2119,6 +2280,16 @@ button:disabled {
     bottom: 42px;
     width: auto;
     max-height: 30vh;
+  }
+
+  .mapFeaturePanel {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 42px;
+    width: auto;
+    max-height: 30vh;
+    overflow: auto;
   }
 
   .trailLegend {

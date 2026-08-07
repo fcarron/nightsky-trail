@@ -46,8 +46,9 @@ describe("App", () => {
     cleanup();
   });
 
-  it("renders the planner shell and reports a healthy API", async () => {
-    vi.stubGlobal("fetch", createFetchMock());
+  it("renders the planner shell while the API is healthy", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
 
@@ -55,8 +56,25 @@ describe("App", () => {
     expect(screen.getByRole("region", { name: "Karte" })).toBeInTheDocument();
 
     await waitFor(() =>
-      expect(screen.getByText("API bereit")).toBeInTheDocument(),
+      expect(fetchMock.mock.calls.some(([url]) => url.toString().endsWith("/api/v1/health"))).toBe(true),
     );
+    expect(screen.queryByText("API bereit")).not.toBeInTheDocument();
+  });
+
+  it("starts in exploration mode and enables route tools explicitly", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    expect(screen.getByText("Karte erkunden")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Strasse" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
+
+    expect(screen.getByText("Zeichnen")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Strasse" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Magnet" })).toBeInTheDocument();
   });
 
   it("reports an unavailable API when health fails", async () => {
@@ -260,10 +278,10 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole("button", { name: "Velo" }));
-    expect(
-      screen.getByText(/Velo · Velowege bevorzugt/),
-    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
+    const veloButton = screen.getByRole("button", { name: "Velo" });
+    await user.click(veloButton);
+    expect(veloButton).toHaveAttribute("aria-pressed", "true");
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([url]) =>
@@ -322,7 +340,6 @@ describe("App", () => {
       screen.getByLabelText("Ort, Adresse oder Route suchen"),
       "Bern",
     );
-    await user.click(screen.getByRole("button", { name: "Suchen" }));
 
     await waitFor(() => expect(screen.getByText("Bern")).toBeInTheDocument());
     expect(screen.getByText("Ort")).toBeInTheDocument();

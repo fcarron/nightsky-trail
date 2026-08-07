@@ -59,6 +59,7 @@ const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
 const DIFFICULTY_MAX_BBOX_AREA = 0.12;
 
 type BaseLayerId = "light" | "standard" | "satellite" | "osm-topo";
+type MapInteractionMode = "explore" | "draw";
 type LayerRole =
   | "base-light"
   | "base-standard"
@@ -66,6 +67,13 @@ type LayerRole =
   | "base-osm-topo"
   | "overlay"
   | "trail-overlay";
+
+interface MapFeatureInfo {
+  kind: "closure" | "wanderland";
+  title: string;
+  details: Array<[string, string]>;
+  schweizMobilUrl?: string;
+}
 
 interface MapPanelProps {
   waypoints: Waypoint[];
@@ -82,6 +90,8 @@ interface MapPanelProps {
     requestId: number;
   } | null;
   selectedWaypointId: string | null;
+  interactionMode: MapInteractionMode;
+  onInteractionModeChange: (mode: MapInteractionMode) => void;
   onAddWaypoint: (position: LonLat) => void;
   onInsertWaypoint: (segmentId: string, position: LonLat) => string;
   onMoveWaypoint: (id: string, position: LonLat) => void;
@@ -99,6 +109,8 @@ export function MapPanel({
   fitRequestId,
   searchFocus,
   selectedWaypointId,
+  interactionMode,
+  onInteractionModeChange,
   onAddWaypoint,
   onInsertWaypoint,
   onMoveWaypoint,
@@ -117,6 +129,7 @@ export function MapPanel({
     null,
   );
   const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const modifyInteractionRef = useRef<Modify | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
   const routeSourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
@@ -126,6 +139,7 @@ export function MapPanel({
   const difficultyRequestInFlightRef = useRef(false);
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
+  const mapFeatureRequestIdRef = useRef(0);
   const lastHandledFitRequestIdRef = useRef(0);
   const lastHandledSearchRequestIdRef = useRef(0);
   const callbacksRef = useRef({
@@ -136,6 +150,8 @@ export function MapPanel({
     onDeleteWaypoint,
   });
   const selectedWaypointIdRef = useRef(selectedWaypointId);
+  const interactionModeRef = useRef<MapInteractionMode>(interactionMode);
+  const onInteractionModeChangeRef = useRef(onInteractionModeChange);
   const baseLayerIdRef = useRef<BaseLayerId>("standard");
   const loadLightBaseLayerRef = useRef<(map: Map) => void>(() => undefined);
   const lightBaseLayerLoadedRef = useRef(false);
@@ -168,6 +184,9 @@ export function MapPanel({
   const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
     segment: CombinedTrailSegmentDto;
   } | null>(null);
+  const [selectedMapFeature, setSelectedMapFeature] = useState<MapFeatureInfo | null>(
+    null,
+  );
   const selectedWaypointIndex = waypoints.findIndex(
     (waypoint) => waypoint.id === selectedWaypointId,
   );
@@ -200,6 +219,12 @@ export function MapPanel({
   useEffect(() => {
     selectedWaypointIdRef.current = selectedWaypointId;
   }, [selectedWaypointId]);
+
+  useEffect(() => {
+    interactionModeRef.current = interactionMode;
+    onInteractionModeChangeRef.current = onInteractionModeChange;
+    modifyInteractionRef.current?.setActive(interactionMode === "draw");
+  }, [interactionMode, onInteractionModeChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -468,18 +493,38 @@ export function MapPanel({
         return;
       }
 
-      const difficultyFeatures = map.getFeaturesAtPixel(event.pixel, {
-        hitTolerance: 5,
-        layerFilter: (layer) => layer === difficultyLayer,
-      });
-      const osmWayId = difficultyFeatures[0]?.get("osmWayId");
-      const combinedSegment = difficultyFeatures[0]?.get("combinedSegment");
-      if (
-        (difficultyVisibleRef.current || trailMatchDebugVisibleRef.current) &&
-        typeof osmWayId === "number" &&
-        isCombinedTrailSegmentRecord(combinedSegment)
-      ) {
-        setSelectedDifficultyWay({ segment: combinedSegment });
+      if (interactionModeRef.current === "explore") {
+        const difficultyFeatures = map.getFeaturesAtPixel(event.pixel, {
+          hitTolerance: 5,
+          layerFilter: (layer) => layer === difficultyLayer,
+        });
+        const osmWayId = difficultyFeatures[0]?.get("osmWayId");
+        const combinedSegment = difficultyFeatures[0]?.get("combinedSegment");
+        if (
+          (difficultyVisibleRef.current || trailMatchDebugVisibleRef.current) &&
+          typeof osmWayId === "number" &&
+          isCombinedTrailSegmentRecord(combinedSegment)
+        ) {
+          setSelectedMapFeature(null);
+          setSelectedDifficultyWay({ segment: combinedSegment });
+          return;
+        }
+
+        const requestId = ++mapFeatureRequestIdRef.current;
+        void inspectVisibleWmsFeatures({
+          coordinate: event.coordinate,
+          resolution: map.getView().getResolution() ?? 1,
+          closuresLayer: hikingClosuresLayerRef.current,
+          closuresVisible: hikingClosuresLayerRef.current?.getVisible() === true,
+          routesLayer: hikingRoutesLayerRef.current,
+          routesVisible: hikingRoutesLayerRef.current?.getVisible() === true,
+        }).then((featureInfo) => {
+          if (requestId !== mapFeatureRequestIdRef.current) {
+            return;
+          }
+          setSelectedDifficultyWay(null);
+          setSelectedMapFeature(featureInfo);
+        });
         return;
       }
 
@@ -501,6 +546,9 @@ export function MapPanel({
     });
 
     const handleRoutePointerDown = (event: PointerEvent) => {
+      if (interactionModeRef.current !== "draw") {
+        return;
+      }
       const pixel = map.getEventPixel(event);
       const coordinate = map.getCoordinateFromPixel(pixel);
       const pointFeatures = map.getFeaturesAtPixel(pixel, {
@@ -540,6 +588,19 @@ export function MapPanel({
     viewport.addEventListener("pointerdown", handleRoutePointerDown);
     window.addEventListener("pointerup", handleRoutePointerUp);
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        interactionModeRef.current !== "draw" ||
+        isTextEntryTarget(event.target)
+      ) {
+        return;
+      }
+      onInteractionModeChangeRef.current("explore");
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
     map.on("pointerdrag", (event) => {
       const dragInsert = routeDragInsertRef.current;
       if (!dragInsert) {
@@ -568,6 +629,7 @@ export function MapPanel({
     map.addInteraction(select);
 
     const modify = new Modify({ source: pointSourceRef.current });
+    modify.setActive(interactionModeRef.current === "draw");
     modify.on("modifyend", (event) => {
       event.features.forEach((feature) => {
         const id = feature.get("waypointId");
@@ -581,6 +643,7 @@ export function MapPanel({
       });
     });
     map.addInteraction(modify);
+    modifyInteractionRef.current = modify;
     setMapReady(true);
 
     return () => {
@@ -588,6 +651,7 @@ export function MapPanel({
       unByKey(layerAddListener);
       viewport.removeEventListener("pointerdown", handleRoutePointerDown);
       window.removeEventListener("pointerup", handleRoutePointerUp);
+      window.removeEventListener("keydown", handleKeyDown);
       mapRef.current = null;
       setMapReady(false);
       standardLayerRef.current = null;
@@ -598,6 +662,7 @@ export function MapPanel({
       hikingClosuresLayerRef.current = null;
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
+      modifyInteractionRef.current = null;
       loadLightBaseLayerRef.current = () => undefined;
       lightBaseLayerLoadedRef.current = false;
       lightBaseLayerLoadingRef.current = false;
@@ -616,6 +681,24 @@ export function MapPanel({
     }
     updateBaseLayerVisibility(map, baseLayerId);
   }, [baseLayerId, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const target = map?.getTargetElement();
+    if (!target) {
+      return;
+    }
+
+    target.style.cursor =
+      interactionMode === "explore" &&
+      (hikingRoutesVisible || hikingClosuresVisible || difficultyVisible)
+        ? "help"
+        : "";
+
+    return () => {
+      target.style.cursor = "";
+    };
+  }, [difficultyVisible, hikingClosuresVisible, hikingRoutesVisible, interactionMode, mapReady]);
 
   useEffect(() => {
     const pointSource = pointSourceRef.current;
@@ -1059,6 +1142,11 @@ export function MapPanel({
               type="checkbox"
               checked={hikingRoutesVisible}
               onChange={(event) => {
+                if (!event.target.checked) {
+                  setSelectedMapFeature((feature) =>
+                    feature?.kind === "wanderland" ? null : feature,
+                  );
+                }
                 setHikingRoutesVisible(event.target.checked);
                 setMapLayerMenuOpen(false);
               }}
@@ -1070,6 +1158,11 @@ export function MapPanel({
               type="checkbox"
               checked={hikingClosuresVisible}
               onChange={(event) => {
+                if (!event.target.checked) {
+                  setSelectedMapFeature((feature) =>
+                    feature?.kind === "closure" ? null : feature,
+                  );
+                }
                 setHikingClosuresVisible(event.target.checked);
                 setMapLayerMenuOpen(false);
               }}
@@ -1128,7 +1221,19 @@ export function MapPanel({
           difficultyLimitedToKnown={difficultyLimitedToKnown}
           difficultyStatus={difficultyStatus}
           difficultySummary={difficultySummary}
-          selectedDifficultyWay={selectedDifficultyWay}
+          selectedDifficultyWay={
+            interactionMode === "explore" ? selectedDifficultyWay : null
+          }
+        />
+      ) : null}
+      {selectedMapFeature &&
+      interactionMode === "explore" &&
+      (selectedMapFeature.kind === "closure"
+        ? hikingClosuresVisible
+        : hikingRoutesVisible) ? (
+        <MapFeaturePanel
+          feature={selectedMapFeature}
+          onClose={() => setSelectedMapFeature(null)}
         />
       ) : null}
       {hikingTrailsVisible || difficultyVisible ? (
@@ -1166,6 +1271,195 @@ export function MapPanel({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function MapFeaturePanel({
+  feature,
+  onClose,
+}: {
+  feature: MapFeatureInfo;
+  onClose: () => void;
+}) {
+  return (
+    <aside className="mapFeaturePanel" aria-label={`${feature.kind} Details`}>
+      <div className="mapFeaturePanelHeader">
+        <div>
+          <span>{feature.kind === "closure" ? "Sperrung" : "Wanderland"}</span>
+          <strong>{feature.title}</strong>
+        </div>
+        <button type="button" aria-label="Karteninformation schliessen" onClick={onClose}>
+          ×
+        </button>
+      </div>
+      {feature.details.length ? (
+        <dl>
+          {feature.details.map(([label, value]) => (
+            <div key={`${label}:${value}`}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p>Keine weiteren Angaben verfügbar.</p>
+      )}
+      {feature.schweizMobilUrl ? (
+        <a href={feature.schweizMobilUrl} target="_blank" rel="noreferrer">
+          Auf SchweizMobil öffnen
+        </a>
+      ) : null}
+    </aside>
+  );
+}
+
+async function inspectVisibleWmsFeatures({
+  coordinate,
+  resolution,
+  closuresLayer,
+  closuresVisible,
+  routesLayer,
+  routesVisible,
+}: {
+  coordinate: number[];
+  resolution: number;
+  closuresLayer: TileLayer<TileWMS> | null;
+  closuresVisible: boolean;
+  routesLayer: TileLayer<TileWMS> | null;
+  routesVisible: boolean;
+}): Promise<MapFeatureInfo | null> {
+  if (closuresVisible) {
+    const closure = await getWmsFeatureInfo(
+      closuresLayer,
+      coordinate,
+      resolution,
+      "closure",
+    );
+    if (closure) {
+      return closure;
+    }
+  }
+
+  if (routesVisible) {
+    return getWmsFeatureInfo(routesLayer, coordinate, resolution, "wanderland");
+  }
+  return null;
+}
+
+async function getWmsFeatureInfo(
+  layer: TileLayer<TileWMS> | null,
+  coordinate: number[],
+  resolution: number,
+  kind: MapFeatureInfo["kind"],
+): Promise<MapFeatureInfo | null> {
+  const source = layer?.getSource();
+  const url = source?.getFeatureInfoUrl(coordinate, resolution, "EPSG:3857", {
+    FEATURE_COUNT: 1,
+    INFO_FORMAT: "application/json",
+  });
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+    return toMapFeatureInfo(kind, await response.json());
+  } catch {
+    return null;
+  }
+}
+
+function toMapFeatureInfo(
+  kind: MapFeatureInfo["kind"],
+  payload: unknown,
+): MapFeatureInfo | null {
+  if (!isRecord(payload) || !Array.isArray(payload.features)) {
+    return null;
+  }
+  const firstFeature = payload.features[0];
+  if (!isRecord(firstFeature) || !isRecord(firstFeature.properties)) {
+    return null;
+  }
+
+  const properties = firstFeature.properties;
+  const title = featureProperty(properties, [
+    "name",
+    "bezeichnung",
+    "titel",
+    "route_name",
+    "routenname",
+  ]);
+  const routeNumber = featureProperty(properties, [
+    "nummer",
+    "route_nr",
+    "routennummer",
+    "number",
+  ]);
+  const details = Object.entries(properties)
+    .filter(([key, value]) => isDisplayableFeatureProperty(key, value))
+    .slice(0, 5)
+    .map(
+      ([key, value]): [string, string] => [
+        formatFeaturePropertyName(key),
+        String(value),
+      ],
+    );
+
+  return {
+    details,
+    kind,
+    schweizMobilUrl:
+      kind === "wanderland" ? "https://schweizmobil.ch/de/wanderland" : undefined,
+    title:
+      title ??
+      (routeNumber
+        ? `Route ${routeNumber}`
+        : kind === "closure"
+          ? "Wanderweg-Sperrung"
+          : "Wanderland-Route"),
+  };
+}
+
+function featureProperty(
+  properties: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const value = properties[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === "number") {
+      return String(value);
+    }
+  }
+  return null;
+}
+
+function isDisplayableFeatureProperty(key: string, value: unknown): boolean {
+  return (
+    !["geometry", "geom", "the_geom"].includes(key.toLowerCase()) &&
+    (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+  );
+}
+
+function formatFeaturePropertyName(key: string): string {
+  return key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
   );
 }
 
