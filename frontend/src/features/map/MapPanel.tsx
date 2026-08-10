@@ -52,6 +52,10 @@ import {
   type DifficultySummary,
   toDifficultySummary,
 } from "./trailDifficulty";
+import {
+  parseClosureFeatureInfo,
+  type MapFeatureInfo,
+} from "./mapFeatureInfo";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
 // Permit the first viewport in which the official swisstopo trail layer is
@@ -67,13 +71,6 @@ type LayerRole =
   | "base-osm-topo"
   | "overlay"
   | "trail-overlay";
-
-interface MapFeatureInfo {
-  kind: "closure" | "wanderland";
-  title: string;
-  details: Array<[string, string]>;
-  schweizMobilUrl?: string;
-}
 
 interface MapPanelProps {
   waypoints: Waypoint[];
@@ -545,6 +542,29 @@ export function MapPanel({
       callbacksRef.current.onAddWaypoint({ lon, lat });
     });
 
+    const pointerMoveListener = map.on("pointermove", (event) => {
+      const target = map.getTargetElement();
+      if (event.dragging || interactionModeRef.current !== "explore") {
+        target.style.cursor = "";
+        return;
+      }
+
+      const difficultyFeatures = map.getFeaturesAtPixel(event.pixel, {
+        hitTolerance: 5,
+        layerFilter: (layer) => layer === difficultyLayer,
+      });
+      const hasDifficultyInfo =
+        (difficultyVisibleRef.current || trailMatchDebugVisibleRef.current) &&
+        difficultyFeatures.some((feature) =>
+          isCombinedTrailSegmentRecord(feature.get("combinedSegment")),
+        );
+      const hasWmsInfo =
+        hasVisibleLayerPixel(hikingClosuresLayer, event.pixel) ||
+        hasVisibleLayerPixel(hikingRoutesLayer, event.pixel);
+
+      target.style.cursor = hasDifficultyInfo || hasWmsInfo ? "help" : "";
+    });
+
     const handleRoutePointerDown = (event: PointerEvent) => {
       if (interactionModeRef.current !== "draw") {
         return;
@@ -649,6 +669,7 @@ export function MapPanel({
     return () => {
       map.setTarget(undefined);
       unByKey(layerAddListener);
+      unByKey(pointerMoveListener);
       viewport.removeEventListener("pointerdown", handleRoutePointerDown);
       window.removeEventListener("pointerup", handleRoutePointerUp);
       window.removeEventListener("keydown", handleKeyDown);
@@ -689,11 +710,7 @@ export function MapPanel({
       return;
     }
 
-    target.style.cursor =
-      interactionMode === "explore" &&
-      (hikingRoutesVisible || hikingClosuresVisible || difficultyVisible)
-        ? "help"
-        : "";
+    target.style.cursor = "";
 
     return () => {
       target.style.cursor = "";
@@ -1353,9 +1370,10 @@ async function getWmsFeatureInfo(
   kind: MapFeatureInfo["kind"],
 ): Promise<MapFeatureInfo | null> {
   const source = layer?.getSource();
+  const infoFormat = kind === "closure" ? "text/plain" : "application/json";
   const url = source?.getFeatureInfoUrl(coordinate, resolution, "EPSG:3857", {
     FEATURE_COUNT: 1,
-    INFO_FORMAT: "application/json",
+    INFO_FORMAT: infoFormat,
   });
   if (!url) {
     return null;
@@ -1365,6 +1383,9 @@ async function getWmsFeatureInfo(
     const response = await fetch(url);
     if (!response.ok) {
       return null;
+    }
+    if (kind === "closure") {
+      return parseClosureFeatureInfo(await response.text());
     }
     return toMapFeatureInfo(kind, await response.json());
   } catch {
@@ -1386,6 +1407,7 @@ function toMapFeatureInfo(
 
   const properties = firstFeature.properties;
   const title = featureProperty(properties, [
+    "chmobil_title",
     "name",
     "bezeichnung",
     "titel",
@@ -1393,26 +1415,21 @@ function toMapFeatureInfo(
     "routenname",
   ]);
   const routeNumber = featureProperty(properties, [
+    "chmobil_route_number",
     "nummer",
     "route_nr",
     "routennummer",
     "number",
   ]);
-  const details = Object.entries(properties)
-    .filter(([key, value]) => isDisplayableFeatureProperty(key, value))
-    .slice(0, 5)
-    .map(
-      ([key, value]): [string, string] => [
-        formatFeaturePropertyName(key),
-        String(value),
-      ],
-    );
+  const details = mapFeatureDetails(kind, properties, routeNumber);
 
   return {
     details,
     kind,
     schweizMobilUrl:
-      kind === "wanderland" ? "https://schweizmobil.ch/de/wanderland" : undefined,
+      kind === "wanderland"
+        ? toSchweizMobilRouteUrl(routeNumber)
+        : undefined,
     title:
       title ??
       (routeNumber
@@ -1421,6 +1438,98 @@ function toMapFeatureInfo(
           ? "Wanderweg-Sperrung"
           : "Wanderland-Route"),
   };
+}
+
+function mapFeatureDetails(
+  kind: MapFeatureInfo["kind"],
+  properties: Record<string, unknown>,
+  routeNumber: string | null,
+): Array<[string, string]> {
+  const preferredDetails: Array<[string, string]> = [];
+  const usedKeys = new Set([
+    "chmobil_title",
+    "name",
+    "bezeichnung",
+    "titel",
+    "route_name",
+    "routenname",
+  ]);
+
+  const addProperty = (label: string, keys: string[]) => {
+    const key = keys.find((candidate) => featureProperty(properties, [candidate]));
+    if (!key) {
+      return;
+    }
+    const value = featureProperty(properties, [key]);
+    if (value) {
+      preferredDetails.push([label, value]);
+      usedKeys.add(key);
+    }
+  };
+
+  if (kind === "wanderland") {
+    if (routeNumber) {
+      preferredDetails.push(["Routennummer", routeNumber]);
+      usedKeys.add("chmobil_route_number");
+    }
+    preferredDetails.push(["Netz", "Wanderland Schweiz"]);
+    const segmentId = featureProperty(properties, ["id"]);
+    if (segmentId) {
+      preferredDetails.push(["Abschnitt", segmentId]);
+      usedKeys.add("id");
+    }
+    const hasSegment = featureProperty(properties, ["chmobil_has_segment"]);
+    if (hasSegment && !segmentId) {
+      preferredDetails.push([
+        "Abschnitt",
+        hasSegment === "true" ? "verfügbar" : hasSegment,
+      ]);
+      usedKeys.add("chmobil_has_segment");
+    }
+  } else {
+    addProperty("Status", ["status", "closure_status", "sperrung", "zustand"]);
+    addProperty("Zeitraum", ["zeitraum", "validity", "gueltigkeit"]);
+    addProperty("Von", ["start_date", "startdatum", "von", "begin"]);
+    addProperty("Bis", ["end_date", "enddatum", "bis", "ende"]);
+    addProperty("Quelle", ["source", "quelle", "provider", "organisation"]);
+  }
+
+  return [
+    ...preferredDetails,
+    ...Object.entries(properties)
+      .filter(
+        ([key, value]) =>
+          !usedKeys.has(key) && isDisplayableFeatureProperty(key, value),
+      )
+      .slice(0, Math.max(0, 5 - preferredDetails.length))
+      .map(
+        ([key, value]): [string, string] => [
+          formatFeaturePropertyName(key),
+          String(value),
+        ],
+      ),
+  ];
+}
+
+function toSchweizMobilRouteUrl(routeNumber: string | null): string {
+  if (!routeNumber || !/^\d+$/.test(routeNumber)) {
+    return "https://schweizmobil.ch/de/wanderland";
+  }
+  return `https://schweizmobil.ch/de/wanderland/routen/route-${routeNumber}`;
+}
+
+function hasVisibleLayerPixel(
+  layer: TileLayer<TileWMS>,
+  pixel: number[],
+): boolean {
+  if (!layer.getVisible()) {
+    return false;
+  }
+  const data = layer.getData(pixel);
+  if (data instanceof DataView) {
+    return data.byteLength >= 4 && data.getUint8(3) > 0;
+  }
+  return data !== null && data.length >= 4 && data[3] > 0;
 }
 
 function featureProperty(
@@ -1447,6 +1556,14 @@ function isDisplayableFeatureProperty(key: string, value: unknown): boolean {
 }
 
 function formatFeaturePropertyName(key: string): string {
+  const labels: Record<string, string> = {
+    chmobil_has_segment: "Aktueller Abschnitt",
+    chmobil_route_number: "Routennummer",
+    chmobil_title: "Route",
+  };
+  if (labels[key]) {
+    return labels[key];
+  }
   return key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
