@@ -56,7 +56,11 @@ describe("App", () => {
     expect(screen.getByRole("region", { name: "Karte" })).toBeInTheDocument();
 
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some(([url]) => url.toString().endsWith("/api/v1/health"))).toBe(true),
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          url.toString().endsWith("/api/v1/health"),
+        ),
+      ).toBe(true),
     );
     expect(screen.queryByText("API bereit")).not.toBeInTheDocument();
   });
@@ -68,7 +72,9 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByText("Karte erkunden")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Strasse" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Strasse" }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
 
@@ -96,7 +102,9 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Effort km erklären" }));
+    await user.click(
+      screen.getByRole("button", { name: "Effort km erklären" }),
+    );
     expect(
       screen.getByText(/Distanz in km plus Aufstieg in m geteilt durch 100/),
     ).toBeInTheDocument();
@@ -125,7 +133,9 @@ describe("App", () => {
     expect(screen.getByText("Route berechnet")).toBeInTheDocument();
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Gerade");
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Routing");
-    expect(screen.queryByLabelText("Wegbeschaffenheit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Wegbeschaffenheit"),
+    ).not.toBeInTheDocument();
   });
 
   it("summarizes classified route surface details", async () => {

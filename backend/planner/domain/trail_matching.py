@@ -88,15 +88,8 @@ def normalize_sac_scale(value: str | None) -> int | None:
 def warning_overlay_for(official_category: str | None, t_level: int | None) -> bool:
     if t_level is None:
         return False
-    return (
-        (
-            official_category == OFFICIAL_CATEGORY_BERGWANDERWEG
-            and t_level == 3
-        )
-        or (
-            official_category == OFFICIAL_CATEGORY_ALPINWANDERWEG
-            and t_level in {5, 6}
-        )
+    return (official_category == OFFICIAL_CATEGORY_BERGWANDERWEG and t_level == 3) or (
+        official_category == OFFICIAL_CATEGORY_ALPINWANDERWEG and t_level in {5, 6}
     )
 
 

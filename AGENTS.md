@@ -390,6 +390,14 @@ make format
 make build
 ```
 
+Before every commit, run the local quality checks:
+
+```bash
+make format
+make lint
+make test
+```
+
 Expected checks:
 
 ```bash

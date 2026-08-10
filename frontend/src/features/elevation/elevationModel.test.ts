@@ -98,11 +98,7 @@ function samplesForSlope(
   spacingMeters = 25,
 ) {
   const samples = [];
-  for (
-    let distance = 0;
-    distance < distanceMeters;
-    distance += spacingMeters
-  ) {
+  for (let distance = 0; distance < distanceMeters; distance += spacingMeters) {
     samples.push({
       distanceMeters: distance,
       elevationMeters: (distance * slopePercent) / 100,
@@ -145,9 +141,9 @@ function buildProfile(points: ElevationProfile["points"]): ElevationProfile {
 
 function swissHikingMinutesPerKmForTest(slopePercent: number): number {
   const coefficients = [
-    14.271, 3.6991, 2.5922, -1.4384, 0.32105, 0.81542, -0.090261,
-    -0.20757, 0.010192, 0.028588, -0.00057466, -0.0021842, 0.000015176,
-    0.000086894, -0.00000013584, -0.0000014026,
+    14.271, 3.6991, 2.5922, -1.4384, 0.32105, 0.81542, -0.090261, -0.20757,
+    0.010192, 0.028588, -0.00057466, -0.0021842, 0.000015176, 0.000086894,
+    -0.00000013584, -0.0000014026,
   ];
   const s = slopePercent / 10;
   if (s > -4 && s < 4) {

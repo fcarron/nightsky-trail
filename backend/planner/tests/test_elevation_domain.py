@@ -51,12 +51,8 @@ def test_swiss_hiking_time_flat_route_uses_flat_polynomial_pace() -> None:
 
 
 def test_swiss_hiking_time_uses_slope_divided_by_ten_for_polynomial_input() -> None:
-    assert swiss_hiking_minutes_per_km(10) == pytest.approx(
-        evaluate_swiss_hiking_polynomial(1)
-    )
-    assert swiss_hiking_minutes_per_km(10) != pytest.approx(
-        evaluate_swiss_hiking_polynomial(10)
-    )
+    assert swiss_hiking_minutes_per_km(10) == pytest.approx(evaluate_swiss_hiking_polynomial(1))
+    assert swiss_hiking_minutes_per_km(10) != pytest.approx(evaluate_swiss_hiking_polynomial(10))
 
 
 def test_swiss_hiking_time_constant_positive_and_negative_ten_percent() -> None:

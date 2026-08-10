@@ -39,10 +39,12 @@ export function importRoutePlanFromGpx(gpxText: string): RoutePlan {
     throw new Error("GPX enthält zu wenige Punkte.");
   }
 
-  const waypoints: Waypoint[] = [points[0], points[points.length - 1]].map((position, index) => ({
-    id: `gpx-${index + 1}`,
-    position,
-  }));
+  const waypoints: Waypoint[] = [points[0], points[points.length - 1]].map(
+    (position, index) => ({
+      id: `gpx-${index + 1}`,
+      position,
+    }),
+  );
   const segments: RouteSegment[] = waypoints.slice(1).map((waypoint, index) => {
     const previousWaypoint = waypoints[index];
     return {
@@ -53,18 +55,25 @@ export function importRoutePlanFromGpx(gpxText: string): RoutePlan {
     };
   });
 
-  return { importedGeometry: points, routingProfile: "hike", segments, waypoints };
+  return {
+    importedGeometry: points,
+    routingProfile: "hike",
+    segments,
+    waypoints,
+  };
 }
 
 function pointsFromElements(document: Document, tagName: string): LonLat[] {
-  return Array.from(document.getElementsByTagNameNS("*", tagName)).flatMap((element) => {
-    const lat = Number(element.getAttribute("lat"));
-    const lon = Number(element.getAttribute("lon"));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return [];
-    }
-    return [{ lat, lon }];
-  });
+  return Array.from(document.getElementsByTagNameNS("*", tagName)).flatMap(
+    (element) => {
+      const lat = Number(element.getAttribute("lat"));
+      const lon = Number(element.getAttribute("lon"));
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return [];
+      }
+      return [{ lat, lon }];
+    },
+  );
 }
 
 function escapeXml(value: string): string {

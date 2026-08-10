@@ -949,14 +949,18 @@ export function App() {
                   aria-label="Benutzername"
                   placeholder="Benutzername"
                   value={authUsername}
-                  onChange={(event) => setAuthUsername(event.currentTarget.value)}
+                  onChange={(event) =>
+                    setAuthUsername(event.currentTarget.value)
+                  }
                 />
                 <input
                   aria-label="Passwort"
                   placeholder="Passwort"
                   type="password"
                   value={authPassword}
-                  onChange={(event) => setAuthPassword(event.currentTarget.value)}
+                  onChange={(event) =>
+                    setAuthPassword(event.currentTarget.value)
+                  }
                 />
                 <button type="button" onClick={() => submitLogin("login")}>
                   Login
@@ -1073,7 +1077,6 @@ export function App() {
                       : "Klick auf Kartenobjekte zeigt Details."))}
               </p>
             </div>
-
           </div>
 
           {tourMessage ? (
@@ -1107,7 +1110,11 @@ export function App() {
                   : "Klick auf Kartenobjekte zeigt Details."}
               </span>
             </div>
-            <div className="mapInteractionButtons" role="group" aria-label="Kartenwerkzeug">
+            <div
+              className="mapInteractionButtons"
+              role="group"
+              aria-label="Kartenwerkzeug"
+            >
               <button
                 type="button"
                 aria-pressed={mapInteractionMode === "explore"}
@@ -1251,8 +1258,8 @@ export function App() {
                       <summary aria-label="Zeitberechnung erklären">i</summary>
                       <p>
                         Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace
-                        behält deine flache Grundpace bei und passt die Zeit
-                        pro Höhenprofil-Abschnitt an.
+                        behält deine flache Grundpace bei und passt die Zeit pro
+                        Höhenprofil-Abschnitt an.
                       </p>
                     </details>
                   </div>
@@ -1485,7 +1492,10 @@ export function App() {
             ) : null}
 
             {surfaceSummary.length ? (
-              <details className="surfacePanel compactDetails" aria-label="Wegbeschaffenheit">
+              <details
+                className="surfacePanel compactDetails"
+                aria-label="Wegbeschaffenheit"
+              >
                 <summary>
                   <span>Weg</span>
                   <small>{formatSurfaceSummary(surfaceSummary)}</small>
@@ -1713,7 +1723,10 @@ function countDetailEntries(value: unknown): number {
 }
 
 function formatSurfaceSummary(items: SurfaceSummaryItem[]): string {
-  const totalMeters = items.reduce((total, item) => total + item.distanceMeters, 0);
+  const totalMeters = items.reduce(
+    (total, item) => total + item.distanceMeters,
+    0,
+  );
   if (totalMeters <= 0) {
     return "Keine Angaben";
   }
@@ -1784,7 +1797,11 @@ function surfaceSegmentsForElevation(
   for (const segment of route.segments) {
     if (segment.mode !== "routed") {
       segments.push(
-        createSurfaceSegment("unknown", routeOffsetMeters, segment.distanceMeters),
+        createSurfaceSegment(
+          "unknown",
+          routeOffsetMeters,
+          segment.distanceMeters,
+        ),
       );
       routeOffsetMeters += segment.distanceMeters;
       continue;
@@ -1795,7 +1812,11 @@ function surfaceSegmentsForElevation(
       readDetailRanges(segment.details.road_class);
     if (!details.length) {
       segments.push(
-        createSurfaceSegment("unknown", routeOffsetMeters, segment.distanceMeters),
+        createSurfaceSegment(
+          "unknown",
+          routeOffsetMeters,
+          segment.distanceMeters,
+        ),
       );
       routeOffsetMeters += segment.distanceMeters;
       continue;
@@ -1804,9 +1825,11 @@ function surfaceSegmentsForElevation(
     for (const detail of details) {
       const category = surfaceCategoryFor(detail.value);
       const startDistanceMeters =
-        routeOffsetMeters + detailDistanceFromStart(segment.geometry, detail.from);
+        routeOffsetMeters +
+        detailDistanceFromStart(segment.geometry, detail.from);
       const endDistanceMeters =
-        routeOffsetMeters + detailDistanceFromStart(segment.geometry, detail.to);
+        routeOffsetMeters +
+        detailDistanceFromStart(segment.geometry, detail.to);
       if (endDistanceMeters <= startDistanceMeters) {
         continue;
       }

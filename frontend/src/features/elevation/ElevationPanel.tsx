@@ -200,8 +200,9 @@ export function ElevationPanel({
           },
           axisLine: { lineStyle: { color: "#334657" } },
           max:
-            Math.ceil((profile.maxElevationMeters + elevationRange * 0.08) / 20) *
-            20,
+            Math.ceil(
+              (profile.maxElevationMeters + elevationRange * 0.08) / 20,
+            ) * 20,
           min: elevationFloor,
           splitLine: { lineStyle: { color: "rgba(143, 161, 173, 0.16)" } },
           type: "value",
@@ -239,10 +240,8 @@ export function ElevationPanel({
             opacity: 0.96,
           },
           name: "Steigung",
-          renderItem: (
-            params: CustomRenderParams,
-            api: CustomRenderApi,
-          ) => renderProfileBand(params, api),
+          renderItem: (params: CustomRenderParams, api: CustomRenderApi) =>
+            renderProfileBand(params, api),
           type: "custom",
           yAxisIndex: 0,
         },
@@ -459,18 +458,14 @@ function createProfileBands(
   return profile.points.map((point, index) => {
     const distanceKm = point.distanceMeters / 1000;
     const previousDistanceKm =
-      index > 0
-        ? profile.points[index - 1].distanceMeters / 1000
-        : distanceKm;
+      index > 0 ? profile.points[index - 1].distanceMeters / 1000 : distanceKm;
     const nextDistanceKm =
       index < profile.points.length - 1
         ? profile.points[index + 1].distanceMeters / 1000
         : distanceKm;
 
     const startKm =
-      index === 0
-        ? 0
-        : distanceKm - (distanceKm - previousDistanceKm) / 2;
+      index === 0 ? 0 : distanceKm - (distanceKm - previousDistanceKm) / 2;
     const endKm =
       index === profile.points.length - 1
         ? routeEndKm
@@ -513,7 +508,9 @@ function interpolatedBandElevation(
   if (!nextPoint) {
     return point.smoothedElevationMeters;
   }
-  return (point.smoothedElevationMeters + nextPoint.smoothedElevationMeters) / 2;
+  return (
+    (point.smoothedElevationMeters + nextPoint.smoothedElevationMeters) / 2
+  );
 }
 
 function createSurfaceBands(
@@ -527,7 +524,10 @@ function createSurfaceBands(
   return segments
     .map((segment): SurfaceBandDatum | null => {
       const startMeters = Math.max(0, segment.startDistanceMeters);
-      const endMeters = Math.min(routeDistanceMeters, segment.endDistanceMeters);
+      const endMeters = Math.min(
+        routeDistanceMeters,
+        segment.endDistanceMeters,
+      );
       if (endMeters <= startMeters) {
         return null;
       }
@@ -545,10 +545,7 @@ function createSurfaceBands(
     .filter((segment): segment is SurfaceBandDatum => segment !== null);
 }
 
-function renderProfileBand(
-  params: CustomRenderParams,
-  api: CustomRenderApi,
-) {
+function renderProfileBand(params: CustomRenderParams, api: CustomRenderApi) {
   if (!params.coordSys) {
     return null;
   }
@@ -588,10 +585,7 @@ function renderProfileBand(
   };
 }
 
-function renderSurfaceBand(
-  params: CustomRenderParams,
-  api: CustomRenderApi,
-) {
+function renderSurfaceBand(params: CustomRenderParams, api: CustomRenderApi) {
   if (!params.coordSys) {
     return null;
   }

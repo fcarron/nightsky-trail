@@ -1,6 +1,11 @@
 /* global self, caches, fetch, Response, URL */
 const CACHE_NAME = "nightsky-trail-v1";
-const APP_SHELL_URLS = ["/", "/manifest.webmanifest", "/favicon.svg", "/pwa-icon.svg"];
+const APP_SHELL_URLS = [
+  "/",
+  "/manifest.webmanifest",
+  "/favicon.svg",
+  "/pwa-icon.svg",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -56,7 +61,11 @@ async function networkFirst(request, fallbackUrl) {
     }
     return response;
   } catch {
-    return (await cache.match(request)) ?? (await cache.match(fallbackUrl)) ?? Response.error();
+    return (
+      (await cache.match(request)) ??
+      (await cache.match(fallbackUrl)) ??
+      Response.error()
+    );
   }
 }
 

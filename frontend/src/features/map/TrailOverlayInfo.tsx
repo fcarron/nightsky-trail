@@ -27,21 +27,31 @@ export function DifficultyPanel({
       {selectedDifficultyWay ? (
         <>
           <div className="difficultySelectedTitle">
-            {formatOfficialCategory(selectedDifficultyWay.segment.officialCategory)} + OSM{" "}
-            {formatSacScale(selectedDifficultyWay.segment.osmSacScale)}
+            {formatOfficialCategory(
+              selectedDifficultyWay.segment.officialCategory,
+            )}{" "}
+            + OSM {formatSacScale(selectedDifficultyWay.segment.osmSacScale)}
           </div>
           <dl>
             <div>
               <dt>Official category</dt>
-              <dd>{formatOfficialCategory(selectedDifficultyWay.segment.officialCategory)}</dd>
+              <dd>
+                {formatOfficialCategory(
+                  selectedDifficultyWay.segment.officialCategory,
+                )}
+              </dd>
             </div>
             <div>
               <dt>OSM difficulty</dt>
-              <dd>{formatSacScale(selectedDifficultyWay.segment.osmSacScale)}</dd>
+              <dd>
+                {formatSacScale(selectedDifficultyWay.segment.osmSacScale)}
+              </dd>
             </div>
             <div>
               <dt>Match quality</dt>
-              <dd>{formatMatchQuality(selectedDifficultyWay.segment.matchScore)}</dd>
+              <dd>
+                {formatMatchQuality(selectedDifficultyWay.segment.matchScore)}
+              </dd>
             </div>
             <div>
               <dt>Match status</dt>
@@ -49,16 +59,24 @@ export function DifficultyPanel({
             </div>
             <div>
               <dt>Quelle</dt>
-              <dd>OpenStreetMap way {selectedDifficultyWay.segment.osmWayId}</dd>
+              <dd>
+                OpenStreetMap way {selectedDifficultyWay.segment.osmWayId}
+              </dd>
             </div>
           </dl>
         </>
       ) : (
         <>
-          <div className="difficultySummaryGrid" aria-label="OSM T-Level im Ausschnitt">
+          <div
+            className="difficultySummaryGrid"
+            aria-label="OSM T-Level im Ausschnitt"
+          >
             {DIFFICULTY_LEGEND.map((item) => (
               <div key={item.label}>
-                <span className="difficultySwatch" style={{ background: item.color }} />
+                <span
+                  className="difficultySwatch"
+                  style={{ background: item.color }}
+                />
                 <span>{item.label}</span>
                 <strong>{difficultySummary.byLabel[item.label] ?? 0}</strong>
               </div>
@@ -123,7 +141,10 @@ export function TrailLegend({
           <strong>Schwierigkeit</strong>
           {SUPPLEMENT_LEGEND.map((item) => (
             <div key={item.label}>
-              <span className="difficultySwatch" style={{ background: item.color }} />
+              <span
+                className="difficultySwatch"
+                style={{ background: item.color }}
+              />
               {item.label}
             </div>
           ))}

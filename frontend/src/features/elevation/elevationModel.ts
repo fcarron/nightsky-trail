@@ -68,10 +68,9 @@ export function toElevationProfileRequest(
   return {
     geometry: {
       type: "LineString",
-      coordinates: resampleGeometryForElevation(route.geometry).map((coordinate) => [
-        coordinate.lon,
-        coordinate.lat,
-      ]),
+      coordinates: resampleGeometryForElevation(route.geometry).map(
+        (coordinate) => [coordinate.lon, coordinate.lat],
+      ),
     },
   };
 }
@@ -95,14 +94,18 @@ export function resampleGeometryForElevation(
 
   const targetPointCount = Math.min(
     ELEVATION_GEOMETRY_MAX_POINTS,
-    Math.max(2, Math.ceil(totalDistance / ELEVATION_GEOMETRY_TARGET_SPACING_METERS) + 1),
+    Math.max(
+      2,
+      Math.ceil(totalDistance / ELEVATION_GEOMETRY_TARGET_SPACING_METERS) + 1,
+    ),
   );
   const spacing = totalDistance / (targetPointCount - 1);
 
   const sampled = [];
   let segmentIndex = 1;
   for (let index = 0; index < targetPointCount; index += 1) {
-    const targetDistance = index === targetPointCount - 1 ? totalDistance : index * spacing;
+    const targetDistance =
+      index === targetPointCount - 1 ? totalDistance : index * spacing;
     while (
       segmentIndex < distances.length - 1 &&
       distances[segmentIndex] < targetDistance
@@ -132,7 +135,8 @@ function cumulativeDistances(geometry: ComputedRoute["geometry"]): number[] {
   const distances = [0];
   for (let index = 1; index < geometry.length; index += 1) {
     distances.push(
-      distances[index - 1] + distanceMeters(geometry[index - 1], geometry[index]),
+      distances[index - 1] +
+        distanceMeters(geometry[index - 1], geometry[index]),
     );
   }
   return distances;

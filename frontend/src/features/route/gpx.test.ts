@@ -61,7 +61,9 @@ describe("GPX route import and export", () => {
         `<trkpt lat="${46.8 + index * 0.001}" lon="${7.4 + index * 0.001}" />`,
     ).join("");
 
-    const plan = importRoutePlanFromGpx(`<gpx><trk><trkseg>${trackPoints}</trkseg></trk></gpx>`);
+    const plan = importRoutePlanFromGpx(
+      `<gpx><trk><trkseg>${trackPoints}</trkseg></trk></gpx>`,
+    );
 
     expect(plan.waypoints).toHaveLength(2);
     expect(plan.segments).toHaveLength(1);

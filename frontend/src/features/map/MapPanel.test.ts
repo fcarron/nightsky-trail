@@ -29,6 +29,10 @@ Layer 'ch.astra.wanderland-sperrungen_umleitungen_line'
   });
 
   it("does not create an info card without a closure title", () => {
-    expect(parseClosureFeatureInfo("GetFeatureInfo results:\n\n  Search returned no results.")).toBeNull();
+    expect(
+      parseClosureFeatureInfo(
+        "GetFeatureInfo results:\n\n  Search returned no results.",
+      ),
+    ).toBeNull();
   });
 });

@@ -52,10 +52,7 @@ import {
   type DifficultySummary,
   toDifficultySummary,
 } from "./trailDifficulty";
-import {
-  parseClosureFeatureInfo,
-  type MapFeatureInfo,
-} from "./mapFeatureInfo";
+import { parseClosureFeatureInfo, type MapFeatureInfo } from "./mapFeatureInfo";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
 // Permit the first viewport in which the official swisstopo trail layer is
@@ -181,9 +178,8 @@ export function MapPanel({
   const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
     segment: CombinedTrailSegmentDto;
   } | null>(null);
-  const [selectedMapFeature, setSelectedMapFeature] = useState<MapFeatureInfo | null>(
-    null,
-  );
+  const [selectedMapFeature, setSelectedMapFeature] =
+    useState<MapFeatureInfo | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
     (waypoint) => waypoint.id === selectedWaypointId,
   );
@@ -237,10 +233,7 @@ export function MapPanel({
           selectedWaypoint.position.lat,
         ]),
       );
-      setSelectedWaypointPixel([
-        Math.round(pixel[0]),
-        Math.round(pixel[1]),
-      ]);
+      setSelectedWaypointPixel([Math.round(pixel[0]), Math.round(pixel[1])]);
     };
 
     updatePixel();
@@ -512,11 +505,13 @@ export function MapPanel({
           coordinate: event.coordinate,
           resolution: map.getView().getResolution() ?? 1,
           closuresLayer: hikingClosuresLayerRef.current,
-          closuresVisible: hikingClosuresLayerRef.current?.getVisible() === true,
+          closuresVisible:
+            hikingClosuresLayerRef.current?.getVisible() === true,
           routesLayer: hikingRoutesLayerRef.current,
           routesVisible: hikingRoutesLayerRef.current?.getVisible() === true,
           cyclingRoutesLayer: cyclingRoutesLayerRef.current,
-          cyclingRoutesVisible: cyclingRoutesLayerRef.current?.getVisible() === true,
+          cyclingRoutesVisible:
+            cyclingRoutesLayerRef.current?.getVisible() === true,
         }).then((featureInfo) => {
           if (requestId !== mapFeatureRequestIdRef.current) {
             return;
@@ -718,7 +713,13 @@ export function MapPanel({
     return () => {
       target.style.cursor = "";
     };
-  }, [difficultyVisible, hikingClosuresVisible, hikingRoutesVisible, interactionMode, mapReady]);
+  }, [
+    difficultyVisible,
+    hikingClosuresVisible,
+    hikingRoutesVisible,
+    interactionMode,
+    mapReady,
+  ]);
 
   useEffect(() => {
     const pointSource = pointSourceRef.current;
@@ -1123,9 +1124,7 @@ export function MapPanel({
         className="mapLayerSelector"
         aria-label="Kartenauswahl"
         open={mapLayerMenuOpen}
-        onToggle={(event) =>
-          setMapLayerMenuOpen(event.currentTarget.open)
-        }
+        onToggle={(event) => setMapLayerMenuOpen(event.currentTarget.open)}
       >
         <summary>
           Karte
@@ -1141,10 +1140,10 @@ export function MapPanel({
               setMapLayerMenuOpen(false);
             }}
           >
-          <option value="light">swisstopo Light</option>
-          <option value="standard">swisstopo Standard</option>
-          <option value="satellite">swisstopo Satellit</option>
-          <option value="osm-topo">OSM Topo</option>
+            <option value="light">swisstopo Light</option>
+            <option value="standard">swisstopo Standard</option>
+            <option value="satellite">swisstopo Satellit</option>
+            <option value="osm-topo">OSM Topo</option>
           </select>
           <label className="mapOverlayToggle">
             <input
@@ -1231,10 +1230,10 @@ export function MapPanel({
                 type="checkbox"
                 checked={trailMatchDebugVisible}
                 onChange={(event) => {
-                setSelectedDifficultyWay(null);
-                setTrailMatchDebugVisible(event.target.checked);
-                setMapLayerMenuOpen(false);
-              }}
+                  setSelectedDifficultyWay(null);
+                  setTrailMatchDebugVisible(event.target.checked);
+                  setMapLayerMenuOpen(false);
+                }}
               />
               Match Debug
             </label>
@@ -1321,7 +1320,11 @@ function MapFeaturePanel({
           </span>
           <strong>{feature.title}</strong>
         </div>
-        <button type="button" aria-label="Karteninformation schliessen" onClick={onClose}>
+        <button
+          type="button"
+          aria-label="Karteninformation schliessen"
+          onClick={onClose}
+        >
           ×
         </button>
       </div>
@@ -1494,7 +1497,9 @@ function mapFeatureDetails(
   ]);
 
   const addProperty = (label: string, keys: string[]) => {
-    const key = keys.find((candidate) => featureProperty(properties, [candidate]));
+    const key = keys.find((candidate) =>
+      featureProperty(properties, [candidate]),
+    );
     if (!key) {
       return;
     }
@@ -1547,12 +1552,10 @@ function mapFeatureDetails(
           !usedKeys.has(key) && isDisplayableFeatureProperty(key, value),
       )
       .slice(0, Math.max(0, 5 - preferredDetails.length))
-      .map(
-        ([key, value]): [string, string] => [
-          formatFeaturePropertyName(key),
-          String(value),
-        ],
-      ),
+      .map(([key, value]): [string, string] => [
+        formatFeaturePropertyName(key),
+        String(value),
+      ]),
   ];
 }
 
@@ -1617,7 +1620,9 @@ function featureProperty(
 function isDisplayableFeatureProperty(key: string, value: unknown): boolean {
   return (
     !["geometry", "geom", "the_geom"].includes(key.toLowerCase()) &&
-    (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    (typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean")
   );
 }
 
@@ -1630,7 +1635,9 @@ function formatFeaturePropertyName(key: string): string {
   if (labels[key]) {
     return labels[key];
   }
-  return key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return key
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

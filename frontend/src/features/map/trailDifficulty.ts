@@ -66,7 +66,9 @@ export function formatMatchQuality(score: number): string {
   return "low";
 }
 
-export function toDifficultySummary(summary: TrailSummaryDto): DifficultySummary {
+export function toDifficultySummary(
+  summary: TrailSummaryDto,
+): DifficultySummary {
   return {
     byLabel: summary.byLabel,
     commonTags: summary.commonTags.map((tag) => [tag.key, tag.value]),

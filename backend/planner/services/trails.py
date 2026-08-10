@@ -72,15 +72,12 @@ def build_trails_response(
     ways = []
     swisstopo_trails = []
     if include_debug and (
-        zoom < settings.TRAILS_DEBUG_MIN_ZOOM
-        or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
+        zoom < settings.TRAILS_DEBUG_MIN_ZOOM or bbox_area > settings.TRAILS_DEBUG_MAX_BBOX_AREA
     ):
         include_debug = False
         warnings.append("Match Debug is limited to small viewports. Zoom in to enable it.")
 
-    load_osm = (
-        include_osm and zoom >= TRAILS_MIN_ZOOM and bbox_area <= TRAILS_MAX_BBOX_AREA
-    )
+    load_osm = include_osm and zoom >= TRAILS_MIN_ZOOM and bbox_area <= TRAILS_MAX_BBOX_AREA
 
     osm_started_at = perf_counter()
     if load_osm:

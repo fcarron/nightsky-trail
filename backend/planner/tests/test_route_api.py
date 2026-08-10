@@ -88,7 +88,7 @@ def test_route_compute_returns_routed_segment(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.django_db
-def test_route_compute_rejects_disabled_bike_profile(
+def test_route_compute_supports_bike_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = APIClient()
@@ -114,8 +114,8 @@ def test_route_compute_rejects_disabled_bike_profile(
         format="json",
     )
 
-    assert response.status_code == 422
-    assert RecordingGraphHopperClient.profiles == []
+    assert response.status_code == 200
+    assert RecordingGraphHopperClient.profiles == ["bike"]
 
 
 @pytest.mark.django_db
