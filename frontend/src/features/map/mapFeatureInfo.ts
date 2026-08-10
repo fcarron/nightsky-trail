@@ -1,5 +1,5 @@
 export interface MapFeatureInfo {
-  kind: "closure" | "wanderland";
+  kind: "closure" | "wanderland" | "veloland";
   title: string;
   details: Array<[string, string]>;
   schweizMobilUrl?: string;

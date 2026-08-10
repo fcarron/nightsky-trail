@@ -515,6 +515,8 @@ export function MapPanel({
           closuresVisible: hikingClosuresLayerRef.current?.getVisible() === true,
           routesLayer: hikingRoutesLayerRef.current,
           routesVisible: hikingRoutesLayerRef.current?.getVisible() === true,
+          cyclingRoutesLayer: cyclingRoutesLayerRef.current,
+          cyclingRoutesVisible: cyclingRoutesLayerRef.current?.getVisible() === true,
         }).then((featureInfo) => {
           if (requestId !== mapFeatureRequestIdRef.current) {
             return;
@@ -560,7 +562,8 @@ export function MapPanel({
         );
       const hasWmsInfo =
         hasVisibleLayerPixel(hikingClosuresLayer, event.pixel) ||
-        hasVisibleLayerPixel(hikingRoutesLayer, event.pixel);
+        hasVisibleLayerPixel(hikingRoutesLayer, event.pixel) ||
+        hasVisibleLayerPixel(cyclingRoutesLayer, event.pixel);
 
       target.style.cursor = hasDifficultyInfo || hasWmsInfo ? "help" : "";
     });
@@ -1191,6 +1194,11 @@ export function MapPanel({
               type="checkbox"
               checked={cyclingRoutesVisible}
               onChange={(event) => {
+                if (!event.target.checked) {
+                  setSelectedMapFeature((feature) =>
+                    feature?.kind === "veloland" ? null : feature,
+                  );
+                }
                 setCyclingRoutesVisible(event.target.checked);
                 setMapLayerMenuOpen(false);
               }}
@@ -1247,7 +1255,9 @@ export function MapPanel({
       interactionMode === "explore" &&
       (selectedMapFeature.kind === "closure"
         ? hikingClosuresVisible
-        : hikingRoutesVisible) ? (
+        : selectedMapFeature.kind === "wanderland"
+          ? hikingRoutesVisible
+          : cyclingRoutesVisible) ? (
         <MapFeaturePanel
           feature={selectedMapFeature}
           onClose={() => setSelectedMapFeature(null)}
@@ -1302,7 +1312,13 @@ function MapFeaturePanel({
     <aside className="mapFeaturePanel" aria-label={`${feature.kind} Details`}>
       <div className="mapFeaturePanelHeader">
         <div>
-          <span>{feature.kind === "closure" ? "Sperrung" : "Wanderland"}</span>
+          <span>
+            {feature.kind === "closure"
+              ? "Sperrung"
+              : feature.kind === "veloland"
+                ? "Veloland"
+                : "Wanderland"}
+          </span>
           <strong>{feature.title}</strong>
         </div>
         <button type="button" aria-label="Karteninformation schliessen" onClick={onClose}>
@@ -1337,6 +1353,8 @@ async function inspectVisibleWmsFeatures({
   closuresVisible,
   routesLayer,
   routesVisible,
+  cyclingRoutesLayer,
+  cyclingRoutesVisible,
 }: {
   coordinate: number[];
   resolution: number;
@@ -1344,6 +1362,8 @@ async function inspectVisibleWmsFeatures({
   closuresVisible: boolean;
   routesLayer: TileLayer<TileWMS> | null;
   routesVisible: boolean;
+  cyclingRoutesLayer: TileLayer<TileWMS> | null;
+  cyclingRoutesVisible: boolean;
 }): Promise<MapFeatureInfo | null> {
   if (closuresVisible) {
     const closure = await getWmsFeatureInfo(
@@ -1354,6 +1374,21 @@ async function inspectVisibleWmsFeatures({
     );
     if (closure) {
       return closure;
+    }
+  }
+
+  // Veloland is rendered above Wanderland, so inspect it first when both
+  // overlays are enabled. If no feature is found at the click, fall back to
+  // the hiking route layer.
+  if (cyclingRoutesVisible) {
+    const cyclingRoute = await getWmsFeatureInfo(
+      cyclingRoutesLayer,
+      coordinate,
+      resolution,
+      "veloland",
+    );
+    if (cyclingRoute) {
+      return cyclingRoute;
     }
   }
 
@@ -1421,14 +1456,15 @@ function toMapFeatureInfo(
     "routennummer",
     "number",
   ]);
+  const segmentId = featureProperty(properties, ["id"]);
   const details = mapFeatureDetails(kind, properties, routeNumber);
 
   return {
     details,
     kind,
     schweizMobilUrl:
-      kind === "wanderland"
-        ? toSchweizMobilRouteUrl(routeNumber)
+      kind === "wanderland" || kind === "veloland"
+        ? toSchweizMobilRouteUrl(kind, routeNumber, segmentId)
         : undefined,
     title:
       title ??
@@ -1436,7 +1472,9 @@ function toMapFeatureInfo(
         ? `Route ${routeNumber}`
         : kind === "closure"
           ? "Wanderweg-Sperrung"
-          : "Wanderland-Route"),
+          : kind === "veloland"
+            ? "Veloland-Route"
+            : "Wanderland-Route"),
   };
 }
 
@@ -1467,16 +1505,23 @@ function mapFeatureDetails(
     }
   };
 
-  if (kind === "wanderland") {
+  if (kind === "wanderland" || kind === "veloland") {
     if (routeNumber) {
       preferredDetails.push(["Routennummer", routeNumber]);
       usedKeys.add("chmobil_route_number");
     }
-    preferredDetails.push(["Netz", "Wanderland Schweiz"]);
+    preferredDetails.push([
+      "Netz",
+      kind === "veloland" ? "Veloland Schweiz" : "Wanderland Schweiz",
+    ]);
     const segmentId = featureProperty(properties, ["id"]);
     if (segmentId) {
       preferredDetails.push(["Abschnitt", segmentId]);
       usedKeys.add("id");
+      const stageNumber = routeStageNumber(segmentId, routeNumber);
+      if (stageNumber) {
+        preferredDetails.push(["Etappe", stageNumber]);
+      }
     }
     const hasSegment = featureProperty(properties, ["chmobil_has_segment"]);
     if (hasSegment && !segmentId) {
@@ -1511,11 +1556,32 @@ function mapFeatureDetails(
   ];
 }
 
-function toSchweizMobilRouteUrl(routeNumber: string | null): string {
+function toSchweizMobilRouteUrl(
+  kind: "wanderland" | "veloland",
+  routeNumber: string | null,
+  segmentId: string | null,
+): string {
+  const network = kind === "veloland" ? "veloland" : "wanderland";
   if (!routeNumber || !/^\d+$/.test(routeNumber)) {
-    return "https://schweizmobil.ch/de/wanderland";
+    return `https://schweizmobil.ch/de/${network}`;
   }
-  return `https://schweizmobil.ch/de/wanderland/routen/route-${routeNumber}`;
+  const stageNumber = segmentId
+    ? routeStageNumber(segmentId, routeNumber)
+    : null;
+  return stageNumber
+    ? `https://schweizmobil.ch/de/${network}/route-${routeNumber}/etappe-${stageNumber}`
+    : `https://schweizmobil.ch/de/${network}/route-${routeNumber}`;
+}
+
+function routeStageNumber(
+  segmentId: string,
+  routeNumber: string | null,
+): string | null {
+  const match = segmentId.trim().match(/^(\d+)\.(\d+)$/);
+  if (!match || (routeNumber && match[1] !== routeNumber)) {
+    return null;
+  }
+  return String(Number(match[2]));
 }
 
 function hasVisibleLayerPixel(
