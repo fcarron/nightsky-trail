@@ -33,6 +33,10 @@ class AuthLoginSerializer(serializers.Serializer):
     password = serializers.CharField(max_length=128, trim_whitespace=False)
 
 
+class AccountDeleteSerializer(serializers.Serializer):
+    password = serializers.CharField(max_length=128, trim_whitespace=False)
+
+
 class SavedTourSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     name = serializers.CharField(max_length=160)

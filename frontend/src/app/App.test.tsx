@@ -102,6 +102,66 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("checks the password confirmation before registering", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Tour" }));
+    await user.click(screen.getByRole("button", { name: "Registrieren" }));
+    await user.type(screen.getByLabelText("Benutzername"), "runner");
+    await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
+    await user.type(
+      screen.getByLabelText("Passwort bestätigen"),
+      "other-password",
+    );
+    await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
+
+    expect(
+      screen.getByText("Die beiden Passwörter stimmen nicht überein."),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        url.toString().endsWith("/api/v1/auth/register"),
+      ),
+    ).toBe(false);
+  });
+
+  it("confirms a successful registration in the open tour menu", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        authRegisterResponse: new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: { id: 7, username: "runner" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      }),
+    );
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Tour" }));
+    await user.click(screen.getByRole("button", { name: "Registrieren" }));
+    await user.type(screen.getByLabelText("Benutzername"), "runner");
+    await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
+    await user.type(
+      screen.getByLabelText("Passwort bestätigen"),
+      "trail-check-2026",
+    );
+    await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
+
+    expect(screen.getByText("Angemeldet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Konto erstellt. Angemeldet als runner."),
+    ).toBeInTheDocument();
+  });
+
   it("reports an unavailable API when health fails", async () => {
     vi.stubGlobal(
       "fetch",
@@ -397,12 +457,14 @@ function storeRouteWithTwoWaypoints() {
 
 function createFetchMock(
   options: {
+    authRegisterResponse?: Promise<Response> | Response;
     routeResponses?: Array<Promise<Response> | Response>;
     elevationResponses?: Array<Promise<Response> | Response>;
   } = {},
 ) {
   const routeResponses = [...(options.routeResponses ?? [])];
   const elevationResponses = [...(options.elevationResponses ?? [])];
+  const authRegisterResponse = options.authRegisterResponse;
 
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = input.toString();
@@ -422,6 +484,15 @@ function createFetchMock(
           headers: { "Content-Type": "application/json" },
         }),
       );
+    }
+
+    if (url.endsWith("/api/v1/auth/register")) {
+      if (!authRegisterResponse) {
+        return Promise.reject(new Error("Unexpected registration request"));
+      }
+      return authRegisterResponse instanceof Response
+        ? Promise.resolve(authRegisterResponse)
+        : authRegisterResponse;
     }
 
     if (url.includes("/api/v1/search?")) {

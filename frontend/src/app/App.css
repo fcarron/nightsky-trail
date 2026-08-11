@@ -390,6 +390,218 @@ button:disabled {
   background: var(--color-accent-soft);
 }
 
+.authForm {
+  display: grid;
+  gap: 7px;
+}
+
+.authModeToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #f7f9fb;
+  padding: 2px;
+}
+
+.authModeToggle button {
+  min-height: 27px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #66717d;
+  font-weight: 700;
+}
+
+.authModeToggle button[aria-pressed="true"] {
+  background: var(--color-accent-strong);
+  color: #ffffff;
+}
+
+.authField {
+  display: grid;
+  gap: 3px;
+}
+
+.authField span,
+.authHint {
+  color: #66717d;
+  font-size: 11px;
+}
+
+.authHint,
+.authFeedback {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.authFeedback {
+  border-left: 2px solid #cbd5df;
+  background: #f7f9fb;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.authFeedback-success {
+  border-color: #2f855a;
+  color: #226a45;
+}
+
+.authFeedback-error {
+  border-color: var(--color-danger);
+  color: var(--color-danger-strong);
+}
+
+.accountPanel .authSubmit {
+  border-color: var(--color-accent);
+  background: var(--color-accent-strong);
+  color: #ffffff;
+  font-weight: 750;
+}
+
+.accountPanel .authSubmit:hover:not(:disabled) {
+  background: var(--color-accent);
+}
+
+.accountPanel .authSubmit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.tourSaveForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 7px;
+}
+
+.tourSaveForm button {
+  min-width: 120px;
+}
+
+.savedTourList {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid #d8dee5;
+  padding-top: 8px;
+}
+
+.savedTourListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #111827;
+  font-size: 12px;
+}
+
+.savedTourListHeader span {
+  color: #66717d;
+}
+
+.savedTourRow {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #d8dee5;
+  background: #ffffff;
+  padding: 5px;
+}
+
+.savedTourLoadButton {
+  min-height: 29px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #111827;
+  padding: 0 6px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedTourLoadButton:hover,
+.savedTourLoadButton[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.savedTourActions,
+.savedTourRenameForm,
+.accountActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.savedTourActions button,
+.savedTourRenameForm button,
+.accountActions > button {
+  min-height: 27px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #66717d;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.savedTourActions button:hover:not(:disabled),
+.savedTourRenameForm button:hover:not(:disabled),
+.accountActions > button:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.savedTourActions .dangerAction,
+.accountDelete button {
+  border-color: rgba(var(--color-danger-rgb), 0.34);
+  color: var(--color-danger);
+}
+
+.savedTourRenameForm {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.savedTourRenameForm input {
+  min-width: 0;
+}
+
+.savedTourEmpty {
+  margin: 0;
+  color: #66717d;
+  font-size: 11px;
+}
+
+.accountActions {
+  border-top: 1px solid #d8dee5;
+  padding-top: 8px;
+}
+
+.accountDelete {
+  grid-column: 1 / -1;
+}
+
+.accountDelete summary {
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.accountDelete form {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.accountDelete button {
+  min-height: 29px;
+  border-radius: 2px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
 .accountIdentity {
   display: grid;
   gap: 2px;

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework.test import APIClient
+
+
+@pytest.fixture(autouse=True)
+def clear_auth_rate_limit_cache() -> None:
+    cache.clear()
 
 
 @pytest.mark.django_db
@@ -100,6 +106,78 @@ def test_user_cannot_read_another_users_tour() -> None:
 
     assert response.status_code == 422
     assert response.json()["code"] == "tour_not_found"
+
+
+@pytest.mark.django_db
+def test_register_and_login_require_csrf_token() -> None:
+    client = APIClient(enforce_csrf_checks=True)
+    blocked_response = client.post(
+        reverse("auth-register"),
+        {"username": "runner", "password": "correct-horse"},
+        format="json",
+    )
+    assert blocked_response.status_code == 403
+
+    client.get(reverse("auth-session"))
+    csrf_token = client.cookies["csrftoken"].value
+
+    response = client.post(
+        reverse("auth-register"),
+        {"username": "runner", "password": "correct-horse"},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+        HTTP_ORIGIN="http://127.0.0.1:5173",
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_login_is_rate_limited() -> None:
+    client = APIClient()
+    for _ in range(8):
+        response = client.post(
+            reverse("auth-login"),
+            {"username": "runner", "password": "wrong-password"},
+            format="json",
+        )
+        assert response.status_code == 401
+
+    response = client.post(
+        reverse("auth-login"),
+        {"username": "runner", "password": "wrong-password"},
+        format="json",
+    )
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "rate_limited"
+
+
+@pytest.mark.django_db
+def test_account_deletion_requires_password_and_deletes_owned_tours() -> None:
+    client = authenticated_client("runner")
+    client.post(
+        reverse("tour-list"),
+        {"name": "Private", "routeData": {"waypoints": [], "segments": []}},
+        format="json",
+    )
+
+    failed_response = client.post(
+        reverse("auth-account-delete"),
+        {"password": "wrong-password"},
+        format="json",
+    )
+    assert failed_response.status_code == 401
+
+    response = client.post(
+        reverse("auth-account-delete"),
+        {"password": "correct-horse"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": True}
+    assert client.get(reverse("tour-list")).status_code == 401
 
 
 def authenticated_client(username: str) -> APIClient:

@@ -67,11 +67,13 @@ export async function loginAccount(
 }
 
 export async function logoutAccount(): Promise<AuthSessionResponse> {
+  const csrf = await csrfHeaders();
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
     credentials: "include",
+    headers: csrf,
     method: "POST",
   });
-  const payload: unknown = await response.json();
+  const payload = await readResponsePayload(response);
   if (!response.ok) {
     throw new ApiRequestError(
       toApiError(payload, "Logout failed", response.status),
@@ -117,14 +119,35 @@ export async function updateSavedTour(
 }
 
 export async function deleteSavedTour(id: string): Promise<void> {
+  const csrf = await csrfHeaders();
   const response = await fetch(`${API_BASE_URL}/api/v1/tours/${id}`, {
     credentials: "include",
+    headers: csrf,
     method: "DELETE",
   });
-  const payload: unknown = await response.json();
+  const payload = await readResponsePayload(response);
   if (!response.ok) {
     throw new ApiRequestError(
       toApiError(payload, "Tour delete failed", response.status),
+    );
+  }
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/account`, {
+    body: JSON.stringify({ password }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...csrf,
+    },
+    method: "POST",
+  });
+  const payload = await readResponsePayload(response);
+  if (!response.ok) {
+    throw new ApiRequestError(
+      toApiError(payload, "Account deletion failed", response.status),
     );
   }
 }
@@ -283,13 +306,17 @@ async function submitAuthRequest(
   username: string,
   password: string,
 ): Promise<AuthSessionResponse> {
+  const csrf = await csrfHeaders();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     body: JSON.stringify({ password, username }),
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...csrf,
+    },
     method: "POST",
   });
-  const payload: unknown = await response.json();
+  const payload = await readResponsePayload(response);
   if (!response.ok) {
     throw new ApiRequestError(
       toApiError(payload, "Authentication failed", response.status),
@@ -306,13 +333,17 @@ async function submitTourRequest(
   method: "POST" | "PATCH",
   body: Record<string, unknown>,
 ): Promise<SavedTourResponse> {
+  const csrf = await csrfHeaders();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     body: JSON.stringify(body),
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...csrf,
+    },
     method,
   });
-  const payload: unknown = await response.json();
+  const payload = await readResponsePayload(response);
   if (!response.ok) {
     throw new ApiRequestError(
       toApiError(payload, "Tour request failed", response.status),
@@ -322,6 +353,45 @@ async function submitTourRequest(
     throw new Error("Tour request returned an invalid response.");
   }
   return payload;
+}
+
+async function csrfHeaders(): Promise<Record<string, string>> {
+  let csrfToken = getCsrfToken();
+
+  if (!csrfToken) {
+    await fetch(`${API_BASE_URL}/api/v1/auth/session`, {
+      credentials: "include",
+    });
+    csrfToken = getCsrfToken();
+  }
+
+  return csrfToken ? { "X-CSRFToken": csrfToken } : {};
+}
+
+function getCsrfToken(): string | undefined {
+  const csrfCookie = document.cookie
+    .split("; ")
+    .find((value) => value.startsWith("csrftoken="))
+    ?.split("=")[1];
+
+  return csrfCookie ? decodeURIComponent(csrfCookie) : undefined;
+}
+
+async function readResponsePayload(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return {
+    code: "unexpected_response",
+    message:
+      response.status === 403
+        ? "Sicherheitspruefung fehlgeschlagen. Bitte Seite neu laden und erneut versuchen."
+        : `Server returned an unexpected response${text ? "." : ""}`,
+    details: {},
+  };
 }
 
 function toApiError(

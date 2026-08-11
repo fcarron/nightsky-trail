@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.urls import path
 
 from planner.api.views import (
+    AccountDeleteView,
     AuthLoginView,
     AuthLogoutView,
     AuthRegisterView,
@@ -22,6 +23,7 @@ urlpatterns = [
     path("auth/register", AuthRegisterView.as_view(), name="auth-register"),
     path("auth/login", AuthLoginView.as_view(), name="auth-login"),
     path("auth/logout", AuthLogoutView.as_view(), name="auth-logout"),
+    path("auth/account", AccountDeleteView.as_view(), name="auth-account-delete"),
     path("route/compute", RouteComputeView.as_view(), name="route-compute"),
     path("elevation/profile", ElevationProfileView.as_view(), name="elevation-profile"),
     path("search", SearchView.as_view(), name="search"),

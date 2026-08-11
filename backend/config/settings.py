@@ -3,14 +3,31 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "development-only-secret-key")
-DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
+DJANGO_ENV = os.environ.get("DJANGO_ENV", "development").lower()
+DEBUG = os.environ.get("DJANGO_DEBUG", str(DJANGO_ENV != "production")).lower() == "true"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if DJANGO_ENV != "production":
+        SECRET_KEY = "development-only-secret-key"
+    else:
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production.")
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if host.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
 ]
 
 INSTALLED_APPS = [
@@ -26,6 +43,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
 
@@ -47,6 +65,37 @@ USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+SESSION_COOKIE_NAME = "nightsky_sessionid"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_AGE = int(os.environ.get("DJANGO_SESSION_COOKIE_AGE_SECONDS", "1209600"))
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("BREVO_SMTP_HOST", "smtp-relay.brevo.com")
+EMAIL_PORT = int(os.environ.get("BREVO_SMTP_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("BREVO_SMTP_LOGIN", "")
+EMAIL_HOST_PASSWORD = os.environ.get("BREVO_SMTP_KEY", "")
+EMAIL_USE_TLS = os.environ.get("BREVO_SMTP_USE_TLS", "true").lower() == "true"
+EMAIL_TIMEOUT = int(os.environ.get("BREVO_SMTP_TIMEOUT_SECONDS", "10"))
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@nightskytrail.ch")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+AUTH_LOGIN_RATE_LIMIT = int(os.environ.get("AUTH_LOGIN_RATE_LIMIT", "8"))
+AUTH_LOGIN_RATE_WINDOW_SECONDS = int(os.environ.get("AUTH_LOGIN_RATE_WINDOW_SECONDS", "300"))
+AUTH_REGISTER_RATE_LIMIT = int(os.environ.get("AUTH_REGISTER_RATE_LIMIT", "5"))
+AUTH_REGISTER_RATE_WINDOW_SECONDS = int(os.environ.get("AUTH_REGISTER_RATE_WINDOW_SECONDS", "3600"))
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

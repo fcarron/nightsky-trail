@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { MutableRefObject } from "react";
+import type { FormEvent, MutableRefObject } from "react";
 
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
@@ -44,6 +44,8 @@ import {
   ApiRequestError,
   computeElevationProfile,
   computeRoute,
+  deleteAccount,
+  deleteSavedTour,
   createSavedTour,
   getAuthSession,
   getHealth,
@@ -69,6 +71,7 @@ type ElevationStatus = "idle" | "loading" | "ready" | "error";
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type MapInteractionMode = "explore" | "draw";
+type AuthMode = "login" | "register";
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
@@ -206,8 +209,21 @@ export function App() {
   });
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authPasswordConfirmation, setAuthPasswordConfirmation] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authFeedback, setAuthFeedback] = useState<{
+    tone: "error" | "success";
+    message: string;
+  } | null>(null);
+  const [accountDeletePassword, setAccountDeletePassword] = useState("");
+  const [accountDeleting, setAccountDeleting] = useState(false);
   const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
   const [activeTourId, setActiveTourId] = useState<string | null>(null);
+  const [tourName, setTourName] = useState(defaultTourName);
+  const [tourActionPending, setTourActionPending] = useState(false);
+  const [editingTourId, setEditingTourId] = useState<string | null>(null);
+  const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
   const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [tourMessage, setTourMessage] = useState<string | null>(null);
@@ -660,28 +676,64 @@ export function App() {
     setSelectedWaypointId(null);
   }
 
-  async function submitLogin(mode: "login" | "register") {
-    setTourMessage(null);
+  function selectAuthMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setAuthFeedback(null);
+    setAuthPassword("");
+    setAuthPasswordConfirmation("");
+  }
+
+  async function submitAuthentication(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const username = authUsername.trim();
+    if (!username || !authPassword) {
+      setAuthFeedback({
+        tone: "error",
+        message: "Benutzername und Passwort ausfüllen.",
+      });
+      return;
+    }
+    if (authMode === "register" && authPassword !== authPasswordConfirmation) {
+      setAuthFeedback({
+        tone: "error",
+        message: "Die beiden Passwörter stimmen nicht überein.",
+      });
+      return;
+    }
+
+    setAuthFeedback(null);
     try {
+      setAuthSubmitting(true);
       const session =
-        mode === "login"
-          ? await loginAccount(authUsername, authPassword)
-          : await registerAccount(authUsername, authPassword);
+        authMode === "login"
+          ? await loginAccount(username, authPassword)
+          : await registerAccount(username, authPassword);
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
-      setManageMenuOpen(false);
+      setAuthPasswordConfirmation("");
+      setAuthFeedback({
+        tone: "success",
+        message:
+          authMode === "login"
+            ? `Angemeldet als ${session.user?.username ?? username}.`
+            : `Konto erstellt. Angemeldet als ${session.user?.username ?? username}.`,
+      });
     } catch (error: unknown) {
-      setTourMessage(errorMessage(error));
+      setAuthFeedback({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setAuthSubmitting(false);
     }
   }
 
   async function submitLogout() {
     setTourMessage(null);
+    setAuthFeedback(null);
     try {
       const session = await logoutAccount();
       setAuthState({ ...session, status: "ready" });
       setSavedTours([]);
       setActiveTourId(null);
+      setTourName(defaultTourName());
       setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
@@ -693,19 +745,30 @@ export function App() {
       return;
     }
 
+    const name = tourName.trim();
+    if (!name) {
+      setTourMessage("Bitte einen Namen für die Tour eingeben.");
+      return;
+    }
+
     setTourMessage(null);
     try {
-      const name = defaultTourName();
+      setTourActionPending(true);
       const response = activeTourId
-        ? await updateSavedTour(activeTourId, { routeData: history.present })
+        ? await updateSavedTour(activeTourId, {
+            name,
+            routeData: history.present,
+          })
         : await createSavedTour(name, history.present);
       setActiveTourId(response.tour.id);
       const list = await listSavedTours();
       setSavedTours(list.tours);
+      setTourName(response.tour.name);
       setTourMessage("Tour gespeichert.");
-      setManageMenuOpen(false);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
+    } finally {
+      setTourActionPending(false);
     }
   }
 
@@ -715,11 +778,92 @@ export function App() {
       dispatch({ type: "replace", plan });
       setSelectedWaypointId(null);
       setActiveTourId(tour.id);
+      setTourName(tour.name);
       setRouteFitRequestId((requestId) => requestId + 1);
       setTourMessage(`Tour geladen: ${tour.name}`);
-      setManageMenuOpen(false);
     } catch {
       setTourMessage("Diese Tour kann nicht geladen werden.");
+    }
+  }
+
+  async function renameTour(tour: SavedTourDto) {
+    const name = editingTourName.trim();
+    if (!name) {
+      setTourMessage("Bitte einen Namen für die Tour eingeben.");
+      return;
+    }
+
+    setTourMessage(null);
+    try {
+      setTourActionPending(true);
+      const response = await updateSavedTour(tour.id, { name });
+      const list = await listSavedTours();
+      setSavedTours(list.tours);
+      if (response.tour.id === activeTourId) {
+        setTourName(response.tour.name);
+      }
+      setEditingTourId(null);
+      setEditingTourName("");
+      setTourMessage("Tour umbenannt.");
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    } finally {
+      setTourActionPending(false);
+    }
+  }
+
+  async function removeTour(tour: SavedTourDto) {
+    if (!window.confirm(`Tour "${tour.name}" endgültig löschen?`)) {
+      return;
+    }
+
+    setTourMessage(null);
+    try {
+      setTourActionPending(true);
+      await deleteSavedTour(tour.id);
+      const list = await listSavedTours();
+      setSavedTours(list.tours);
+      if (tour.id === activeTourId) {
+        setActiveTourId(null);
+        setTourName(defaultTourName());
+      }
+      setTourMessage("Tour gelöscht.");
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    } finally {
+      setTourActionPending(false);
+    }
+  }
+
+  async function removeAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accountDeletePassword) {
+      setAuthFeedback({
+        tone: "error",
+        message: "Passwort zur Bestätigung eingeben.",
+      });
+      return;
+    }
+    if (
+      !window.confirm("Konto und alle gespeicherten Touren endgültig löschen?")
+    ) {
+      return;
+    }
+
+    setAuthFeedback(null);
+    try {
+      setAccountDeleting(true);
+      await deleteAccount(accountDeletePassword);
+      setAuthState({ authenticated: false, status: "ready", user: null });
+      setAccountDeletePassword("");
+      setSavedTours([]);
+      setActiveTourId(null);
+      setTourName(defaultTourName());
+      setAuthFeedback({ tone: "success", message: "Konto wurde gelöscht." });
+    } catch (error: unknown) {
+      setAuthFeedback({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setAccountDeleting(false);
     }
   }
 
@@ -917,59 +1061,216 @@ export function App() {
                   <span>Angemeldet</span>
                   <strong>{authState.user?.username}</strong>
                 </div>
-                <button type="button" onClick={saveTour}>
-                  Speichern
-                </button>
-                <select
-                  aria-label="Gespeicherte Tour laden"
-                  value={activeTourId ?? ""}
-                  onChange={(event) => {
-                    const tour = savedTours.find(
-                      (item) => item.id === event.currentTarget.value,
-                    );
-                    if (tour) {
-                      loadTour(tour);
+                <div className="tourSaveForm">
+                  <label className="authField">
+                    <span>Tourname</span>
+                    <input
+                      aria-label="Tourname"
+                      value={tourName}
+                      onChange={(event) =>
+                        setTourName(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={
+                      tourActionPending ||
+                      history.present.waypoints.length === 0
                     }
-                  }}
-                >
-                  <option value="">Tour laden</option>
-                  {savedTours.map((tour) => (
-                    <option key={tour.id} value={tour.id}>
-                      {tour.name}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={submitLogout}>
-                  Logout
-                </button>
+                    onClick={saveTour}
+                  >
+                    {activeTourId ? "Änderungen speichern" : "Tour speichern"}
+                  </button>
+                </div>
+                <div className="savedTourList" aria-label="Gespeicherte Touren">
+                  <div className="savedTourListHeader">
+                    <strong>Gespeicherte Touren</strong>
+                    <span>{savedTours.length}</span>
+                  </div>
+                  {savedTours.length ? (
+                    savedTours.map((tour) => (
+                      <div className="savedTourRow" key={tour.id}>
+                        {editingTourId === tour.id ? (
+                          <form
+                            className="savedTourRenameForm"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void renameTour(tour);
+                            }}
+                          >
+                            <input
+                              aria-label={`Name von ${tour.name}`}
+                              value={editingTourName}
+                              onChange={(event) =>
+                                setEditingTourName(event.currentTarget.value)
+                              }
+                            />
+                            <button type="submit" disabled={tourActionPending}>
+                              Speichern
+                            </button>
+                            <button
+                              type="button"
+                              disabled={tourActionPending}
+                              onClick={() => {
+                                setEditingTourId(null);
+                                setEditingTourName("");
+                              }}
+                            >
+                              Abbrechen
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              className="savedTourLoadButton"
+                              type="button"
+                              aria-pressed={tour.id === activeTourId}
+                              onClick={() => loadTour(tour)}
+                            >
+                              {tour.name}
+                            </button>
+                            <div className="savedTourActions">
+                              <button
+                                type="button"
+                                disabled={tourActionPending}
+                                onClick={() => {
+                                  setEditingTourId(tour.id);
+                                  setEditingTourName(tour.name);
+                                }}
+                              >
+                                Umbenennen
+                              </button>
+                              <button
+                                className="dangerAction"
+                                type="button"
+                                disabled={tourActionPending}
+                                onClick={() => void removeTour(tour)}
+                              >
+                                Löschen
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="savedTourEmpty">
+                      Noch keine Tour gespeichert.
+                    </p>
+                  )}
+                </div>
+                <div className="accountActions">
+                  <button type="button" onClick={submitLogout}>
+                    Logout
+                  </button>
+                  <details className="accountDelete">
+                    <summary>Konto löschen</summary>
+                    <form onSubmit={removeAccount}>
+                      <label className="authField">
+                        <span>Passwort zur Bestätigung</span>
+                        <input
+                          autoComplete="current-password"
+                          type="password"
+                          value={accountDeletePassword}
+                          onChange={(event) =>
+                            setAccountDeletePassword(event.currentTarget.value)
+                          }
+                        />
+                      </label>
+                      <button type="submit" disabled={accountDeleting}>
+                        {accountDeleting
+                          ? "Bitte warten"
+                          : "Konto endgültig löschen"}
+                      </button>
+                    </form>
+                  </details>
+                </div>
               </>
             ) : (
-              <>
-                <input
-                  aria-label="Benutzername"
-                  placeholder="Benutzername"
-                  value={authUsername}
-                  onChange={(event) =>
-                    setAuthUsername(event.currentTarget.value)
-                  }
-                />
-                <input
-                  aria-label="Passwort"
-                  placeholder="Passwort"
-                  type="password"
-                  value={authPassword}
-                  onChange={(event) =>
-                    setAuthPassword(event.currentTarget.value)
-                  }
-                />
-                <button type="button" onClick={() => submitLogin("login")}>
-                  Login
+              <form className="authForm" onSubmit={submitAuthentication}>
+                <div
+                  className="authModeToggle"
+                  role="group"
+                  aria-label="Kontoaktion"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={authMode === "login"}
+                    onClick={() => selectAuthMode("login")}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={authMode === "register"}
+                    onClick={() => selectAuthMode("register")}
+                  >
+                    Registrieren
+                  </button>
+                </div>
+                <label className="authField">
+                  <span>Benutzername</span>
+                  <input
+                    autoComplete="username"
+                    value={authUsername}
+                    onChange={(event) =>
+                      setAuthUsername(event.currentTarget.value)
+                    }
+                  />
+                </label>
+                <label className="authField">
+                  <span>Passwort</span>
+                  <input
+                    autoComplete={
+                      authMode === "login" ? "current-password" : "new-password"
+                    }
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) =>
+                      setAuthPassword(event.currentTarget.value)
+                    }
+                  />
+                </label>
+                {authMode === "register" ? (
+                  <label className="authField">
+                    <span>Passwort bestätigen</span>
+                    <input
+                      autoComplete="new-password"
+                      type="password"
+                      value={authPasswordConfirmation}
+                      onChange={(event) =>
+                        setAuthPasswordConfirmation(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                ) : null}
+                <p className="authHint">
+                  {authMode === "register"
+                    ? "Mindestens 8 Zeichen."
+                    : "Mit deinem Benutzername und Passwort anmelden."}
+                </p>
+                <button
+                  className="authSubmit"
+                  type="submit"
+                  disabled={authSubmitting}
+                >
+                  {authSubmitting
+                    ? "Bitte warten"
+                    : authMode === "login"
+                      ? "Anmelden"
+                      : "Konto erstellen"}
                 </button>
-                <button type="button" onClick={() => submitLogin("register")}>
-                  Registrieren
-                </button>
-              </>
+              </form>
             )}
+            {authFeedback ? (
+              <p
+                className={`authFeedback authFeedback-${authFeedback.tone}`}
+                role="status"
+              >
+                {authFeedback.message}
+              </p>
+            ) : null}
           </section>
           <div className="fileActions" aria-label="Dateiaktionen">
             <button

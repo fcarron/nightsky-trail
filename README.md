@@ -30,7 +30,6 @@ The project is a local MVP/prototype. The core planning workflow works, includin
 
 Some parts are still prototype-level:
 
-- public deployment hardening
 - larger-scale trail overlay performance
 - production data import/update workflows
 - mobile polish
@@ -140,6 +139,7 @@ Important variables are documented in `.env.example`.
 Common local values:
 
 ```bash
+DJANGO_ENV=development
 DJANGO_DEBUG=true
 DJANGO_SECRET_KEY=change-me-in-development
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
@@ -156,6 +156,25 @@ For Docker Compose, the backend talks to GraphHopper through:
 ```bash
 GRAPHHOPPER_BASE_URL=http://graphhopper:8989
 ```
+
+### Production accounts and email
+
+Set `DJANGO_ENV=production`, a long random `DJANGO_SECRET_KEY`, the public host name, and the public HTTPS origin in `DJANGO_CSRF_TRUSTED_ORIGINS` before deploying. In production the app refuses to start without that secret. Sessions use secure, HTTP-only, same-site cookies and unsafe API requests are protected with Django CSRF tokens.
+
+Login and registration are rate-limited in Django's cache. For more than one backend process, configure Django's cache with a shared backend before scaling out.
+
+Transactional email uses Brevo SMTP when an email feature is added. Create an SMTP key in Brevo, verify the sending domain, and configure these values outside git:
+
+```bash
+BREVO_SMTP_HOST=smtp-relay.brevo.com
+BREVO_SMTP_PORT=587
+BREVO_SMTP_LOGIN=your-brevo-smtp-login
+BREVO_SMTP_KEY=your-brevo-smtp-key
+BREVO_SMTP_USE_TLS=true
+DEFAULT_FROM_EMAIL=noreply@your-domain.example
+```
+
+Brevo's SMTP key is distinct from its API key. The current account flow does not yet send verification or password-reset emails; the SMTP configuration is prepared for those future transactional messages.
 
 ## License
 

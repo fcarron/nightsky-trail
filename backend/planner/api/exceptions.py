@@ -45,6 +45,22 @@ class Unauthorized(APIException):
         }
 
 
+class TooManyRequests(APIException):
+    status_code = 429
+    default_code = "rate_limited"
+    default_detail = "Too many requests."
+
+    def __init__(
+        self,
+        message: str = "Too many attempts. Please try again later.",
+    ) -> None:
+        self.detail = {
+            "code": self.default_code,
+            "message": message,
+            "details": {},
+        }
+
+
 def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response | None:
     response = exception_handler(exc, context)
     if response is None:

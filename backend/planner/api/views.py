@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.api.exceptions import Unauthorized, UnprocessableEntity
+from planner.api.exceptions import TooManyRequests, Unauthorized, UnprocessableEntity
 from planner.api.serializers import (
+    AccountDeleteSerializer,
     AuthLoginSerializer,
     AuthRegisterSerializer,
     ElevationProfileRequestSerializer,
@@ -33,6 +36,7 @@ from planner.integrations.swisstopo import (
     SwisstopoUnavailableError,
 )
 from planner.models import SavedTour
+from planner.services.auth import login_attempt_allowed, registration_attempt_allowed
 from planner.services.routing import compute_route
 from planner.services.trails import build_trails_response
 
@@ -49,6 +53,7 @@ class HealthView(APIView):
         return Response({"status": "ok"})
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class AuthSessionView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -73,6 +78,7 @@ class AuthSessionView(APIView):
         )
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class AuthRegisterView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -92,6 +98,8 @@ class AuthRegisterView(APIView):
             )
 
         data = serializer.validated_data
+        if not registration_attempt_allowed(django_request(request), data["username"]):
+            raise TooManyRequests()
         user_model = get_user_model()
         if user_model.objects.filter(username=data["username"]).exists():
             raise UnprocessableEntity(
@@ -116,6 +124,7 @@ class AuthRegisterView(APIView):
         )
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class AuthLoginView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -135,6 +144,8 @@ class AuthLoginView(APIView):
             )
 
         data = serializer.validated_data
+        if not login_attempt_allowed(django_request(request), data["username"]):
+            raise TooManyRequests()
         user = authenticate(
             django_request(request),
             username=data["username"],
@@ -155,6 +166,7 @@ class AuthLoginView(APIView):
         )
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class AuthLogoutView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -168,6 +180,35 @@ class AuthLogoutView(APIView):
         return Response({"authenticated": False, "user": None})
 
 
+@method_decorator(csrf_protect, name="dispatch")
+class AccountDeleteView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="account_delete",
+        request=AccountDeleteSerializer,
+        responses={200: dict[str, bool]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = AccountDeleteSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_account_delete_request",
+                "Account deletion request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        user = authenticated_user(request)
+        if not user.check_password(serializer.validated_data["password"]):
+            raise Unauthorized("invalid_credentials", "Password is incorrect.", {})
+
+        logout(django_request(request))
+        user.delete()
+        return Response({"deleted": True})
+
+
+@method_decorator(csrf_protect, name="dispatch")
 class SavedTourListView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -207,6 +248,7 @@ class SavedTourListView(APIView):
         return Response({"tour": SavedTourSerializer(tour).data})
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class SavedTourDetailView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
