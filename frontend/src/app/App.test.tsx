@@ -83,6 +83,25 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Magnet" })).toBeInTheDocument();
   });
 
+  it("opens the tour menu above the route panel", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    expect(
+      screen.queryByRole("region", { name: "Konto und Touren" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tour" }));
+
+    expect(
+      screen.getByRole("region", { name: "Konto und Touren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "GPX Import" }),
+    ).toBeInTheDocument();
+  });
+
   it("reports an unavailable API when health fails", async () => {
     vi.stubGlobal(
       "fetch",

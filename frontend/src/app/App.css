@@ -52,6 +52,8 @@ button:disabled {
 }
 
 .topBar {
+  position: relative;
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -155,11 +157,19 @@ button:disabled {
 .topBar .manageMenu {
   flex: 0 0 auto;
   justify-self: auto;
+  z-index: 70;
 }
 
 .topBar .manageMenu > button {
   width: auto;
   min-width: 58px;
+}
+
+.topBar .managePanel {
+  position: fixed;
+  top: 58px;
+  right: 20px;
+  z-index: 80;
 }
 
 .searchResults {
@@ -2184,7 +2194,7 @@ button:disabled {
   }
 
   .topBar .managePanel {
-    top: calc(100% + 6px);
+    top: 92px;
     right: 0;
     bottom: auto;
     left: auto;
