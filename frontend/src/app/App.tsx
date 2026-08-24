@@ -72,6 +72,7 @@ type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type MapInteractionMode = "explore" | "draw";
 type AuthMode = "login" | "register";
+type TopMenu = "account" | "files" | "tours";
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
@@ -225,7 +226,7 @@ export function App() {
   const [editingTourId, setEditingTourId] = useState<string | null>(null);
   const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
-  const [manageMenuOpen, setManageMenuOpen] = useState(false);
+  const [openTopMenu, setOpenTopMenu] = useState<TopMenu | null>(null);
   const [tourMessage, setTourMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState<SearchStatus>("idle");
@@ -276,7 +277,7 @@ export function App() {
   const searchControllerRef = useRef<AbortController | null>(null);
   const searchTimerRef = useRef<number | null>(null);
   const gpxInputRef = useRef<HTMLInputElement | null>(null);
-  const manageMenuRef = useRef<HTMLDivElement | null>(null);
+  const topMenuRef = useRef<HTMLDivElement | null>(null);
   const effectiveComputedRoute =
     history.present.waypoints.length >= 2 ? routeComputeState.route : null;
   const effectiveRouteComputeStatus =
@@ -409,21 +410,21 @@ export function App() {
   }, [history.present]);
 
   useEffect(() => {
-    if (!manageMenuOpen) {
+    if (!openTopMenu) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
-      if (target instanceof Node && manageMenuRef.current?.contains(target)) {
+      if (target instanceof Node && topMenuRef.current?.contains(target)) {
         return;
       }
-      setManageMenuOpen(false);
+      setOpenTopMenu(null);
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setManageMenuOpen(false);
+        setOpenTopMenu(null);
       }
     }
 
@@ -433,7 +434,7 @@ export function App() {
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [manageMenuOpen]);
+  }, [openTopMenu]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -734,7 +735,7 @@ export function App() {
       setSavedTours([]);
       setActiveTourId(null);
       setTourName(defaultTourName());
-      setManageMenuOpen(false);
+      setOpenTopMenu(null);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -887,7 +888,7 @@ export function App() {
     link.click();
     URL.revokeObjectURL(url);
     setTourMessage("GPX exportiert.");
-    setManageMenuOpen(false);
+    setOpenTopMenu(null);
   }
 
   async function importGpxFile(file: File) {
@@ -899,7 +900,7 @@ export function App() {
       setSelectedWaypointId(null);
       setRouteFitRequestId((requestId) => requestId + 1);
       setTourMessage("GPX importiert. Original-Track bleibt erhalten.");
-      setManageMenuOpen(false);
+      setOpenTopMenu(null);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
     }
@@ -1043,24 +1044,22 @@ export function App() {
     }));
   }
 
-  const tourMenu = (
-    <div className="manageMenu topManageMenu" ref={manageMenuRef}>
-      <button
-        type="button"
-        aria-expanded={manageMenuOpen}
-        onClick={() => setManageMenuOpen((open) => !open)}
-      >
-        Tour
-      </button>
-      {manageMenuOpen ? (
-        <div className="managePanel">
-          <section className="accountPanel" aria-label="Konto und Touren">
+  const topMenus = (
+    <div className="topMenuGroup" ref={topMenuRef}>
+      <div className="manageMenu topManageMenu">
+        <button
+          type="button"
+          aria-expanded={openTopMenu === "tours"}
+          onClick={() =>
+            setOpenTopMenu((menu) => (menu === "tours" ? null : "tours"))
+          }
+        >
+          Meine Touren
+        </button>
+        {openTopMenu === "tours" ? (
+          <div className="managePanel" aria-label="Meine Touren">
             {authState.authenticated ? (
               <>
-                <div className="accountIdentity">
-                  <span>Angemeldet</span>
-                  <strong>{authState.user?.username}</strong>
-                </div>
                 <div className="tourSaveForm">
                   <label className="authField">
                     <span>Tourname</span>
@@ -1160,138 +1159,195 @@ export function App() {
                     </p>
                   )}
                 </div>
-                <div className="accountActions">
-                  <button type="button" onClick={submitLogout}>
-                    Logout
-                  </button>
-                  <details className="accountDelete">
-                    <summary>Konto löschen</summary>
-                    <form onSubmit={removeAccount}>
-                      <label className="authField">
-                        <span>Passwort zur Bestätigung</span>
-                        <input
-                          autoComplete="current-password"
-                          type="password"
-                          value={accountDeletePassword}
-                          onChange={(event) =>
-                            setAccountDeletePassword(event.currentTarget.value)
-                          }
-                        />
-                      </label>
-                      <button type="submit" disabled={accountDeleting}>
-                        {accountDeleting
-                          ? "Bitte warten"
-                          : "Konto endgültig löschen"}
-                      </button>
-                    </form>
-                  </details>
-                </div>
               </>
             ) : (
-              <form className="authForm" onSubmit={submitAuthentication}>
-                <div
-                  className="authModeToggle"
-                  role="group"
-                  aria-label="Kontoaktion"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={authMode === "login"}
-                    onClick={() => selectAuthMode("login")}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={authMode === "register"}
-                    onClick={() => selectAuthMode("register")}
-                  >
-                    Registrieren
-                  </button>
-                </div>
-                <label className="authField">
-                  <span>Benutzername</span>
-                  <input
-                    autoComplete="username"
-                    value={authUsername}
-                    onChange={(event) =>
-                      setAuthUsername(event.currentTarget.value)
-                    }
-                  />
-                </label>
-                <label className="authField">
-                  <span>Passwort</span>
-                  <input
-                    autoComplete={
-                      authMode === "login" ? "current-password" : "new-password"
-                    }
-                    type="password"
-                    value={authPassword}
-                    onChange={(event) =>
-                      setAuthPassword(event.currentTarget.value)
-                    }
-                  />
-                </label>
-                {authMode === "register" ? (
-                  <label className="authField">
-                    <span>Passwort bestätigen</span>
-                    <input
-                      autoComplete="new-password"
-                      type="password"
-                      value={authPasswordConfirmation}
-                      onChange={(event) =>
-                        setAuthPasswordConfirmation(event.currentTarget.value)
-                      }
-                    />
-                  </label>
-                ) : null}
-                <p className="authHint">
-                  {authMode === "register"
-                    ? "Mindestens 8 Zeichen."
-                    : "Mit deinem Benutzername und Passwort anmelden."}
-                </p>
-                <button
-                  className="authSubmit"
-                  type="submit"
-                  disabled={authSubmitting}
-                >
-                  {authSubmitting
-                    ? "Bitte warten"
-                    : authMode === "login"
-                      ? "Anmelden"
-                      : "Konto erstellen"}
+              <div className="menuEmptyState">
+                <strong>Touren speichern</strong>
+                <span>
+                  Mit einem Konto bleiben deine Touren auf diesem Gerät
+                  verfügbar.
+                </span>
+                <button type="button" onClick={() => setOpenTopMenu("account")}>
+                  Anmelden
                 </button>
-              </form>
+              </div>
             )}
-            {authFeedback ? (
-              <p
-                className={`authFeedback authFeedback-${authFeedback.tone}`}
-                role="status"
-              >
-                {authFeedback.message}
-              </p>
-            ) : null}
-          </section>
-          <div className="fileActions" aria-label="Dateiaktionen">
+          </div>
+        ) : null}
+      </div>
+
+      <div className="manageMenu topManageMenu">
+        <button
+          type="button"
+          aria-expanded={openTopMenu === "files"}
+          onClick={() =>
+            setOpenTopMenu((menu) => (menu === "files" ? null : "files"))
+          }
+        >
+          Datei
+        </button>
+        {openTopMenu === "files" ? (
+          <div className="managePanel filePanel" aria-label="Dateiaktionen">
             <button
               type="button"
               onClick={() => {
-                setManageMenuOpen(false);
+                setOpenTopMenu(null);
                 gpxInputRef.current?.click();
               }}
             >
-              GPX Import
+              GPX importieren
             </button>
             <button
               type="button"
               disabled={history.present.waypoints.length < 2}
               onClick={exportGpx}
             >
-              GPX Export
+              GPX exportieren
             </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+
+      <div className="manageMenu topManageMenu">
+        <button
+          type="button"
+          aria-expanded={openTopMenu === "account"}
+          onClick={() =>
+            setOpenTopMenu((menu) => (menu === "account" ? null : "account"))
+          }
+        >
+          {authState.authenticated
+            ? (authState.user?.username ?? "Konto")
+            : "Konto"}
+        </button>
+        {openTopMenu === "account" ? (
+          <div className="managePanel" aria-label="Konto">
+            <section className="accountPanel">
+              {authState.authenticated ? (
+                <>
+                  <div className="accountIdentity">
+                    <span>Angemeldet</span>
+                    <strong>{authState.user?.username}</strong>
+                  </div>
+                  <div className="accountActions">
+                    <button type="button" onClick={submitLogout}>
+                      Logout
+                    </button>
+                    <details className="accountDelete">
+                      <summary>Konto löschen</summary>
+                      <form onSubmit={removeAccount}>
+                        <label className="authField">
+                          <span>Passwort zur Bestätigung</span>
+                          <input
+                            autoComplete="current-password"
+                            type="password"
+                            value={accountDeletePassword}
+                            onChange={(event) =>
+                              setAccountDeletePassword(
+                                event.currentTarget.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <button type="submit" disabled={accountDeleting}>
+                          {accountDeleting
+                            ? "Bitte warten"
+                            : "Konto endgültig löschen"}
+                        </button>
+                      </form>
+                    </details>
+                  </div>
+                </>
+              ) : (
+                <form className="authForm" onSubmit={submitAuthentication}>
+                  <div
+                    className="authModeToggle"
+                    role="group"
+                    aria-label="Kontoaktion"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={authMode === "login"}
+                      onClick={() => selectAuthMode("login")}
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={authMode === "register"}
+                      onClick={() => selectAuthMode("register")}
+                    >
+                      Registrieren
+                    </button>
+                  </div>
+                  <label className="authField">
+                    <span>Benutzername</span>
+                    <input
+                      autoComplete="username"
+                      value={authUsername}
+                      onChange={(event) =>
+                        setAuthUsername(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <label className="authField">
+                    <span>Passwort</span>
+                    <input
+                      autoComplete={
+                        authMode === "login"
+                          ? "current-password"
+                          : "new-password"
+                      }
+                      type="password"
+                      value={authPassword}
+                      onChange={(event) =>
+                        setAuthPassword(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  {authMode === "register" ? (
+                    <label className="authField">
+                      <span>Passwort bestätigen</span>
+                      <input
+                        autoComplete="new-password"
+                        type="password"
+                        value={authPasswordConfirmation}
+                        onChange={(event) =>
+                          setAuthPasswordConfirmation(event.currentTarget.value)
+                        }
+                      />
+                    </label>
+                  ) : null}
+                  <p className="authHint">
+                    {authMode === "register"
+                      ? "Mindestens 8 Zeichen."
+                      : "Mit deinem Benutzername und Passwort anmelden."}
+                  </p>
+                  <button
+                    className="authSubmit"
+                    type="submit"
+                    disabled={authSubmitting}
+                  >
+                    {authSubmitting
+                      ? "Bitte warten"
+                      : authMode === "login"
+                        ? "Anmelden"
+                        : "Konto erstellen"}
+                  </button>
+                </form>
+              )}
+              {authFeedback ? (
+                <p
+                  className={`authFeedback authFeedback-${authFeedback.tone}`}
+                  role="status"
+                >
+                  {authFeedback.message}
+                </p>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 
@@ -1354,7 +1410,7 @@ export function App() {
               {healthLabel}
             </span>
           ) : null}
-          {tourMenu}
+          {topMenus}
         </div>
       </header>
 

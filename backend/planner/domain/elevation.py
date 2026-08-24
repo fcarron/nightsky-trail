@@ -141,16 +141,24 @@ def smooth_elevations_for_window(
 
 
 def calculate_ascent_descent(smoothed_elevations: list[float]) -> tuple[float, float]:
+    if len(smoothed_elevations) < 2:
+        return 0.0, 0.0
+
     ascent = 0.0
     descent = 0.0
-    for previous, current in zip(smoothed_elevations, smoothed_elevations[1:], strict=False):
-        delta = current - previous
-        if abs(delta) < ASCENT_DELTA_THRESHOLD_METERS:
+    pending_delta = 0.0
+    previous = smoothed_elevations[0]
+
+    for current in smoothed_elevations[1:]:
+        pending_delta += current - previous
+        previous = current
+        if abs(pending_delta) < ASCENT_DELTA_THRESHOLD_METERS:
             continue
-        if delta > 0:
-            ascent += delta
+        if pending_delta > 0:
+            ascent += pending_delta
         else:
-            descent += abs(delta)
+            descent += abs(pending_delta)
+        pending_delta = 0.0
     return ascent, descent
 
 

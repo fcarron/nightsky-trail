@@ -83,23 +83,26 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Magnet" })).toBeInTheDocument();
   });
 
-  it("opens the tour menu above the route panel", async () => {
+  it("keeps tours, account, and GPX actions in separate menus", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", createFetchMock());
 
     render(<App />);
 
-    expect(
-      screen.queryByRole("region", { name: "Konto und Touren" }),
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Tour" }));
+    expect(screen.queryByLabelText("Meine Touren")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Meine Touren" }));
 
+    expect(screen.getByLabelText("Meine Touren")).toBeInTheDocument();
+    expect(screen.getByText("Touren speichern")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Datei" }));
     expect(
-      screen.getByRole("region", { name: "Konto und Touren" }),
+      screen.getByRole("button", { name: "GPX importieren" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "GPX Import" }),
-    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Konto" }));
+    expect(screen.getByLabelText("Konto")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Login" })).toBeInTheDocument();
   });
 
   it("checks the password confirmation before registering", async () => {
@@ -109,7 +112,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Tour" }));
+    await user.click(screen.getByRole("button", { name: "Konto" }));
     await user.click(screen.getByRole("button", { name: "Registrieren" }));
     await user.type(screen.getByLabelText("Benutzername"), "runner");
     await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
@@ -129,7 +132,7 @@ describe("App", () => {
     ).toBe(false);
   });
 
-  it("confirms a successful registration in the open tour menu", async () => {
+  it("confirms a successful registration in the open account menu", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -146,7 +149,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Tour" }));
+    await user.click(screen.getByRole("button", { name: "Konto" }));
     await user.click(screen.getByRole("button", { name: "Registrieren" }));
     await user.type(screen.getByLabelText("Benutzername"), "runner");
     await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");

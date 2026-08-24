@@ -6,6 +6,7 @@ from planner.domain.elevation import (
     ElevationSample,
     ElevationValidationError,
     build_elevation_profile,
+    calculate_ascent_descent,
     calculate_swiss_hiking_time,
     evaluate_swiss_hiking_polynomial,
     swiss_hiking_minutes_per_km,
@@ -37,6 +38,15 @@ def test_build_elevation_profile_rejects_too_few_samples() -> None:
         build_elevation_profile([ElevationSample(0, 500, 7.4, 46.9)])
 
     assert error.value.code == "too_few_elevation_samples"
+
+
+def test_ascent_descent_accumulates_small_real_elevation_changes() -> None:
+    ascent, descent = calculate_ascent_descent(
+        [500, 500.5, 501, 501.5, 502, 502.5, 503, 503.5, 504]
+    )
+
+    assert ascent == pytest.approx(4)
+    assert descent == pytest.approx(0)
 
 
 def test_swiss_hiking_time_flat_route_uses_flat_polynomial_pace() -> None:
