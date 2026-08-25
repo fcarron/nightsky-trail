@@ -1002,7 +1002,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   margin: 0 0 0;
   border: 0;
   border-bottom: 0;
@@ -1011,44 +1011,37 @@ button:disabled {
   padding: 0;
 }
 
-.drawModePanel div:first-child {
-  display: grid;
-  gap: 2px;
+.drawModeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.drawModePanel strong {
+.drawModeHeader > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drawModeHeader strong {
   color: #111827;
   font-size: 13px;
 }
 
-.drawModePanel span {
+.drawModeHeader span {
+  display: block;
+  overflow: hidden;
   color: #66717d;
   font-size: 11px;
-}
-
-.drawModeButtons {
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(70px, 1fr));
-  gap: 3px;
-  border: 1px solid #d8dee5;
-  border-radius: 2px;
-  background: #ffffff;
-  padding: 2px;
-}
-
-.routeProfileButtons {
-  display: inline-grid;
-  grid-template-columns: repeat(3, minmax(60px, 1fr));
-  gap: 3px;
-  border: 1px solid #d8dee5;
-  border-radius: 2px;
-  background: #ffffff;
-  padding: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mapInteractionButtons {
   display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 0 0 auto;
+  grid-template-columns: auto auto;
   gap: 3px;
   border: 1px solid #d8dee5;
   border-radius: 2px;
@@ -1057,12 +1050,12 @@ button:disabled {
 }
 
 .mapInteractionButtons button {
-  min-height: 28px;
+  min-height: 27px;
   border: 0;
   border-radius: 2px;
   background: transparent;
   color: #66717d;
-  padding: 0 9px;
+  padding: 0 8px;
   font-size: 11px;
   font-weight: 750;
 }
@@ -1077,47 +1070,118 @@ button:disabled {
   color: var(--color-accent);
 }
 
-.routeProfileButtons button {
-  min-height: 24px;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
+.drawToolSettings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  border-top: 1px solid #e3e8ee;
+  padding-top: 7px;
+}
+
+.routeProfileSelect {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.routeProfileSelect > span {
   color: #66717d;
-  padding: 0 8px;
   font-size: 11px;
+}
+
+.routeProfileSelect select {
+  width: 100%;
+  min-height: 28px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 25px 0 8px;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.routeProfileButtons button[aria-pressed="true"] {
+.routeProfileSelect select:focus {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.16);
+  border-color: var(--color-accent);
+}
+
+.routeFollowToggle {
+  display: inline-flex;
+  min-height: 28px;
+  cursor: pointer;
+  align-items: center;
+  gap: 7px;
+  user-select: none;
+}
+
+.routeFollowToggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.routeFollowTrack {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 17px;
+  flex: 0 0 auto;
+  border: 1px solid #aeb9c5;
+  border-radius: 999px;
+  background: #d8dee5;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.routeFollowTrack > span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 120ms ease;
+}
+
+.routeFollowToggle input:checked + .routeFollowTrack {
+  border-color: var(--color-accent-strong);
   background: var(--color-accent-strong);
-  color: #ffffff;
 }
 
-.routeProfileButtons button:hover:not([aria-pressed="true"]) {
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+.routeFollowToggle input:checked + .routeFollowTrack > span {
+  transform: translateX(13px);
 }
 
-.drawModeButtons button {
-  min-height: 24px;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  color: #66717d;
-  padding: 0 8px;
+.routeFollowToggle input:focus-visible + .routeFollowTrack {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.28);
+  outline-offset: 2px;
+}
+
+.routeFollowLabel {
+  display: grid;
+  gap: 0;
+  min-width: 66px;
+}
+
+.routeFollowLabel strong {
+  color: #111827;
   font-size: 11px;
-  font-weight: 700;
+  line-height: 1.2;
 }
 
-.drawModeButtons button[aria-pressed="true"] {
-  background: var(--color-accent-strong);
-  color: #ffffff;
-  font-weight: 750;
-}
-
-.drawModeButtons button:hover:not([aria-pressed="true"]) {
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+.routeFollowLabel small {
+  color: #66717d;
+  font-size: 10px;
+  line-height: 1.2;
 }
 
 .loopCard {

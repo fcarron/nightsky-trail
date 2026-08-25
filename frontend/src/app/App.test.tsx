@@ -73,14 +73,18 @@ describe("App", () => {
 
     expect(screen.getByText("Karte erkunden")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Strasse" }),
+      screen.queryByRole("combobox", { name: "Routing-Profil" }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
 
     expect(screen.getByText("Zeichnen")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Strasse" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Magnet" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Routing-Profil" }),
+    ).toHaveValue("hike");
+    expect(
+      screen.getByRole("checkbox", { name: "Wegen folgen" }),
+    ).toBeChecked();
   });
 
   it("keeps tours, account, and GPX actions in separate menus", async () => {
@@ -371,9 +375,11 @@ describe("App", () => {
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
     await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
-    const veloButton = screen.getByRole("button", { name: "Velo" });
-    await user.click(veloButton);
-    expect(veloButton).toHaveAttribute("aria-pressed", "true");
+    const profileSelect = screen.getByRole("combobox", {
+      name: "Routing-Profil",
+    });
+    await user.selectOptions(profileSelect, "bike");
+    expect(profileSelect).toHaveValue("bike");
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([url]) =>

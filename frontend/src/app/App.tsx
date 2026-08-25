@@ -1457,92 +1457,85 @@ export function App() {
           />
 
           <section className="drawModePanel" aria-label="Zeichnen">
-            <div>
-              <strong>
-                {mapInteractionMode === "draw" ? "Zeichnen" : "Karte erkunden"}
-              </strong>
-              <span>
-                {mapInteractionMode === "draw"
-                  ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
-                  : "Klick auf Kartenobjekte zeigt Details."}
-              </span>
-            </div>
-            <div
-              className="mapInteractionButtons"
-              role="group"
-              aria-label="Kartenwerkzeug"
-            >
-              <button
-                type="button"
-                aria-pressed={mapInteractionMode === "explore"}
-                onClick={() => setMapInteractionMode("explore")}
+            <div className="drawModeHeader">
+              <div>
+                <strong>
+                  {mapInteractionMode === "draw"
+                    ? "Zeichnen"
+                    : "Karte erkunden"}
+                </strong>
+                <span>
+                  {mapInteractionMode === "draw"
+                    ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
+                    : "Klick auf Kartenobjekte zeigt Details."}
+                </span>
+              </div>
+              <div
+                className="mapInteractionButtons"
+                role="group"
+                aria-label="Kartenwerkzeug"
               >
-                Erkunden
-              </button>
-              <button
-                type="button"
-                aria-pressed={mapInteractionMode === "draw"}
-                onClick={() => setMapInteractionMode("draw")}
-              >
-                Route zeichnen
-              </button>
+                <button
+                  type="button"
+                  aria-pressed={mapInteractionMode === "explore"}
+                  onClick={() => setMapInteractionMode("explore")}
+                >
+                  Erkunden
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={mapInteractionMode === "draw"}
+                  onClick={() => setMapInteractionMode("draw")}
+                >
+                  Route zeichnen
+                </button>
+              </div>
             </div>
             {mapInteractionMode === "draw" ? (
-              <>
-                <div
-                  className="routeProfileButtons"
-                  role="group"
-                  aria-label="Routing-Profil"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={history.present.routingProfile === "foot"}
-                    onClick={() =>
-                      dispatch({ type: "set-routing-profile", profile: "foot" })
+              <div className="drawToolSettings">
+                <label className="routeProfileSelect">
+                  <span>Routing</span>
+                  <select
+                    aria-label="Routing-Profil"
+                    value={history.present.routingProfile}
+                    onChange={(event) => {
+                      const profile = event.currentTarget.value;
+                      if (
+                        profile === "foot" ||
+                        profile === "hike" ||
+                        profile === "bike"
+                      ) {
+                        dispatch({ type: "set-routing-profile", profile });
+                      }
+                    }}
+                  >
+                    <option value="hike">Trail</option>
+                    <option value="foot">Strasse</option>
+                    <option value="bike">Velo</option>
+                  </select>
+                </label>
+                <label className="routeFollowToggle">
+                  <input
+                    type="checkbox"
+                    aria-label="Wegen folgen"
+                    checked={drawingMode === "routed"}
+                    onChange={(event) =>
+                      setDrawingMode(
+                        event.currentTarget.checked ? "routed" : "straight",
+                      )
                     }
-                  >
-                    Strasse
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={history.present.routingProfile === "hike"}
-                    onClick={() =>
-                      dispatch({ type: "set-routing-profile", profile: "hike" })
-                    }
-                  >
-                    Trail
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={history.present.routingProfile === "bike"}
-                    onClick={() =>
-                      dispatch({ type: "set-routing-profile", profile: "bike" })
-                    }
-                  >
-                    Velo
-                  </button>
-                </div>
-                <div
-                  className="drawModeButtons"
-                  role="group"
-                  aria-label="Zeichenmodus"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={drawingMode === "routed"}
-                    onClick={() => setDrawingMode("routed")}
-                  >
-                    Magnet
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={drawingMode === "straight"}
-                    onClick={() => setDrawingMode("straight")}
-                  >
-                    Gerade
-                  </button>
-                </div>
-              </>
+                  />
+                  <span className="routeFollowTrack" aria-hidden="true">
+                    <span />
+                  </span>
+                  <span className="routeFollowLabel">
+                    <strong>Wegen folgen</strong>
+                    <small>
+                      {drawingMode === "routed" ? "Magnet" : "Gerade"}
+                    </small>
+                  </span>
+                </label>
+              </div>
             ) : null}
           </section>
 
