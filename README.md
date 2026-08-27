@@ -97,6 +97,19 @@ npm run build
 
 If your local Node version is too old for the frontend toolchain, run the frontend checks inside Docker.
 
+## Production deployment
+
+Production uses a separate Compose stack with three services:
+
+- a small Nginx gateway serving the React build and proxying `/api/`;
+- Django running with Gunicorn;
+- GraphHopper with persistent Swiss OSM data and graph cache.
+
+The gateway can join an existing external Docker network, allowing an existing TLS Nginx to
+proxy the complete site without exposing additional host ports. See
+[docs/deployment.md](docs/deployment.md) for the `/opt/nightsky-trail` installation, Nginx
+example, migrations, updates, and backups.
+
 ## Data Sources
 
 nightsky trail combines several external data sources:
@@ -143,7 +156,7 @@ DJANGO_ENV=development
 DJANGO_DEBUG=true
 DJANGO_SECRET_KEY=change-me-in-development
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5173
+DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:5173
 
 GRAPHHOPPER_BASE_URL=http://localhost:8989
 GRAPHHOPPER_PROFILE=hike

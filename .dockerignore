@@ -3,7 +3,9 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 .venv
+backend/.venv
 __pycache__
 *.py[cod]
 .pytest_cache

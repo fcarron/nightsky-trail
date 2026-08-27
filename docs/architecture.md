@@ -57,3 +57,12 @@ The elevation implementation uses swisstopo profile data as the source of truth.
 ## Caching
 
 Use Django's cache interface first. Planned cache keys include elevation by geometry hash. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. The official swisstopo GeoPackage is cached under `data/swisstopo/`. Redis is not part of the scaffold.
+
+## Production topology
+
+Production is a separate Docker Compose stack. A small Nginx gateway serves the compiled React
+assets and proxies same-origin `/api/` requests to one Gunicorn process with four threads. The
+gateway alone joins the server's existing edge network; Django and GraphHopper stay on a private
+application network. SQLite, source datasets, generated OSM indexes, and the GraphHopper cache
+use persistent bind mounts under `/opt/nightsky-trail/data`. See
+[`deployment.md`](deployment.md) for installation and operational commands.
