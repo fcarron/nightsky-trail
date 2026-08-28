@@ -93,6 +93,12 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@nightskytrail
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "http://localhost:5173").rstrip("/")
 PASSWORD_RESET_TIMEOUT = int(os.environ.get("AUTH_TOKEN_TIMEOUT_SECONDS", "1800"))
+MONITORING_REPORT_RECIPIENTS = [
+    address.strip()
+    for address in os.environ.get("MONITORING_REPORT_RECIPIENTS", "").split(",")
+    if address.strip()
+]
+MONITORING_REPORT_LOOKBACK_HOURS = int(os.environ.get("MONITORING_REPORT_LOOKBACK_HOURS", "24"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

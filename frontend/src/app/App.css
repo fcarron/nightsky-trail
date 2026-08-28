@@ -394,7 +394,8 @@ button:disabled {
   margin: 0;
 }
 
-.aboutInstall {
+.aboutInstall,
+.aboutNotice {
   display: grid;
   gap: 4px;
   border-top: 1px solid #d8dee5;
@@ -402,7 +403,8 @@ button:disabled {
   padding-top: 7px;
 }
 
-.aboutInstall strong {
+.aboutInstall strong,
+.aboutNotice strong {
   color: #111827;
   font-size: 12px;
 }

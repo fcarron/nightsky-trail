@@ -188,6 +188,32 @@ docker compose --env-file .env.production -f compose.production.yaml logs -f nig
 docker compose --env-file .env.production -f compose.production.yaml restart nightsky_backend
 ```
 
+### Daily monitoring report
+
+Set `MONITORING_REPORT_RECIPIENTS` in `.env.production` to one or more comma-separated
+addresses. `MONITORING_REPORT_LOOKBACK_HOURS` controls the statistics window and defaults to
+24 hours. The report contains aggregate account and saved-tour counts only; it does not include
+email addresses or route data.
+
+Test the report manually:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yaml exec -T \
+  nightsky_backend python manage.py send_monitoring_report --dry-run
+docker compose --env-file .env.production -f compose.production.yaml exec -T \
+  nightsky_backend python manage.py send_monitoring_report
+```
+
+Schedule delivery on the host with `crontab -e`. This example sends it every day at 06:15:
+
+```cron
+15 6 * * * cd /opt/nightsky-trail && /usr/bin/docker compose --env-file .env.production -f compose.production.yaml exec -T nightsky_backend python manage.py send_monitoring_report >> /var/log/nightsky-trail-monitoring.log 2>&1
+```
+
+Change the cron expression to change the delivery schedule. Because this command runs inside
+the application container, it cannot report a stopped container; retain a separate external
+HTTP uptime check for availability alerts.
+
 Do not scale the Django backend above one process yet. Authentication rate limits use the
 in-process Django cache, and SQLite is intentionally retained for this lightweight deployment.
 A shared cache and PostgreSQL should be introduced together only when actual load requires it.

@@ -84,6 +84,20 @@ describe("App", () => {
     expect(header).not.toHaveClass("mobileHeaderOpen");
   });
 
+  it("shows the planning limitations in the app information", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Info" }));
+
+    expect(screen.getByText("Planungshinweis")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sperrungen und Wegzustand können fehlen/),
+    ).toBeInTheDocument();
+  });
+
   it("starts in exploration mode and enables route tools explicitly", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", createFetchMock());

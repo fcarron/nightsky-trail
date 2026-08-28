@@ -1349,6 +1349,14 @@ export function App() {
               Wanderwege zeigen wir zusätzlich vorhandene T3- und T4-Hinweise
               aus OpenStreetMap.
             </p>
+            <div className="aboutNotice">
+              <strong>Planungshinweis</strong>
+              <span>
+                Schwierigkeit, Sperrungen und Wegzustand können fehlen, veraltet
+                oder falsch sein. Prüfe die Route und aktuelle Bedingungen vor
+                Ort und plane passend zu deiner Erfahrung.
+              </span>
+            </div>
             <div className="aboutInstall">
               <strong>Auf dem Handy nutzen</strong>
               <span>
