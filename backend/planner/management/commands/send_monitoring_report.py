@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -11,6 +12,7 @@ from django.core.validators import validate_email
 from django.utils import timezone
 
 from planner.models import SavedTour
+from planner.services.database_backup import latest_database_backup
 
 
 class Command(BaseCommand):
@@ -50,6 +52,7 @@ class Command(BaseCommand):
         user_model = get_user_model()
         users = user_model.objects.all()
         tours = SavedTour.objects.all()
+        backup_status = _database_backup_status(settings.DATABASE_BACKUP_DIR)
 
         subject = f"[nightsky trail] Bericht {timezone.localtime(now):%Y-%m-%d}"
         body = "\n".join(
@@ -72,6 +75,9 @@ class Command(BaseCommand):
                 f"- Neu im Zeitraum: {tours.filter(created_at__gte=since).count()}",
                 f"- Bearbeitet im Zeitraum: {tours.filter(updated_at__gte=since).count()}",
                 f"- Konten mit Touren: {tours.values('owner_id').distinct().count()}",
+                "",
+                "Datenbank-Backup",
+                f"- {backup_status}",
                 "",
                 "Status: Django und Datenbankabfragen erfolgreich.",
                 "Der Bericht enthält keine E-Mail-Adressen oder Routendaten.",
@@ -101,3 +107,15 @@ def _validate_recipients(recipients: list[str]) -> None:
             validate_email(recipient)
         except ValidationError as error:
             raise CommandError(f"Invalid monitoring recipient: {recipient}") from error
+
+
+def _database_backup_status(directory: Path) -> str:
+    backup = latest_database_backup(directory)
+    if backup is None:
+        return "Kein Backup gefunden."
+
+    modified_at = datetime.fromtimestamp(backup.stat().st_mtime, tz=UTC)
+    age = timezone.now() - modified_at
+    age_hours = max(0, int(age.total_seconds() // 3600))
+    size_megabytes = backup.stat().st_size / (1024 * 1024)
+    return f"Letztes Backup vor {age_hours} h ({size_megabytes:.2f} MiB)."

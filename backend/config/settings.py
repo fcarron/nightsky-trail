@@ -99,6 +99,13 @@ MONITORING_REPORT_RECIPIENTS = [
     if address.strip()
 ]
 MONITORING_REPORT_LOOKBACK_HOURS = int(os.environ.get("MONITORING_REPORT_LOOKBACK_HOURS", "24"))
+DATABASE_BACKUP_DIR = Path(
+    os.environ.get(
+        "DATABASE_BACKUP_DIR",
+        Path(DATABASES["default"]["NAME"]).parent / "backups",
+    )
+)
+DATABASE_BACKUP_KEEP = int(os.environ.get("DATABASE_BACKUP_KEEP", "14"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

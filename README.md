@@ -189,6 +189,8 @@ PUBLIC_APP_URL=https://trail.your-domain.example
 AUTH_TOKEN_TIMEOUT_SECONDS=1800
 MONITORING_REPORT_RECIPIENTS=admin@your-domain.example
 MONITORING_REPORT_LOOKBACK_HOURS=24
+DATABASE_BACKUP_DIR=/data/app/backups
+DATABASE_BACKUP_KEEP=14
 ```
 
 Brevo's SMTP key is distinct from its API key. Verify the sending domain in Brevo and configure SPF, DKIM, and DMARC before enabling production registrations. `PUBLIC_APP_URL` must be the public HTTPS origin because verification and password-reset links point back to the React app.

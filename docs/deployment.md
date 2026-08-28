@@ -26,7 +26,7 @@ does not publish host ports.
 Confirm the real edge-network name before configuring the app:
 
 ```bash
-docker network ls
+sudo docker network ls
 ```
 
 For the existing `/opt/bantigerjersey` Compose project it will normally be
@@ -55,7 +55,7 @@ Edit `.env.production` and set at least:
 Generate a Django secret without storing it in shell history:
 
 ```bash
-docker run --rm python:3.13-slim python -c "import secrets; print(secrets.token_urlsafe(64))"
+sudo docker run --rm python:3.13-slim python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
 Create persistent directories. UID 10001 is the non-root Django user in the backend image:
@@ -79,18 +79,18 @@ chown 10001:10001 /opt/nightsky-trail/data/osm/switzerland-latest.osm.pbf
 Build the application images and start GraphHopper first:
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yaml build
-docker compose --env-file .env.production -f compose.production.yaml up -d nightsky_graphhopper
-docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_graphhopper
+sudo docker compose --env-file .env.production -f compose.production.yaml build
+sudo docker compose --env-file .env.production -f compose.production.yaml up -d nightsky_graphhopper
+sudo docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_graphhopper
 ```
 
 The first GraphHopper import takes several minutes. Wait until it is healthy, then apply the
 database migrations and start the complete stack:
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
-docker compose --env-file .env.production -f compose.production.yaml up -d
-docker compose --env-file .env.production -f compose.production.yaml ps
+sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
+sudo docker compose --env-file .env.production -f compose.production.yaml up -d
+sudo docker compose --env-file .env.production -f compose.production.yaml ps
 ```
 
 The swisstopo hiking-trail GeoPackage and local OSM trail index are created lazily in the
@@ -111,15 +111,15 @@ nano /opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf
 Test and reload Nginx so that the ACME challenge location is active:
 
 ```bash
-docker compose exec nginx nginx -t
-docker compose exec nginx nginx -s reload
+sudo docker compose exec nginx nginx -t
+sudo docker compose exec nginx nginx -s reload
 ```
 
 Obtain the certificate using the existing certbot service. From `/opt/bantigerjersey`, the
 command will usually look like this:
 
 ```bash
-docker compose run --rm certbot certonly \
+sudo docker compose run --rm certbot certonly \
   --webroot -w /var/www/certbot \
   -d trail.example.com
 ```
@@ -138,8 +138,8 @@ The upstream name is the Compose service `nightsky_gateway`, which is resolvable
 containers share the external edge network. Validate and reload the existing Nginx:
 
 ```bash
-docker compose exec nginx nginx -t
-docker compose exec nginx nginx -s reload
+sudo docker compose exec nginx nginx -t
+sudo docker compose exec nginx nginx -s reload
 ```
 
 The exact paths and Compose file name may differ in the existing server project. Keep its
@@ -150,9 +150,9 @@ certificate renewal process unchanged.
 ```bash
 cd /opt/nightsky-trail
 git pull --ff-only
-docker compose --env-file .env.production -f compose.production.yaml build
-docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
-docker compose --env-file .env.production -f compose.production.yaml up -d
+sudo docker compose --env-file .env.production -f compose.production.yaml build
+sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
+sudo docker compose --env-file .env.production -f compose.production.yaml up -d
 ```
 
 Old images can be removed later with the server's normal Docker maintenance process. Do not
@@ -160,32 +160,42 @@ delete the persistent `data` directory during an update.
 
 ## Backup and restore
 
-The user accounts and saved tours are stored in `data/app/db.sqlite3`. For a simple consistent
-backup, briefly stop the backend, copy the database, and start it again:
+The user accounts and saved tours are stored in `data/app/db.sqlite3`. The backup command uses
+SQLite's online backup API, verifies the copy, and removes old generations. The backend does not
+need to be stopped. `DATABASE_BACKUP_KEEP` defaults to 14 backups.
 
 ```bash
 cd /opt/nightsky-trail
-docker compose --env-file .env.production -f compose.production.yaml stop nightsky_backend
-cp data/app/db.sqlite3 /srv/backups/nightsky-trail-db.sqlite3
-docker compose --env-file .env.production -f compose.production.yaml start nightsky_backend
+sudo docker compose --env-file .env.production -f compose.production.yaml exec -T \
+  nightsky_backend python manage.py backup_database
+ls -lh data/app/backups/
 ```
 
 Back up `.env.production` in the server's secret-management or encrypted backup system. It
 must never be committed. The OSM extract, GraphHopper cache, swisstopo dataset, and OSM index
 can be regenerated and do not need the same backup priority.
 
-To restore, stop the backend, replace `data/app/db.sqlite3`, ensure ownership is `10001:10001`,
-and start the backend again.
+To restore a selected backup, stop the backend and remove stale SQLite WAL files before starting
+it again:
+
+```bash
+cd /opt/nightsky-trail
+sudo docker compose --env-file .env.production -f compose.production.yaml stop nightsky_backend
+cp data/app/backups/nightsky-trail-YYYYMMDD-HHMMSS.sqlite3 data/app/db.sqlite3
+rm -f data/app/db.sqlite3-wal data/app/db.sqlite3-shm
+chown 10001:10001 data/app/db.sqlite3
+sudo docker compose --env-file .env.production -f compose.production.yaml start nightsky_backend
+```
 
 ## Operations
 
 Useful commands:
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yaml ps
-docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_backend
-docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_graphhopper
-docker compose --env-file .env.production -f compose.production.yaml restart nightsky_backend
+sudo docker compose --env-file .env.production -f compose.production.yaml ps
+sudo docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_backend
+sudo docker compose --env-file .env.production -f compose.production.yaml logs -f nightsky_graphhopper
+sudo docker compose --env-file .env.production -f compose.production.yaml restart nightsky_backend
 ```
 
 ### Daily monitoring report
@@ -198,21 +208,30 @@ email addresses or route data.
 Test the report manually:
 
 ```bash
-docker compose --env-file .env.production -f compose.production.yaml exec -T \
+sudo docker compose --env-file .env.production -f compose.production.yaml exec -T \
   nightsky_backend python manage.py send_monitoring_report --dry-run
-docker compose --env-file .env.production -f compose.production.yaml exec -T \
+sudo docker compose --env-file .env.production -f compose.production.yaml exec -T \
   nightsky_backend python manage.py send_monitoring_report
 ```
 
-Schedule delivery on the host with `crontab -e`. This example sends it every day at 06:15:
+Schedule both commands on the host with `sudo crontab -e`. This example creates a database
+backup at 06:00 and sends the report, including the backup status, at 06:15:
 
 ```cron
+0 6 * * * cd /opt/nightsky-trail && /usr/bin/docker compose --env-file .env.production -f compose.production.yaml exec -T nightsky_backend python manage.py backup_database >> /var/log/nightsky-trail-backup.log 2>&1
 15 6 * * * cd /opt/nightsky-trail && /usr/bin/docker compose --env-file .env.production -f compose.production.yaml exec -T nightsky_backend python manage.py send_monitoring_report >> /var/log/nightsky-trail-monitoring.log 2>&1
 ```
+
+Do not add `sudo` inside these cron lines: `sudo crontab -e` installs them in root's crontab,
+so they already run with the required Docker permissions.
 
 Change the cron expression to change the delivery schedule. Because this command runs inside
 the application container, it cannot report a stopped container; retain a separate external
 HTTP uptime check for availability alerts.
+
+These backups remain on the same server and protect against accidental deletion or database
+corruption. Copy the backup directory to another machine or storage provider if protection
+against complete server or disk loss is required.
 
 Do not scale the Django backend above one process yet. Authentication rate limits use the
 in-process Django cache, and SQLite is intentionally retained for this lightweight deployment.
