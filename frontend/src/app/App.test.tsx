@@ -87,6 +87,35 @@ describe("App", () => {
     ).toBeChecked();
   });
 
+  it("cycles the mobile route sheet through summary and detail states", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    const routePanel = screen.getByRole("complementary", {
+      name: "Routeninformationen",
+    });
+    expect(routePanel).toHaveClass("mobileSheet-collapsed");
+
+    await user.click(
+      screen.getByRole("button", { name: "Routenpanel öffnen" }),
+    );
+    expect(routePanel).toHaveClass("mobileSheet-half");
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Routenpanel vollständig öffnen",
+      }),
+    );
+    expect(routePanel).toHaveClass("mobileSheet-full");
+
+    await user.click(
+      screen.getByRole("button", { name: "Routenpanel einklappen" }),
+    );
+    expect(routePanel).toHaveClass("mobileSheet-collapsed");
+  });
+
   it("keeps tours, account, and GPX actions in separate menus", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", createFetchMock());

@@ -71,6 +71,7 @@ type ElevationStatus = "idle" | "loading" | "ready" | "error";
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type MapInteractionMode = "explore" | "draw";
+type MobileSheetState = "collapsed" | "half" | "full";
 type AuthMode = "login" | "register";
 type TopMenu = "account" | "files" | "tours";
 type AuthState = AuthSessionResponse & {
@@ -227,6 +228,9 @@ export function App() {
   const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
   const [openTopMenu, setOpenTopMenu] = useState<TopMenu | null>(null);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSheetState, setMobileSheetState] =
+    useState<MobileSheetState>("collapsed");
   const [tourMessage, setTourMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState<SearchStatus>("idle");
@@ -1036,6 +1040,7 @@ export function App() {
     setSearchResults([]);
     setSearchStatus("idle");
     setSearchMessage(null);
+    setMobileSearchOpen(false);
     setSearchFocus((currentFocus) => ({
       lat: result.latitude,
       lon: result.longitude,
@@ -1054,7 +1059,13 @@ export function App() {
             setOpenTopMenu((menu) => (menu === "tours" ? null : "tours"))
           }
         >
-          Meine Touren
+          <span className="visuallyHidden">Meine Touren</span>
+          <span className="topMenuDesktopLabel" aria-hidden="true">
+            Meine Touren
+          </span>
+          <span className="topMenuMobileLabel" aria-hidden="true">
+            Touren
+          </span>
         </button>
         {openTopMenu === "tours" ? (
           <div className="managePanel" aria-label="Meine Touren">
@@ -1364,7 +1375,7 @@ export function App() {
           </div>
         </div>
         <form
-          className="topSearch"
+          className={`topSearch ${mobileSearchOpen ? "topSearch-mobileOpen" : ""}`}
           role="search"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1410,12 +1421,48 @@ export function App() {
               {healthLabel}
             </span>
           ) : null}
+          <button
+            type="button"
+            className="mobileSearchToggle"
+            aria-label={mobileSearchOpen ? "Suche schliessen" : "Suche öffnen"}
+            aria-expanded={mobileSearchOpen}
+            onClick={() => {
+              setOpenTopMenu(null);
+              setMobileSearchOpen((open) => !open);
+            }}
+          >
+            <span aria-hidden="true" />
+          </button>
           {topMenus}
         </div>
       </header>
 
       <section className="plannerLayout" aria-label="Routenplaner">
-        <aside className="sidebar routeDock">
+        <aside
+          id="route-panel"
+          aria-label="Routeninformationen"
+          className={`sidebar routeDock mobileSheet-${mobileSheetState}`}
+        >
+          <button
+            type="button"
+            className="mobileSheetHandle"
+            aria-controls="route-panel"
+            aria-expanded={mobileSheetState !== "collapsed"}
+            aria-label={mobileSheetActionLabel(mobileSheetState)}
+            onClick={() =>
+              setMobileSheetState(nextMobileSheetState(mobileSheetState))
+            }
+          >
+            <span className="mobileSheetGrip" aria-hidden="true" />
+            <strong>
+              {selectedWaypoint
+                ? `Punkt ${selectedWaypointIndex + 1}`
+                : hasRoute
+                  ? "Tour"
+                  : "Route planen"}
+            </strong>
+            <span className="mobileSheetChevron" aria-hidden="true" />
+          </button>
           <div className="dockTop">
             <div className="sidebarHeader">
               <h1>
@@ -2019,6 +2066,19 @@ export function App() {
           </details>
         </aside>
 
+        <button
+          type="button"
+          className={`mobileDrawAction mobileDrawAction-${mobileSheetState}`}
+          aria-label="Route zeichnen und Routenpanel öffnen"
+          aria-pressed={mapInteractionMode === "draw"}
+          onClick={() => {
+            setMapInteractionMode("draw");
+            setMobileSheetState("half");
+          }}
+        >
+          Route zeichnen
+        </button>
+
         <MapPanel
           waypoints={history.present.waypoints}
           segments={history.present.segments}
@@ -2470,12 +2530,39 @@ function routeStatusLabel(
     return "Route wird berechnet";
   }
   if (status === "error") {
-    return message ?? "Route konnte nicht berechnet werden.";
+    return friendlyRouteError(message);
   }
   if (hasComputedRoute) {
     return "Route berechnet";
   }
   return "Startpunkt setzen";
+}
+
+function friendlyRouteError(message: string | null): string {
+  if (message && /cannot find point|point not found/i.test(message)) {
+    return "Für mindestens einen Punkt wurde kein routbarer Weg gefunden. Punkt verschieben oder den Abschnitt auf Gerade setzen.";
+  }
+  return message ?? "Route konnte nicht berechnet werden.";
+}
+
+function nextMobileSheetState(state: MobileSheetState): MobileSheetState {
+  if (state === "collapsed") {
+    return "half";
+  }
+  if (state === "half") {
+    return "full";
+  }
+  return "collapsed";
+}
+
+function mobileSheetActionLabel(state: MobileSheetState): string {
+  if (state === "collapsed") {
+    return "Routenpanel öffnen";
+  }
+  if (state === "half") {
+    return "Routenpanel vollständig öffnen";
+  }
+  return "Routenpanel einklappen";
 }
 
 function segmentModeLabel(mode: SegmentMode): string {

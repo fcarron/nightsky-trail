@@ -25,6 +25,16 @@
   box-sizing: border-box;
 }
 
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 body {
   margin: 0;
 }
@@ -152,6 +162,13 @@ button:disabled {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+}
+
+.mobileSearchToggle,
+.mobileSheetHandle,
+.mobileDrawAction,
+.topMenuMobileLabel {
+  display: none;
 }
 
 .topMenuGroup {
@@ -2474,15 +2491,28 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+  }
+
   .appShell {
-    grid-template-rows: auto 1fr;
+    height: 100dvh;
+    min-height: 100svh;
+    overflow: hidden;
+    grid-template-rows: calc(48px + env(safe-area-inset-top)) minmax(0, 1fr);
   }
 
   .topBar {
-    flex-wrap: wrap;
-    gap: 8px 12px;
+    flex-wrap: nowrap;
+    gap: 6px;
     min-height: 48px;
-    padding: 8px 12px;
+    padding: env(safe-area-inset-top) 8px 0;
   }
 
   .brand {
@@ -2490,14 +2520,91 @@ button:disabled {
     min-width: 0;
   }
 
+  .brand div {
+    min-width: 0;
+  }
+
+  .brand strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand div > span {
+    display: none;
+  }
+
   .topSearch {
-    flex: 1 0 100%;
-    order: 3;
+    display: none;
+  }
+
+  .topSearch.topSearch-mobileOpen {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 8px;
+    left: 8px;
+    z-index: 95;
+    display: block;
     max-width: none;
+    margin: 0;
+    border-radius: 4px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+  }
+
+  .mobileSearchToggle {
+    position: relative;
+    display: block;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid #cbd5df;
+    border-radius: 3px;
+    background: #ffffff;
+    padding: 0;
+  }
+
+  .mobileSearchToggle span::before {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 10px;
+    height: 10px;
+    border: 2px solid #102a56;
+    border-radius: 50%;
+    content: "";
+  }
+
+  .mobileSearchToggle span::after {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 7px;
+    height: 2px;
+    transform: rotate(45deg);
+    transform-origin: left center;
+    background: #102a56;
+    content: "";
   }
 
   .topBarActions {
     flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .topBarActions > .status {
+    display: none;
+  }
+
+  .topMenuGroup {
+    gap: 3px;
+  }
+
+  .topMenuDesktopLabel {
+    display: none;
+  }
+
+  .topMenuMobileLabel {
+    display: inline;
   }
 
   .topBar .manageMenu {
@@ -2506,45 +2613,129 @@ button:disabled {
 
   .topBar .manageMenu > button {
     width: auto;
+    min-height: 34px;
+    padding: 0 7px;
+    font-size: 11px;
   }
 
   .topBar .managePanel {
-    top: calc(100% + 8px);
-    right: 0;
+    position: fixed;
+    top: calc(48px + env(safe-area-inset-top) + 6px);
+    right: 8px;
     bottom: auto;
-    left: auto;
-    width: min(340px, calc(100vw - 24px));
+    left: 8px;
+    width: auto;
+    max-height: calc(100dvh - 68px - env(safe-area-inset-top));
+    overflow: auto;
   }
 
   .plannerLayout {
     position: relative;
     display: block;
     overflow: hidden;
-    min-height: calc(100vh - 90px);
+    min-height: 0;
   }
 
   .sidebar {
     position: absolute;
+    top: auto;
     right: 8px;
     bottom: 0;
     left: 8px;
     z-index: 35;
     width: auto;
-    max-height: min(58vh, 560px);
+    max-height: calc(88px + env(safe-area-inset-bottom));
     transform: none;
     border: 1px solid #d4dbe3;
     border-bottom: 0;
-    border-radius: 12px 12px 0 0;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.22);
+    border-radius: 10px 10px 0 0;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -5px 18px rgba(15, 23, 42, 0.16);
+    transition: max-height 160ms ease;
   }
 
   .routeDock {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 9px;
-    overflow: auto;
-    padding: 10px 12px;
+    align-content: start;
+    gap: 7px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 10px calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .mobileSheet-half {
+    max-height: min(52dvh, 430px);
+  }
+
+  .mobileSheet-full {
+    right: 0;
+    left: 0;
+    max-height: calc(100dvh - 48px - env(safe-area-inset-top));
+    border-radius: 10px 10px 0 0;
+  }
+
+  .mobileSheetHandle {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 22px;
+    align-items: center;
+    width: 100%;
+    min-height: 30px;
+    border: 0;
+    border-bottom: 1px solid #e3e8ee;
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.98);
+    color: #111827;
+    padding: 0;
+    text-align: center;
+  }
+
+  .mobileSheetHandle strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileSheetGrip {
+    justify-self: center;
+    width: 18px;
+    height: 3px;
+    border-radius: 2px;
+    background: #9aa7b4;
+  }
+
+  .mobileSheetChevron {
+    justify-self: center;
+    width: 7px;
+    height: 7px;
+    transform: rotate(45deg);
+    border-top: 1.5px solid #52606d;
+    border-left: 1.5px solid #52606d;
+  }
+
+  .mobileSheet-half .mobileSheetChevron {
+    transform: rotate(45deg);
+  }
+
+  .mobileSheet-full .mobileSheetChevron {
+    transform: rotate(225deg);
+  }
+
+  .mobileSheet-collapsed > :not(.mobileSheetHandle):not(.runSummaryGrid) {
+    display: none;
+  }
+
+  .mobileSheet-half .detailDrawer {
+    display: none;
+  }
+
+  .dockTop {
+    display: none;
   }
 
   .routeDock .sidebarHeader p {
@@ -2575,7 +2766,61 @@ button:disabled {
 
   .runSummaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 5px;
+  }
+
+  .runSummaryGrid div {
+    min-width: 0;
+    padding: 5px 6px;
+  }
+
+  .runSummaryGrid dd,
+  .runSummaryGrid div:first-child dd,
+  .runSummaryTimeCard dd > span {
+    font-size: 14px;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 2px 0 5px;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid div,
+  .mobileSheet-collapsed .runSummaryGrid div:first-child {
+    border: 0;
+    border-right: 1px solid #e3e8ee;
+    border-radius: 0;
+    background: transparent;
+    padding: 2px 5px;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid div:last-child {
+    border-right: 0;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid dt {
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid dd,
+  .mobileSheet-collapsed .runSummaryGrid div:first-child dd,
+  .mobileSheet-collapsed .runSummaryTimeCard dd > span {
+    overflow: hidden;
+    margin-top: 1px;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileSheet-collapsed .runSummaryGrid dd small,
+  .mobileSheet-collapsed .summaryPaceSettings,
+  .mobileSheet-collapsed .metricInfo,
+  .mobileSheet-collapsed .metricInfoPopover {
+    display: none;
   }
 
   .drawModePanel,
@@ -2592,6 +2837,7 @@ button:disabled {
   .quickToolbar button,
   .contextActions button {
     flex: 1 1 130px;
+    min-height: 40px;
   }
 
   .detailDrawer {
@@ -2602,7 +2848,7 @@ button:disabled {
     left: 12px;
     right: 12px;
     top: auto;
-    bottom: 42px;
+    bottom: calc(98px + env(safe-area-inset-bottom));
     width: auto;
     max-height: 30vh;
   }
@@ -2611,7 +2857,7 @@ button:disabled {
     left: 12px;
     right: 12px;
     top: auto;
-    bottom: 42px;
+    bottom: calc(98px + env(safe-area-inset-bottom));
     width: auto;
     max-height: 30vh;
     overflow: auto;
@@ -2619,6 +2865,40 @@ button:disabled {
 
   .trailLegend {
     display: none;
+  }
+
+  .mobileDrawAction.mobileDrawAction-collapsed {
+    position: absolute;
+    right: 12px;
+    bottom: calc(126px + env(safe-area-inset-bottom));
+    z-index: 34;
+    display: block;
+    min-height: 42px;
+    border: 1px solid var(--color-accent);
+    border-radius: 4px;
+    background: var(--color-accent-strong);
+    color: #ffffff;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 750;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+  }
+
+  .attribution {
+    right: 8px;
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    left: 8px;
+    justify-content: center;
+    max-width: none;
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+
+  .routeStatus {
+    min-height: 28px;
+    padding: 5px 7px;
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .elevationPanel-large {
@@ -2643,5 +2923,16 @@ button:disabled {
 
   .elevationPanel-large .elevationChart {
     height: 210px;
+  }
+}
+
+@media (max-width: 360px) {
+  .brand {
+    flex: 0 0 26px;
+    grid-template-columns: 26px;
+  }
+
+  .brand > div {
+    display: none;
   }
 }
