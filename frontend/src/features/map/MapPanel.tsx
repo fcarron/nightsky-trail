@@ -46,12 +46,7 @@ import {
   routeStyle,
   waypointStyle,
 } from "./mapStyles";
-import { DifficultyPanel, TrailLegend } from "./TrailOverlayInfo";
-import {
-  EMPTY_DIFFICULTY_SUMMARY,
-  type DifficultySummary,
-  toDifficultySummary,
-} from "./trailDifficulty";
+import { TrailLegend } from "./TrailOverlayInfo";
 import { parseClosureFeatureInfo, type MapFeatureInfo } from "./mapFeatureInfo";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
@@ -167,21 +162,10 @@ export function MapPanel({
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
-  const [difficultyStatus, setDifficultyStatus] = useState(
-    "Schwierigkeitshinweise aus",
-  );
-  const [difficultyLimitedToKnown, setDifficultyLimitedToKnown] =
-    useState(false);
-  const [difficultySummary, setDifficultySummary] = useState<DifficultySummary>(
-    EMPTY_DIFFICULTY_SUMMARY,
-  );
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
     [number, number] | null
   >(null);
-  const [selectedDifficultyWay, setSelectedDifficultyWay] = useState<{
-    segment: CombinedTrailSegmentDto;
-  } | null>(null);
   const [selectedMapFeature, setSelectedMapFeature] =
     useState<MapFeatureInfo | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
@@ -190,13 +174,6 @@ export function MapPanel({
   const selectedWaypoint =
     selectedWaypointIndex >= 0 ? waypoints[selectedWaypointIndex] : null;
   const trailMatchDebugEnabled = ENABLE_DEV_TOOLS && trailMatchDebugVisible;
-  const showDifficultyPanel =
-    (difficultyVisible || trailMatchDebugEnabled) &&
-    (selectedDifficultyWay !== null ||
-      trailMatchDebugEnabled ||
-      difficultyLimitedToKnown ||
-      isAttentionDifficultyStatus(difficultyStatus));
-
   useEffect(() => {
     callbacksRef.current = {
       onAddWaypoint,
@@ -469,7 +446,10 @@ export function MapPanel({
         });
     };
 
-    map.on("singleclick", (event) => {
+    // The regular click event is more reliable than singleclick for touch
+    // input. Route-line insertion is handled on pointerdown and suppressed
+    // here to avoid adding the same point twice.
+    map.on("click", (event) => {
       if (suppressNextSingleClickRef.current) {
         suppressNextSingleClickRef.current = false;
         return;
@@ -488,22 +468,6 @@ export function MapPanel({
       }
 
       if (interactionModeRef.current === "explore") {
-        const difficultyFeatures = map.getFeaturesAtPixel(event.pixel, {
-          hitTolerance: 5,
-          layerFilter: (layer) => layer === difficultyLayer,
-        });
-        const osmWayId = difficultyFeatures[0]?.get("osmWayId");
-        const combinedSegment = difficultyFeatures[0]?.get("combinedSegment");
-        if (
-          (difficultyVisibleRef.current || trailMatchDebugVisibleRef.current) &&
-          typeof osmWayId === "number" &&
-          isCombinedTrailSegmentRecord(combinedSegment)
-        ) {
-          setSelectedMapFeature(null);
-          setSelectedDifficultyWay({ segment: combinedSegment });
-          return;
-        }
-
         const requestId = ++mapFeatureRequestIdRef.current;
         void inspectVisibleWmsFeatures({
           coordinate: event.coordinate,
@@ -520,7 +484,6 @@ export function MapPanel({
           if (requestId !== mapFeatureRequestIdRef.current) {
             return;
           }
-          setSelectedDifficultyWay(null);
           setSelectedMapFeature(featureInfo);
         });
         return;
@@ -996,9 +959,6 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus(
-          `Schwierigkeitshinweise ab Zoom ${DIFFICULTY_MIN_ZOOM}`,
-        );
         return;
       }
 
@@ -1024,17 +984,11 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
-        setDifficultyStatus(
-          "Schwierigkeitshinweise: bitte weiter hineinzoomen",
-        );
         return;
       }
 
       if (difficultyRequestInFlightRef.current) {
         difficultyQueuedLoadRef.current = true;
-        setDifficultyStatus(
-          "Schwierigkeitshinweise laden · neuer Ausschnitt vorgemerkt",
-        );
         return;
       }
 
@@ -1042,8 +996,6 @@ export function MapPanel({
       difficultyRequestIdRef.current = requestId;
       difficultyRequestInFlightRef.current = true;
       difficultyQueuedLoadRef.current = false;
-      setDifficultyStatus("Schwierigkeitshinweise laden");
-
       getTrailDifficultyWays(bbox, zoom, true, true, trailMatchDebugEnabled)
         .then((response) => {
           if (difficultyRequestIdRef.current !== requestId) {
@@ -1055,8 +1007,6 @@ export function MapPanel({
 
           const source = difficultySourceRef.current;
           source.clear();
-          setDifficultySummary(toDifficultySummary(response.trailSummary));
-          setDifficultyLimitedToKnown(response.warnings.length > 0);
           response.combinedSegments
             .filter(
               (segment) => segment.warningOverlay || trailMatchDebugEnabled,
@@ -1080,14 +1030,6 @@ export function MapPanel({
               .filter((feature) => feature.get("warningOverlay") !== true)
               .forEach((feature) => source.removeFeature(feature));
           }
-          const warningCount = response.combinedSegments.filter(
-            (segment) => segment.warningOverlay,
-          ).length;
-          setDifficultyStatus(
-            response.warnings.length
-              ? `OSM-Wege: ${response.trailSummary.totalWays} · Warnungen: ${warningCount} · nur T-Daten`
-              : `OSM-Wege: ${response.trailSummary.totalWays} · Warnungen: ${warningCount}`,
-          );
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {
@@ -1096,12 +1038,6 @@ export function MapPanel({
           if (difficultyRequestIdRef.current !== requestId) {
             return;
           }
-
-          setDifficultyStatus(
-            difficultySourceRef.current.getFeatures().length
-              ? "Schwierigkeitshinweise nicht verfügbar · letzter Stand"
-              : "Schwierigkeitshinweise nicht verfügbar",
-          );
         })
         .finally(() => {
           if (disposed) {
@@ -1253,14 +1189,6 @@ export function MapPanel({
               checked={difficultyVisible}
               onChange={(event) => {
                 const enabled = event.target.checked;
-                setSelectedDifficultyWay(null);
-                setDifficultySummary(EMPTY_DIFFICULTY_SUMMARY);
-                setDifficultyLimitedToKnown(false);
-                setDifficultyStatus(
-                  enabled
-                    ? "Schwierigkeitshinweise laden"
-                    : "Schwierigkeitshinweise aus",
-                );
                 setDifficultyVisible(enabled);
                 setMapLayerMenuOpen(false);
               }}
@@ -1273,7 +1201,6 @@ export function MapPanel({
                 type="checkbox"
                 checked={trailMatchDebugVisible}
                 onChange={(event) => {
-                  setSelectedDifficultyWay(null);
                   setTrailMatchDebugVisible(event.target.checked);
                   setMapLayerMenuOpen(false);
                 }}
@@ -1283,16 +1210,6 @@ export function MapPanel({
           ) : null}
         </div>
       </details>
-      {showDifficultyPanel ? (
-        <DifficultyPanel
-          difficultyLimitedToKnown={difficultyLimitedToKnown}
-          difficultyStatus={difficultyStatus}
-          difficultySummary={difficultySummary}
-          selectedDifficultyWay={
-            interactionMode === "explore" ? selectedDifficultyWay : null
-          }
-        />
-      ) : null}
       {selectedMapFeature &&
       interactionMode === "explore" &&
       (selectedMapFeature.kind === "closure"
@@ -1766,16 +1683,5 @@ function isCombinedTrailSegmentRecord(
     "osmWayId" in value &&
     "matchScore" in value &&
     "matchStatus" in value
-  );
-}
-
-function isAttentionDifficultyStatus(status: string): boolean {
-  return (
-    status.includes("lädt") ||
-    status.includes("laden") ||
-    status.includes("vorgemerkt") ||
-    status.includes("nicht verfügbar") ||
-    status.includes("Zoom") ||
-    status.includes("zoomen")
   );
 }

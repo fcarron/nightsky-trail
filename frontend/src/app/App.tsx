@@ -76,7 +76,7 @@ type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type MapInteractionMode = "explore" | "draw";
 type MobileSheetState = "collapsed" | "half" | "full";
 type AuthMode = "login" | "register";
-type TopMenu = "account" | "files" | "tours";
+type TopMenu = "account" | "files" | "tours" | "about";
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
@@ -1205,6 +1205,52 @@ export function App() {
                 </button>
               </div>
             )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="manageMenu topManageMenu">
+        <button
+          type="button"
+          aria-expanded={openTopMenu === "about"}
+          onClick={() =>
+            setOpenTopMenu((menu) => (menu === "about" ? null : "about"))
+          }
+        >
+          Info
+        </button>
+        {openTopMenu === "about" ? (
+          <div
+            className="managePanel aboutPanel"
+            aria-label="Über nightsky trail"
+          >
+            <strong>nightsky trail</strong>
+            <p>
+              Plane deine nächste Runde einfach und ohne Umwege. Kostenlos und
+              ohne Konto kannst du am PC oder Handy Wege zeichnen, automatisch
+              routen lassen und das Höhenprofil übersichtlich prüfen.
+            </p>
+            <p>
+              Hochwertige Schweizer Karten und Höhenprofile auf Basis von
+              swisstopo-Daten unterstützen dich bei der Planung. Für offizielle
+              Wanderwege zeigen wir zusätzlich vorhandene T3- und T4-Hinweise
+              aus OpenStreetMap.
+            </p>
+            <div className="aboutInstall">
+              <strong>Auf dem Handy nutzen</strong>
+              <span>
+                Für eine bessere Nutzung kannst du nightsky trail zum
+                Startbildschirm hinzufügen.
+              </span>
+              <span>
+                Android: Browser-Menü öffnen und „App installieren“ oder „Zum
+                Startbildschirm hinzufügen“ wählen.
+              </span>
+              <span>
+                iPhone: in Safari auf „Teilen“ und danach „Zum Home-Bildschirm“
+                tippen.
+              </span>
+            </div>
           </div>
         ) : null}
       </div>

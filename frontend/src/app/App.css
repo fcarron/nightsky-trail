@@ -377,6 +377,36 @@ button:disabled {
   width: min(210px, calc(100vw - 32px));
 }
 
+.aboutPanel {
+  width: min(300px, calc(100vw - 32px));
+  gap: 6px;
+  color: #66717d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.aboutPanel > strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.aboutPanel p {
+  margin: 0;
+}
+
+.aboutInstall {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid #d8dee5;
+  margin-top: 3px;
+  padding-top: 7px;
+}
+
+.aboutInstall strong {
+  color: #111827;
+  font-size: 12px;
+}
+
 .filePanel button,
 .menuEmptyState button {
   min-height: 30px;
@@ -2155,7 +2185,6 @@ button:disabled {
 
 .mapNotice,
 .mapLayerSelector,
-.difficultyPanel,
 .mapFeaturePanel,
 .trailLegend {
   position: absolute;
@@ -2249,18 +2278,6 @@ button:disabled {
   accent-color: #4f8cff;
 }
 
-.difficultyPanel {
-  right: min(386px, calc(100vw - 320px));
-  top: 126px;
-  display: grid;
-  width: min(320px, calc(100vw - 370px));
-  max-height: min(420px, calc(100vh - 190px));
-  gap: 8px;
-  overflow: auto;
-  padding: 10px;
-  font-size: 12px;
-}
-
 .mapFeaturePanel {
   right: min(386px, calc(100vw - 320px));
   top: 126px;
@@ -2332,68 +2349,9 @@ button:disabled {
   font-weight: 700;
 }
 
-.difficultyPanel strong,
 .trailLegend strong {
   color: #ffd166;
   font-size: 13px;
-}
-
-.difficultyPanel span,
-.difficultyPanel div {
-  color: #8fa1ad;
-}
-
-.difficultySelectedTitle {
-  color: #f4f8fb;
-  font-size: 14px;
-  font-weight: 750;
-}
-
-.difficultySummaryGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.difficultySummaryGrid div {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid #263545;
-  border-radius: 7px;
-  background: #101923;
-  padding: 6px;
-}
-
-.difficultySummaryGrid strong {
-  color: #f4f8fb;
-  font-size: 12px;
-}
-
-.difficultyPanel dl {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-}
-
-.difficultyPanel dl div {
-  display: grid;
-  grid-template-columns: minmax(92px, auto) 1fr;
-  gap: 8px;
-  border-top: 1px solid #263545;
-  padding-top: 6px;
-}
-
-.difficultyPanel dt {
-  color: #8fa1ad;
-}
-
-.difficultyPanel dd {
-  overflow-wrap: anywhere;
-  margin: 0;
-  color: #f4f8fb;
-  font-weight: 650;
 }
 
 .trailLegend {
@@ -2947,15 +2905,6 @@ button:disabled {
 
   .detailDrawer {
     max-height: none;
-  }
-
-  .difficultyPanel {
-    left: 12px;
-    right: 12px;
-    top: auto;
-    bottom: calc(98px + env(safe-area-inset-bottom));
-    width: auto;
-    max-height: 30vh;
   }
 
   .mapFeaturePanel {
