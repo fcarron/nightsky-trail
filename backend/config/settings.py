@@ -91,11 +91,23 @@ EMAIL_USE_TLS = os.environ.get("BREVO_SMTP_USE_TLS", "true").lower() == "true"
 EMAIL_TIMEOUT = int(os.environ.get("BREVO_SMTP_TIMEOUT_SECONDS", "10"))
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@nightskytrail.ch")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "http://localhost:5173").rstrip("/")
+PASSWORD_RESET_TIMEOUT = int(os.environ.get("AUTH_TOKEN_TIMEOUT_SECONDS", "1800"))
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
 AUTH_LOGIN_RATE_LIMIT = int(os.environ.get("AUTH_LOGIN_RATE_LIMIT", "8"))
 AUTH_LOGIN_RATE_WINDOW_SECONDS = int(os.environ.get("AUTH_LOGIN_RATE_WINDOW_SECONDS", "300"))
 AUTH_REGISTER_RATE_LIMIT = int(os.environ.get("AUTH_REGISTER_RATE_LIMIT", "5"))
 AUTH_REGISTER_RATE_WINDOW_SECONDS = int(os.environ.get("AUTH_REGISTER_RATE_WINDOW_SECONDS", "3600"))
+AUTH_PASSWORD_RESET_RATE_LIMIT = int(os.environ.get("AUTH_PASSWORD_RESET_RATE_LIMIT", "5"))
+AUTH_PASSWORD_RESET_RATE_WINDOW_SECONDS = int(
+    os.environ.get("AUTH_PASSWORD_RESET_RATE_WINDOW_SECONDS", "3600")
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

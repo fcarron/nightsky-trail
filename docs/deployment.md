@@ -50,6 +50,7 @@ Edit `.env.production` and set at least:
 - `DJANGO_ALLOWED_HOSTS` (public domain plus `nightsky_backend,127.0.0.1,localhost`)
 - `DJANGO_CSRF_TRUSTED_ORIGINS`
 - the Brevo SMTP credentials and sender address
+- `PUBLIC_APP_URL` (the public HTTPS origin used in account emails)
 
 Generate a Django secret without storing it in shell history:
 

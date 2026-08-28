@@ -187,7 +187,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Konto" }));
     await user.click(screen.getByRole("button", { name: "Registrieren" }));
-    await user.type(screen.getByLabelText("Benutzername"), "runner");
+    await user.type(screen.getByLabelText("E-Mail"), "runner@example.com");
     await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
     await user.type(
       screen.getByLabelText("Passwort bestätigen"),
@@ -205,17 +205,17 @@ describe("App", () => {
     ).toBe(false);
   });
 
-  it("confirms a successful registration in the open account menu", async () => {
+  it("asks for email verification after registration", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
       createFetchMock({
         authRegisterResponse: new Response(
           JSON.stringify({
-            authenticated: true,
-            user: { id: 7, username: "runner" },
+            authenticated: false,
+            user: null,
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 202, headers: { "Content-Type": "application/json" } },
         ),
       }),
     );
@@ -224,7 +224,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Konto" }));
     await user.click(screen.getByRole("button", { name: "Registrieren" }));
-    await user.type(screen.getByLabelText("Benutzername"), "runner");
+    await user.type(screen.getByLabelText("E-Mail"), "runner@example.com");
     await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
     await user.type(
       screen.getByLabelText("Passwort bestätigen"),
@@ -232,10 +232,43 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
 
-    expect(screen.getByText("Angemeldet")).toBeInTheDocument();
     expect(
-      screen.getByText("Konto erstellt. Angemeldet als runner."),
+      screen.getByText(
+        "Fast geschafft: Bitte bestätige deine E-Mail über den zugesandten Link.",
+      ),
     ).toBeInTheDocument();
+  });
+
+  it("requests a password reset without revealing account existence", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock({
+      passwordResetResponse: new Response(JSON.stringify({ sent: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Konto" }));
+    await user.click(
+      screen.getByRole("button", { name: "Passwort vergessen?" }),
+    );
+    await user.type(screen.getByLabelText("E-Mail"), "runner@example.com");
+    await user.click(screen.getByRole("button", { name: "Reset-Link senden" }));
+
+    expect(
+      screen.getByText(
+        "Falls ein Konto zu dieser E-Mail existiert, wurde ein Reset-Link versendet.",
+      ),
+    ).toBeInTheDocument();
+    const resetCall = fetchMock.mock.calls.find(([url]) =>
+      url.toString().endsWith("/api/v1/auth/password-reset/request"),
+    );
+    expect(JSON.parse(resetCall?.[1]?.body?.toString() ?? "{}")).toEqual({
+      email: "runner@example.com",
+    });
   });
 
   it("reports an unavailable API when health fails", async () => {
@@ -563,6 +596,7 @@ function storeRouteWithTwoWaypoints() {
 function createFetchMock(
   options: {
     authRegisterResponse?: Promise<Response> | Response;
+    passwordResetResponse?: Promise<Response> | Response;
     routeResponses?: Array<Promise<Response> | Response>;
     elevationResponses?: Array<Promise<Response> | Response>;
   } = {},
@@ -570,6 +604,7 @@ function createFetchMock(
   const routeResponses = [...(options.routeResponses ?? [])];
   const elevationResponses = [...(options.elevationResponses ?? [])];
   const authRegisterResponse = options.authRegisterResponse;
+  const passwordResetResponse = options.passwordResetResponse;
 
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = input.toString();
@@ -598,6 +633,15 @@ function createFetchMock(
       return authRegisterResponse instanceof Response
         ? Promise.resolve(authRegisterResponse)
         : authRegisterResponse;
+    }
+
+    if (url.endsWith("/api/v1/auth/password-reset/request")) {
+      if (!passwordResetResponse) {
+        return Promise.reject(new Error("Unexpected password reset request"));
+      }
+      return passwordResetResponse instanceof Response
+        ? Promise.resolve(passwordResetResponse)
+        : passwordResetResponse;
     }
 
     if (url.includes("/api/v1/search?")) {

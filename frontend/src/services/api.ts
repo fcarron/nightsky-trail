@@ -53,17 +53,53 @@ export async function getAuthSession(
 }
 
 export async function registerAccount(
-  username: string,
+  email: string,
   password: string,
 ): Promise<AuthSessionResponse> {
-  return submitAuthRequest("/api/v1/auth/register", username, password);
+  return submitAuthRequest("/api/v1/auth/register", email, password);
 }
 
 export async function loginAccount(
-  username: string,
+  email: string,
   password: string,
 ): Promise<AuthSessionResponse> {
-  return submitAuthRequest("/api/v1/auth/login", username, password);
+  return submitAuthRequest("/api/v1/auth/login", email, password);
+}
+
+export async function verifyAccountEmail(
+  uid: string,
+  token: string,
+): Promise<AuthSessionResponse> {
+  return submitJsonRequest<AuthSessionResponse>(
+    "/api/v1/auth/verify-email",
+    { token, uid },
+    isAuthSessionResponse,
+    "Email verification failed",
+  );
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await submitJsonRequest(
+    "/api/v1/auth/password-reset/request",
+    { email },
+    (payload): payload is { sent: boolean } =>
+      isRecord(payload) && payload.sent === true,
+    "Password reset request failed",
+  );
+}
+
+export async function confirmPasswordReset(
+  uid: string,
+  token: string,
+  password: string,
+): Promise<void> {
+  await submitJsonRequest(
+    "/api/v1/auth/password-reset/confirm",
+    { password, token, uid },
+    (payload): payload is { reset: boolean } =>
+      isRecord(payload) && payload.reset === true,
+    "Password reset failed",
+  );
 }
 
 export async function logoutAccount(): Promise<AuthSessionResponse> {
@@ -303,12 +339,26 @@ export class ApiRequestError extends Error {
 
 async function submitAuthRequest(
   path: string,
-  username: string,
+  email: string,
   password: string,
 ): Promise<AuthSessionResponse> {
+  return submitJsonRequest(
+    path,
+    { email, password },
+    isAuthSessionResponse,
+    "Authentication failed",
+  );
+}
+
+async function submitJsonRequest<T>(
+  path: string,
+  body: Record<string, unknown>,
+  validator: (payload: unknown) => payload is T,
+  fallbackMessage: string,
+): Promise<T> {
   const csrf = await csrfHeaders();
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    body: JSON.stringify({ password, username }),
+    body: JSON.stringify(body),
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -319,11 +369,11 @@ async function submitAuthRequest(
   const payload = await readResponsePayload(response);
   if (!response.ok) {
     throw new ApiRequestError(
-      toApiError(payload, "Authentication failed", response.status),
+      toApiError(payload, fallbackMessage, response.status),
     );
   }
-  if (!isAuthSessionResponse(payload)) {
-    throw new Error("Authentication returned an invalid response.");
+  if (!validator(payload)) {
+    throw new Error(`${fallbackMessage}: invalid response.`);
   }
   return payload;
 }
@@ -427,7 +477,7 @@ function isAuthSessionResponse(
       (isRecord(payload.user) &&
         typeof payload.user.id === "number" &&
         Number.isFinite(payload.user.id) &&
-        typeof payload.user.username === "string"))
+        typeof payload.user.email === "string"))
   );
 }
 

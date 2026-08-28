@@ -61,6 +61,16 @@ class TooManyRequests(APIException):
         }
 
 
+class ServiceUnavailable(APIException):
+    status_code = 503
+    default_code = "service_unavailable"
+    default_detail = "The service is temporarily unavailable."
+
+    def __init__(self, code: str, message: str) -> None:
+        self.default_code = code
+        self.detail = {"code": code, "message": message, "details": {}}
+
+
 def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response | None:
     response = exception_handler(exc, context)
     if response is None:

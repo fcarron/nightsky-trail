@@ -9,7 +9,7 @@ export interface AuthSessionResponse {
 
 export interface AuthUserDto {
   id: number;
-  username: string;
+  email: string;
 }
 
 export interface SavedTourDto {

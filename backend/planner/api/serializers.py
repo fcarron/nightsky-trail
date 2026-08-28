@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from planner.domain.route import coordinate_is_in_supported_bounds
@@ -24,13 +26,41 @@ class RouteComputeRequestSerializer(serializers.Serializer):
 
 
 class AuthRegisterSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField(max_length=150)
     password = serializers.CharField(min_length=8, max_length=128, trim_whitespace=False)
+
+    def validate_password(self, value: str) -> str:
+        try:
+            validate_password(value)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(list(error.messages)) from error
+        return value
 
 
 class AuthLoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
+    # CharField preserves login access for legacy username-only accounts.
+    email = serializers.CharField(max_length=150)
     password = serializers.CharField(max_length=128, trim_whitespace=False)
+
+
+class EmailTokenSerializer(serializers.Serializer):
+    uid = serializers.CharField(max_length=64)
+    token = serializers.CharField(max_length=128)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=150)
+
+
+class PasswordResetConfirmSerializer(EmailTokenSerializer):
+    password = serializers.CharField(min_length=8, max_length=128, trim_whitespace=False)
+
+    def validate_password(self, value: str) -> str:
+        try:
+            validate_password(value)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(list(error.messages)) from error
+        return value
 
 
 class AccountDeleteSerializer(serializers.Serializer):

@@ -1,19 +1,32 @@
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth.tokens import default_token_generator
 from django.utils.decorators import method_decorator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.api.exceptions import TooManyRequests, Unauthorized, UnprocessableEntity
+from planner.api.exceptions import (
+    ServiceUnavailable,
+    TooManyRequests,
+    Unauthorized,
+    UnprocessableEntity,
+)
 from planner.api.serializers import (
     AccountDeleteSerializer,
     AuthLoginSerializer,
     AuthRegisterSerializer,
     ElevationProfileRequestSerializer,
+    EmailTokenSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     RouteComputeRequestSerializer,
     SavedTourSerializer,
     SearchQuerySerializer,
@@ -36,9 +49,21 @@ from planner.integrations.swisstopo import (
     SwisstopoUnavailableError,
 )
 from planner.models import SavedTour
-from planner.services.auth import login_attempt_allowed, registration_attempt_allowed
+from planner.services.account_email import (
+    AccountEmailUnavailableError,
+    email_verification_token_generator,
+    send_password_reset_email,
+    send_verification_email,
+)
+from planner.services.auth import (
+    login_attempt_allowed,
+    password_reset_attempt_allowed,
+    registration_attempt_allowed,
+)
 from planner.services.routing import compute_route
 from planner.services.trails import build_trails_response
+
+logger = logging.getLogger(__name__)
 
 
 class HealthView(APIView):
@@ -72,7 +97,7 @@ class AuthSessionView(APIView):
                 "authenticated": True,
                 "user": {
                     "id": user.id,
-                    "username": user.get_username(),
+                    "email": user.email or user.get_username(),
                 },
             }
         )
@@ -86,7 +111,7 @@ class AuthRegisterView(APIView):
     @extend_schema(
         operation_id="auth_register",
         request=AuthRegisterSerializer,
-        responses={200: dict[str, object]},
+        responses={202: dict[str, object]},
     )
     def post(self, request: object) -> Response:
         serializer = AuthRegisterSerializer(data=getattr(request, "data", {}))
@@ -98,29 +123,40 @@ class AuthRegisterView(APIView):
             )
 
         data = serializer.validated_data
-        if not registration_attempt_allowed(django_request(request), data["username"]):
+        email = get_user_model().objects.normalize_email(data["email"]).casefold()
+        if not registration_attempt_allowed(django_request(request), email):
             raise TooManyRequests()
         user_model = get_user_model()
-        if user_model.objects.filter(username=data["username"]).exists():
+        existing_user = user_model.objects.filter(username__iexact=email).first()
+        if existing_user and existing_user.is_active:
             raise UnprocessableEntity(
-                "username_unavailable",
-                "This username is already used.",
+                "email_unavailable",
+                "This email address is already registered.",
                 {},
             )
 
-        user = user_model.objects.create_user(
-            username=data["username"],
+        user = existing_user or user_model.objects.create_user(
+            username=email,
+            email=email,
             password=data["password"],
+            is_active=False,
         )
-        login(django_request(request), user)
+        if existing_user:
+            user.email = email
+            user.set_password(data["password"])
+            user.save(update_fields=["email", "password"])
+        try:
+            send_verification_email(user)
+        except AccountEmailUnavailableError as error:
+            if not existing_user:
+                user.delete()
+            raise ServiceUnavailable(
+                "verification_email_unavailable",
+                "Verification email could not be sent. Please try again later.",
+            ) from error
         return Response(
-            {
-                "authenticated": True,
-                "user": {
-                    "id": user.id,
-                    "username": user.get_username(),
-                },
-            }
+            {"authenticated": False, "user": None},
+            status=202,
         )
 
 
@@ -144,15 +180,16 @@ class AuthLoginView(APIView):
             )
 
         data = serializer.validated_data
-        if not login_attempt_allowed(django_request(request), data["username"]):
+        identifier = data["email"].strip().casefold()
+        if not login_attempt_allowed(django_request(request), identifier):
             raise TooManyRequests()
         user = authenticate(
             django_request(request),
-            username=data["username"],
+            username=identifier,
             password=data["password"],
         )
         if user is None:
-            raise Unauthorized("invalid_credentials", "Username or password is invalid.", {})
+            raise Unauthorized("invalid_credentials", "Email or password is invalid.", {})
 
         login(django_request(request), user)
         return Response(
@@ -160,10 +197,110 @@ class AuthLoginView(APIView):
                 "authenticated": True,
                 "user": {
                     "id": user.id,
-                    "username": user.get_username(),
+                    "email": user.email or user.get_username(),
                 },
             }
         )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class EmailVerificationView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_verify_email",
+        request=EmailTokenSerializer,
+        responses={200: dict[str, object]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = EmailTokenSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_verification_link",
+                "The verification link is invalid or expired.",
+                {},
+            )
+        user = user_from_uid(serializer.validated_data["uid"])
+        token = serializer.validated_data["token"]
+        if user is None or not email_verification_token_generator.check_token(user, token):
+            raise UnprocessableEntity(
+                "invalid_verification_link",
+                "The verification link is invalid or expired.",
+                {},
+            )
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+        login(django_request(request), user)
+        return Response(
+            {
+                "authenticated": True,
+                "user": {"id": user.id, "email": user.email or user.get_username()},
+            }
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class PasswordResetRequestView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_password_reset_request",
+        request=PasswordResetRequestSerializer,
+        responses={200: dict[str, bool]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = PasswordResetRequestSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_password_reset_request",
+                "Password reset request validation failed.",
+                {"fields": serializer.errors},
+            )
+        email = (
+            get_user_model().objects.normalize_email(serializer.validated_data["email"]).casefold()
+        )
+        if not password_reset_attempt_allowed(django_request(request), email):
+            raise TooManyRequests()
+        user = get_user_model().objects.filter(email__iexact=email, is_active=True).first()
+        if user:
+            try:
+                send_password_reset_email(user)
+            except AccountEmailUnavailableError:
+                logger.exception("Password reset email could not be sent")
+        return Response({"sent": True})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class PasswordResetConfirmView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_password_reset_confirm",
+        request=PasswordResetConfirmSerializer,
+        responses={200: dict[str, bool]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = PasswordResetConfirmSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_password_reset",
+                "Password reset validation failed.",
+                {"fields": serializer.errors},
+            )
+        user = user_from_uid(serializer.validated_data["uid"])
+        token = serializer.validated_data["token"]
+        if user is None or not default_token_generator.check_token(user, token):
+            raise UnprocessableEntity(
+                "invalid_password_reset_link",
+                "The password reset link is invalid or expired.",
+                {},
+            )
+        user.set_password(serializer.validated_data["password"])
+        user.save(update_fields=["password"])
+        return Response({"reset": True})
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -530,6 +667,14 @@ def request_user(request: object) -> object:
         return get_user_model().objects.get(pk=user_id)
     except get_user_model().DoesNotExist:
         return AnonymousUserLike()
+
+
+def user_from_uid(uid: str) -> object | None:
+    try:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        return get_user_model().objects.get(pk=user_id)
+    except (ValueError, TypeError, OverflowError, get_user_model().DoesNotExist):
+        return None
 
 
 def authenticated_user(request: object) -> object:

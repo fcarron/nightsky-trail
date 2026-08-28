@@ -12,7 +12,8 @@ Implemented endpoints:
 - `POST /api/v1/route/compute` validates a route and returns normalized segment geometry and distance. `straight` segments are calculated locally; `routed` segments call GraphHopper through the backend.
 - `POST /api/v1/elevation/profile` validates GeoJSON LineString geometry, converts it to EPSG:2056, calls swisstopo profile data, and returns distance, ascent/descent, min/max elevation, smoothed gradient points, and Swiss hiking-time metadata.
 - `GET /api/v1/trails` validates a viewport bbox and returns OSM difficulty summary counts plus compact warning-overlay geometries. Official swisstopo trail geometries are used internally for matching and are returned only when explicitly requested for debugging.
-- `GET /api/v1/auth/session`, `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, and `POST /api/v1/auth/account` manage a local Django session and account deletion.
+- `GET /api/v1/auth/session`, `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, and `POST /api/v1/auth/account` manage verified-email accounts, local Django sessions, and account deletion.
+- `POST /api/v1/auth/verify-email`, `POST /api/v1/auth/password-reset/request`, and `POST /api/v1/auth/password-reset/confirm` provide time-limited email verification and password recovery through Brevo SMTP.
 - `GET /api/v1/tours`, `POST /api/v1/tours`, `GET /api/v1/tours/{id}`, `PATCH /api/v1/tours/{id}`, and `DELETE /api/v1/tours/{id}` store normalized route plans for the authenticated user.
 
 - `config/` contains Django settings, WSGI, and root URLs.
@@ -40,7 +41,7 @@ OpenLayers lifecycle code is isolated in the map feature. The map object is kept
 
 Saved tours store the normalized route plan JSON. Loading a tour replaces the active reducer state. Authenticated users can rename and delete only their own saved tours; account deletion requires the current password and cascades to those tours. GPX export writes the currently computed route geometry when available, otherwise the waypoint line. GPX import reads local `trkpt`, `rtept`, or `wpt` points and creates a straight manual route; it does not silently re-route imported geometry.
 
-Session cookies are HTTP-only and same-site; they are marked secure outside development. The frontend obtains Django's CSRF cookie from the session endpoint and sends the matching token on unsafe requests. Login and registration use bounded cache-backed rate limits. Brevo SMTP is configured through environment variables for future transactional messages; no SMTP secret is stored in the repository.
+Session cookies are HTTP-only and same-site; they are marked secure outside development. The frontend obtains Django's CSRF cookie from the session endpoint and sends the matching token on unsafe requests. Planning does not require an account; server-side tour storage requires a verified email. Login, registration, and password-reset requests use bounded cache-backed rate limits. Verification and reset links are one-time and expire after the configured token timeout. Brevo SMTP credentials are supplied through environment variables; no SMTP secret is stored in the repository.
 
 ## Coordinates
 

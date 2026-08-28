@@ -45,6 +45,7 @@ import {
 } from "../features/route/routeStorage";
 import {
   ApiRequestError,
+  confirmPasswordReset,
   computeElevationProfile,
   computeRoute,
   deleteAccount,
@@ -56,8 +57,10 @@ import {
   loginAccount,
   logoutAccount,
   registerAccount,
+  requestPasswordReset,
   searchLocations,
   updateSavedTour,
+  verifyAccountEmail,
 } from "../services/api";
 import type {
   AuthSessionResponse,
@@ -75,8 +78,13 @@ type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
 type MapInteractionMode = "explore" | "draw";
 type MobileSheetState = "collapsed" | "half" | "full";
-type AuthMode = "login" | "register";
+type AuthMode = "forgot" | "login" | "register" | "reset";
 type TopMenu = "account" | "files" | "tours" | "about";
+type AuthLink = {
+  action: "reset-password" | "verify-email";
+  uid: string;
+  token: string;
+};
 type AuthState = AuthSessionResponse & {
   status: "checking" | "ready" | "error";
 };
@@ -206,17 +214,28 @@ const NATURAL_SURFACES = new Set([
 ]);
 
 export function App() {
+  const authLinkRef = useRef<AuthLink | null>(readAuthLink());
   const [health, setHealth] = useState<HealthState>("checking");
   const [authState, setAuthState] = useState<AuthState>({
     authenticated: false,
     status: "checking",
     user: null,
   });
-  const [authUsername, setAuthUsername] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordConfirmation, setAuthPasswordConfirmation] = useState("");
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authMode, setAuthMode] = useState<AuthMode>(
+    authLinkRef.current?.action === "reset-password" ? "reset" : "login",
+  );
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [passwordResetToken, setPasswordResetToken] = useState<{
+    uid: string;
+    token: string;
+  } | null>(
+    authLinkRef.current?.action === "reset-password"
+      ? { token: authLinkRef.current.token, uid: authLinkRef.current.uid }
+      : null,
+  );
   const [authFeedback, setAuthFeedback] = useState<{
     tone: "error" | "success";
     message: string;
@@ -230,8 +249,12 @@ export function App() {
   const [editingTourId, setEditingTourId] = useState<string | null>(null);
   const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
-  const [openTopMenu, setOpenTopMenu] = useState<TopMenu | null>(null);
-  const [mobileHeaderOpen, setMobileHeaderOpen] = useState(false);
+  const [openTopMenu, setOpenTopMenu] = useState<TopMenu | null>(
+    authLinkRef.current ? "account" : null,
+  );
+  const [mobileHeaderOpen, setMobileHeaderOpen] = useState(
+    authLinkRef.current !== null,
+  );
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSheetState, setMobileSheetState] =
     useState<MobileSheetState>("collapsed");
@@ -400,11 +423,41 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getAuthSession(controller.signal)
-      .then((session) => setAuthState({ ...session, status: "ready" }))
-      .catch(() =>
-        setAuthState({ authenticated: false, status: "error", user: null }),
-      );
+    const authLink = authLinkRef.current;
+    if (authLink?.action === "verify-email") {
+      authLinkRef.current = null;
+    }
+
+    const sessionRequest =
+      authLink?.action === "verify-email"
+        ? verifyAccountEmail(authLink.uid, authLink.token)
+        : getAuthSession(controller.signal);
+
+    sessionRequest
+      .then((session) => {
+        setAuthState({ ...session, status: "ready" });
+        if (authLink?.action === "verify-email") {
+          setOpenTopMenu("account");
+          setMobileHeaderOpen(true);
+          setAuthFeedback({
+            tone: "success",
+            message: "E-Mail bestätigt. Du bist jetzt angemeldet.",
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        setAuthState({ authenticated: false, status: "error", user: null });
+        if (authLink?.action === "verify-email") {
+          setOpenTopMenu("account");
+          setMobileHeaderOpen(true);
+          setAuthFeedback({ tone: "error", message: errorMessage(error) });
+        }
+      })
+      .finally(() => {
+        if (authLink?.action === "verify-email") {
+          removeAuthParametersFromUrl();
+        }
+      });
     return () => controller.abort();
   }, []);
 
@@ -711,11 +764,11 @@ export function App() {
 
   async function submitAuthentication(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const username = authUsername.trim();
-    if (!username || !authPassword) {
+    const email = authEmail.trim();
+    if (!email || !authPassword) {
       setAuthFeedback({
         tone: "error",
-        message: "Benutzername und Passwort ausfüllen.",
+        message: "E-Mail und Passwort ausfüllen.",
       });
       return;
     }
@@ -732,8 +785,8 @@ export function App() {
       setAuthSubmitting(true);
       const session =
         authMode === "login"
-          ? await loginAccount(username, authPassword)
-          : await registerAccount(username, authPassword);
+          ? await loginAccount(email, authPassword)
+          : await registerAccount(email, authPassword);
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
       setAuthPasswordConfirmation("");
@@ -741,8 +794,68 @@ export function App() {
         tone: "success",
         message:
           authMode === "login"
-            ? `Angemeldet als ${session.user?.username ?? username}.`
-            : `Konto erstellt. Angemeldet als ${session.user?.username ?? username}.`,
+            ? `Angemeldet als ${session.user?.email ?? email}.`
+            : "Fast geschafft: Bitte bestätige deine E-Mail über den zugesandten Link.",
+      });
+    } catch (error: unknown) {
+      setAuthFeedback({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
+
+  async function submitPasswordResetRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const email = authEmail.trim();
+    if (!email) {
+      setAuthFeedback({ tone: "error", message: "E-Mail ausfüllen." });
+      return;
+    }
+    setAuthFeedback(null);
+    try {
+      setAuthSubmitting(true);
+      await requestPasswordReset(email);
+      setAuthFeedback({
+        tone: "success",
+        message:
+          "Falls ein Konto zu dieser E-Mail existiert, wurde ein Reset-Link versendet.",
+      });
+    } catch (error: unknown) {
+      setAuthFeedback({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
+
+  async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordResetToken) {
+      setAuthFeedback({ tone: "error", message: "Der Reset-Link fehlt." });
+      return;
+    }
+    if (authPassword !== authPasswordConfirmation) {
+      setAuthFeedback({
+        tone: "error",
+        message: "Die beiden Passwörter stimmen nicht überein.",
+      });
+      return;
+    }
+    setAuthFeedback(null);
+    try {
+      setAuthSubmitting(true);
+      await confirmPasswordReset(
+        passwordResetToken.uid,
+        passwordResetToken.token,
+        authPassword,
+      );
+      setPasswordResetToken(null);
+      setAuthPassword("");
+      setAuthPasswordConfirmation("");
+      setAuthMode("login");
+      removeAuthParametersFromUrl();
+      setAuthFeedback({
+        tone: "success",
+        message: "Passwort geändert. Du kannst dich jetzt anmelden.",
       });
     } catch (error: unknown) {
       setAuthFeedback({ tone: "error", message: errorMessage(error) });
@@ -1295,9 +1408,7 @@ export function App() {
             setOpenTopMenu((menu) => (menu === "account" ? null : "account"))
           }
         >
-          {authState.authenticated
-            ? (authState.user?.username ?? "Konto")
-            : "Konto"}
+          Konto
         </button>
         {openTopMenu === "account" ? (
           <div className="managePanel" aria-label="Konto">
@@ -1306,7 +1417,7 @@ export function App() {
                 <>
                   <div className="accountIdentity">
                     <span>Angemeldet</span>
-                    <strong>{authState.user?.username}</strong>
+                    <strong>{authState.user?.email}</strong>
                   </div>
                   <div className="accountActions">
                     <button type="button" onClick={submitLogout}>
@@ -1337,6 +1448,75 @@ export function App() {
                     </details>
                   </div>
                 </>
+              ) : authMode === "forgot" ? (
+                <form
+                  className="authForm"
+                  onSubmit={submitPasswordResetRequest}
+                >
+                  <strong>Passwort zurücksetzen</strong>
+                  <p className="authHint">
+                    Wir senden dir einen zeitlich begrenzten Reset-Link.
+                  </p>
+                  <label className="authField">
+                    <span>E-Mail</span>
+                    <input
+                      autoComplete="email"
+                      inputMode="email"
+                      type="email"
+                      value={authEmail}
+                      onChange={(event) =>
+                        setAuthEmail(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <button
+                    className="authSubmit"
+                    type="submit"
+                    disabled={authSubmitting}
+                  >
+                    {authSubmitting ? "Bitte warten" : "Reset-Link senden"}
+                  </button>
+                  <button
+                    className="authLinkButton"
+                    type="button"
+                    onClick={() => selectAuthMode("login")}
+                  >
+                    Zurück zum Login
+                  </button>
+                </form>
+              ) : authMode === "reset" ? (
+                <form className="authForm" onSubmit={submitPasswordReset}>
+                  <strong>Neues Passwort setzen</strong>
+                  <label className="authField">
+                    <span>Neues Passwort</span>
+                    <input
+                      autoComplete="new-password"
+                      type="password"
+                      value={authPassword}
+                      onChange={(event) =>
+                        setAuthPassword(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <label className="authField">
+                    <span>Passwort bestätigen</span>
+                    <input
+                      autoComplete="new-password"
+                      type="password"
+                      value={authPasswordConfirmation}
+                      onChange={(event) =>
+                        setAuthPasswordConfirmation(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <button
+                    className="authSubmit"
+                    type="submit"
+                    disabled={authSubmitting}
+                  >
+                    {authSubmitting ? "Bitte warten" : "Passwort ändern"}
+                  </button>
+                </form>
               ) : (
                 <form className="authForm" onSubmit={submitAuthentication}>
                   <div
@@ -1360,12 +1540,14 @@ export function App() {
                     </button>
                   </div>
                   <label className="authField">
-                    <span>Benutzername</span>
+                    <span>E-Mail</span>
                     <input
-                      autoComplete="username"
-                      value={authUsername}
+                      autoComplete={authMode === "login" ? "username" : "email"}
+                      inputMode="email"
+                      type={authMode === "register" ? "email" : "text"}
+                      value={authEmail}
                       onChange={(event) =>
-                        setAuthUsername(event.currentTarget.value)
+                        setAuthEmail(event.currentTarget.value)
                       }
                     />
                   </label>
@@ -1399,8 +1581,8 @@ export function App() {
                   ) : null}
                   <p className="authHint">
                     {authMode === "register"
-                      ? "Mindestens 8 Zeichen."
-                      : "Mit deinem Benutzername und Passwort anmelden."}
+                      ? "Kostenlos. Deine E-Mail wird nur für Anmeldung und Kontosicherheit verwendet."
+                      : "Mit E-Mail und Passwort anmelden."}
                   </p>
                   <button
                     className="authSubmit"
@@ -1413,6 +1595,15 @@ export function App() {
                         ? "Anmelden"
                         : "Konto erstellen"}
                   </button>
+                  {authMode === "login" ? (
+                    <button
+                      className="authLinkButton"
+                      type="button"
+                      onClick={() => selectAuthMode("forgot")}
+                    >
+                      Passwort vergessen?
+                    </button>
+                  ) : null}
                 </form>
               )}
               {authFeedback ? (
@@ -2766,7 +2957,48 @@ function defaultTourName(): string {
   }).format(new Date())}`;
 }
 
+function removeAuthParametersFromUrl(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("auth_action");
+  url.searchParams.delete("uid");
+  url.searchParams.delete("token");
+  window.history.replaceState(
+    {},
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
+
+function readAuthLink(): AuthLink | null {
+  const parameters = new URLSearchParams(window.location.search);
+  const action = parameters.get("auth_action");
+  const uid = parameters.get("uid");
+  const token = parameters.get("token");
+  if (
+    (action !== "verify-email" && action !== "reset-password") ||
+    !uid ||
+    !token
+  ) {
+    return null;
+  }
+  return { action, token, uid };
+}
+
 function errorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    const messages: Record<string, string> = {
+      email_unavailable: "Diese E-Mail-Adresse ist bereits registriert.",
+      invalid_credentials: "E-Mail oder Passwort ist nicht korrekt.",
+      invalid_password_reset_link:
+        "Der Passwort-Reset-Link ist ungültig oder abgelaufen.",
+      invalid_verification_link:
+        "Der Bestätigungslink ist ungültig oder abgelaufen.",
+      rate_limited: "Zu viele Versuche. Bitte später erneut versuchen.",
+      verification_email_unavailable:
+        "Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte später erneut versuchen.",
+    };
+    return messages[error.code] ?? error.message;
+  }
   if (error instanceof Error) {
     return error.message;
   }

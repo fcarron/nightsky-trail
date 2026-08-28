@@ -557,6 +557,17 @@ button:disabled {
   opacity: 0.65;
 }
 
+.accountPanel .authLinkButton {
+  min-height: 24px;
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-accent);
+  font-size: 11px;
+  text-decoration: underline;
+}
+
 .tourSaveForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -174,7 +174,7 @@ GRAPHHOPPER_BASE_URL=http://graphhopper:8989
 
 Set `DJANGO_ENV=production`, a long random `DJANGO_SECRET_KEY`, the public host name, and the public HTTPS origin in `DJANGO_CSRF_TRUSTED_ORIGINS` before deploying. In production the app refuses to start without that secret. Sessions use secure, HTTP-only, same-site cookies and unsafe API requests are protected with Django CSRF tokens.
 
-Login and registration are rate-limited in Django's cache. For more than one backend process, configure Django's cache with a shared backend before scaling out.
+Planning remains available without an account. Server-side saved tours use optional accounts with a required, verified email address. Login, registration, email verification, and password reset use Django sessions and time-limited one-time links. Authentication endpoints are rate-limited in Django's cache. For more than one backend process, configure Django's cache with a shared backend before scaling out.
 
 Transactional email uses Brevo SMTP when an email feature is added. Create an SMTP key in Brevo, verify the sending domain, and configure these values outside git:
 
@@ -185,9 +185,11 @@ BREVO_SMTP_LOGIN=your-brevo-smtp-login
 BREVO_SMTP_KEY=your-brevo-smtp-key
 BREVO_SMTP_USE_TLS=true
 DEFAULT_FROM_EMAIL=noreply@your-domain.example
+PUBLIC_APP_URL=https://trail.your-domain.example
+AUTH_TOKEN_TIMEOUT_SECONDS=1800
 ```
 
-Brevo's SMTP key is distinct from its API key. The current account flow does not yet send verification or password-reset emails; the SMTP configuration is prepared for those future transactional messages.
+Brevo's SMTP key is distinct from its API key. Verify the sending domain in Brevo and configure SPF, DKIM, and DMARC before enabling production registrations. `PUBLIC_APP_URL` must be the public HTTPS origin because verification and password-reset links point back to the React app.
 
 ## License
 
