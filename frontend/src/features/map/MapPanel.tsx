@@ -5,7 +5,9 @@ import Map from "ol/Map.js";
 import { unByKey } from "ol/Observable.js";
 import View from "ol/View.js";
 import { defaults as defaultControls } from "ol/control/defaults.js";
+import { click as clickCondition } from "ol/events/condition.js";
 import { LineString, Point } from "ol/geom.js";
+import DoubleClickZoom from "ol/interaction/DoubleClickZoom.js";
 import Modify from "ol/interaction/Modify.js";
 import Select from "ol/interaction/Select.js";
 import TileLayer from "ol/layer/Tile.js";
@@ -123,6 +125,7 @@ export function MapPanel({
   );
   const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const modifyInteractionRef = useRef<Modify | null>(null);
+  const doubleClickZoomInteractionRef = useRef<DoubleClickZoom | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
   const routeSourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
@@ -152,6 +155,19 @@ export function MapPanel({
   const difficultyVisibleRef = useRef(false);
   const trailMatchDebugVisibleRef = useRef(false);
   const routeDragInsertRef = useRef<{ waypointId: string } | null>(null);
+  const routeInsertCandidateDragRef = useRef<{
+    moved: boolean;
+    pointerId: number;
+    position: LonLat;
+    segmentId: string;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const suppressRouteCandidateClickRef = useRef(false);
+  const lastTouchMapClickRef = useRef<{
+    pixel: [number, number];
+    time: number;
+  } | null>(null);
   const suppressNextSingleClickRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -166,6 +182,13 @@ export function MapPanel({
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
     [number, number] | null
   >(null);
+  const [routeInsertCandidate, setRouteInsertCandidate] = useState<{
+    segmentId: string;
+    position: LonLat;
+  } | null>(null);
+  const [routeInsertCandidatePixel, setRouteInsertCandidatePixel] = useState<
+    [number, number] | null
+  >(null);
   const [selectedMapFeature, setSelectedMapFeature] =
     useState<MapFeatureInfo | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
@@ -173,6 +196,12 @@ export function MapPanel({
   );
   const selectedWaypoint =
     selectedWaypointIndex >= 0 ? waypoints[selectedWaypointIndex] : null;
+  const activeRouteInsertCandidate =
+    interactionMode === "draw" &&
+    routeInsertCandidate &&
+    segments.some((segment) => segment.id === routeInsertCandidate.segmentId)
+      ? routeInsertCandidate
+      : null;
   const trailMatchDebugEnabled = ENABLE_DEV_TOOLS && trailMatchDebugVisible;
   useEffect(() => {
     callbacksRef.current = {
@@ -198,6 +227,9 @@ export function MapPanel({
     interactionModeRef.current = interactionMode;
     onInteractionModeChangeRef.current = onInteractionModeChange;
     modifyInteractionRef.current?.setActive(interactionMode === "draw");
+    doubleClickZoomInteractionRef.current?.setActive(
+      interactionMode !== "draw" || !hasCoarsePointer(),
+    );
   }, [interactionMode, onInteractionModeChange]);
 
   useEffect(() => {
@@ -234,6 +266,36 @@ export function MapPanel({
     selectedWaypoint?.position.lat,
     selectedWaypoint?.position.lon,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !activeRouteInsertCandidate) {
+      setRouteInsertCandidatePixel(null);
+      return;
+    }
+
+    const updatePixel = () => {
+      const pixel = map.getPixelFromCoordinate(
+        fromLonLat([
+          activeRouteInsertCandidate.position.lon,
+          activeRouteInsertCandidate.position.lat,
+        ]),
+      );
+      setRouteInsertCandidatePixel([
+        Math.round(pixel[0]),
+        Math.round(pixel[1]),
+      ]);
+    };
+
+    updatePixel();
+    const view = map.getView();
+    const listeners = [
+      map.on("moveend", updatePixel),
+      view.on("change:center", updatePixel),
+      view.on("change:resolution", updatePixel),
+    ];
+    return () => unByKey(listeners);
+  }, [activeRouteInsertCandidate, mapReady]);
 
   useEffect(() => {
     difficultyVisibleRef.current = difficultyVisible;
@@ -403,6 +465,17 @@ export function MapPanel({
         zoom: 8,
       }),
     });
+    const doubleClickZoomInteraction = map
+      .getInteractions()
+      .getArray()
+      .find(
+        (mapInteraction): mapInteraction is DoubleClickZoom =>
+          mapInteraction instanceof DoubleClickZoom,
+      );
+    doubleClickZoomInteractionRef.current = doubleClickZoomInteraction ?? null;
+    doubleClickZoomInteractionRef.current?.setActive(
+      interactionModeRef.current !== "draw" || !hasCoarsePointer(),
+    );
     map.addLayer(standardLayer);
     map.addLayer(satelliteLayer);
     map.addLayer(osmTopoLayer);
@@ -446,10 +519,31 @@ export function MapPanel({
         });
     };
 
-    // The regular click event is more reliable than singleclick for touch
-    // input. Route-line insertion is handled on pointerdown and suppressed
-    // here to avoid adding the same point twice.
+    // The regular click event is more reliable than singleclick for touch.
+    // Mouse route dragging inserts on pointerdown and suppresses its click.
     map.on("click", (event) => {
+      const touchLikeInput = isTouchLikeEvent(event.originalEvent);
+      if (touchLikeInput) {
+        if (interactionModeRef.current === "draw") {
+          doubleClickZoomInteractionRef.current?.setActive(false);
+        }
+        const previousClick = lastTouchMapClickRef.current;
+        const currentClick = {
+          pixel: [event.pixel[0], event.pixel[1]] as [number, number],
+          time: Date.now(),
+        };
+        lastTouchMapClickRef.current = currentClick;
+        if (
+          previousClick &&
+          currentClick.time - previousClick.time < 350 &&
+          Math.hypot(
+            currentClick.pixel[0] - previousClick.pixel[0],
+            currentClick.pixel[1] - previousClick.pixel[1],
+          ) < 24
+        ) {
+          return;
+        }
+      }
       if (suppressNextSingleClickRef.current) {
         suppressNextSingleClickRef.current = false;
         return;
@@ -460,14 +554,17 @@ export function MapPanel({
       }
 
       const pointFeatures = map.getFeaturesAtPixel(event.pixel, {
+        hitTolerance: touchLikeInput ? 14 : 0,
         layerFilter: (layer) => layer === pointLayer,
       });
 
       if (pointFeatures.length > 0) {
+        setRouteInsertCandidate(null);
         return;
       }
 
       if (interactionModeRef.current === "explore") {
+        setRouteInsertCandidate(null);
         const requestId = ++mapFeatureRequestIdRef.current;
         void inspectVisibleWmsFeatures({
           coordinate: event.coordinate,
@@ -490,7 +587,7 @@ export function MapPanel({
       }
 
       const routeFeatures = map.getFeaturesAtPixel(event.pixel, {
-        hitTolerance: 8,
+        hitTolerance: touchLikeInput ? 16 : 8,
         layerFilter: (layer) => layer === routeLayer,
       });
       const routeFeature = routeFeatures[0];
@@ -498,10 +595,16 @@ export function MapPanel({
       const geometry = routeFeature?.getGeometry();
       if (typeof segmentId === "string" && geometry instanceof LineString) {
         const [lon, lat] = toLonLat(geometry.getClosestPoint(event.coordinate));
+        if (touchLikeInput) {
+          setRouteInsertCandidate({ segmentId, position: { lon, lat } });
+          callbacksRef.current.onSelectWaypoint(null);
+          return;
+        }
         callbacksRef.current.onInsertWaypoint(segmentId, { lon, lat });
         return;
       }
 
+      setRouteInsertCandidate(null);
       const [lon, lat] = toLonLat(event.coordinate);
       callbacksRef.current.onAddWaypoint({ lon, lat });
     });
@@ -531,7 +634,16 @@ export function MapPanel({
     });
 
     const handleRoutePointerDown = (event: PointerEvent) => {
-      if (interactionModeRef.current !== "draw") {
+      if (
+        interactionModeRef.current === "draw" &&
+        event.pointerType !== "mouse"
+      ) {
+        doubleClickZoomInteractionRef.current?.setActive(false);
+      }
+      if (
+        interactionModeRef.current !== "draw" ||
+        event.pointerType !== "mouse"
+      ) {
         return;
       }
       const pixel = map.getEventPixel(event);
@@ -598,6 +710,7 @@ export function MapPanel({
     });
 
     const select = new Select({
+      condition: clickCondition,
       layers: [pointLayer],
       style: (feature) =>
         waypointStyle(
@@ -613,7 +726,10 @@ export function MapPanel({
     });
     map.addInteraction(select);
 
-    const modify = new Modify({ source: pointSourceRef.current });
+    const modify = new Modify({
+      pixelTolerance: 16,
+      source: pointSourceRef.current,
+    });
     modify.setActive(interactionModeRef.current === "draw");
     modify.on("modifyend", (event) => {
       event.features.forEach((feature) => {
@@ -649,6 +765,7 @@ export function MapPanel({
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
       modifyInteractionRef.current = null;
+      doubleClickZoomInteractionRef.current = null;
       loadLightBaseLayerRef.current = () => undefined;
       lightBaseLayerLoadedRef.current = false;
       lightBaseLayerLoadingRef.current = false;
@@ -1078,6 +1195,91 @@ export function MapPanel({
   return (
     <section className="mapSurface" aria-label="Karte">
       <div ref={targetRef} className="mapTarget" />
+      {activeRouteInsertCandidate && routeInsertCandidatePixel ? (
+        <button
+          type="button"
+          className="mapRouteInsert"
+          style={{
+            left: routeInsertCandidatePixel[0],
+            top: routeInsertCandidatePixel[1],
+          }}
+          aria-label="Zwischenpunkt hier einfügen"
+          title="Zwischenpunkt hier einfügen"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (suppressRouteCandidateClickRef.current) {
+              suppressRouteCandidateClickRef.current = false;
+              return;
+            }
+            callbacksRef.current.onInsertWaypoint(
+              activeRouteInsertCandidate.segmentId,
+              activeRouteInsertCandidate.position,
+            );
+            setRouteInsertCandidate(null);
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            routeInsertCandidateDragRef.current = {
+              moved: false,
+              pointerId: event.pointerId,
+              position: activeRouteInsertCandidate.position,
+              segmentId: activeRouteInsertCandidate.segmentId,
+              startX: event.clientX,
+              startY: event.clientY,
+            };
+          }}
+          onPointerMove={(event) => {
+            const drag = routeInsertCandidateDragRef.current;
+            const map = mapRef.current;
+            if (!drag || drag.pointerId !== event.pointerId || !map) {
+              return;
+            }
+            if (
+              !drag.moved &&
+              Math.hypot(
+                event.clientX - drag.startX,
+                event.clientY - drag.startY,
+              ) < 6
+            ) {
+              return;
+            }
+            const coordinate = map.getCoordinateFromPixel(
+              map.getEventPixel(event.nativeEvent),
+            );
+            const [lon, lat] = toLonLat(coordinate);
+            drag.moved = true;
+            drag.position = { lon, lat };
+            setRouteInsertCandidate({
+              segmentId: drag.segmentId,
+              position: drag.position,
+            });
+          }}
+          onPointerUp={(event) => {
+            const drag = routeInsertCandidateDragRef.current;
+            routeInsertCandidateDragRef.current = null;
+            event.stopPropagation();
+            if (!drag?.moved) {
+              return;
+            }
+            event.preventDefault();
+            suppressRouteCandidateClickRef.current = true;
+            window.setTimeout(() => {
+              suppressRouteCandidateClickRef.current = false;
+            }, 0);
+            callbacksRef.current.onInsertWaypoint(
+              drag.segmentId,
+              drag.position,
+            );
+            setRouteInsertCandidate(null);
+          }}
+          onPointerCancel={() => {
+            routeInsertCandidateDragRef.current = null;
+          }}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+      ) : null}
       {selectedWaypoint && selectedWaypointPixel ? (
         <button
           type="button"
@@ -1684,4 +1886,19 @@ function isCombinedTrailSegmentRecord(
     "matchScore" in value &&
     "matchStatus" in value
   );
+}
+
+function hasCoarsePointer(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
+function isTouchLikeEvent(event: Event): boolean {
+  if ("pointerType" in event) {
+    return event.pointerType === "touch" || event.pointerType === "pen";
+  }
+  return hasCoarsePointer();
 }
