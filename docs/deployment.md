@@ -47,7 +47,7 @@ Edit `.env.production` and set at least:
 
 - `NIGHTSKY_EDGE_NETWORK`
 - `DJANGO_SECRET_KEY`
-- `DJANGO_ALLOWED_HOSTS`
+- `DJANGO_ALLOWED_HOSTS` (public domain plus `nightsky_backend,127.0.0.1,localhost`)
 - `DJANGO_CSRF_TRUSTED_ORIGINS`
 - the Brevo SMTP credentials and sender address
 
@@ -98,8 +98,16 @@ persistent data directories on first use.
 ## Connect the existing edge Nginx
 
 For the first certificate, copy `deploy/nginx/nightsky-trail-http.conf.example` to the existing
-server's Nginx `conf.d` directory and replace `trail.example.com` with the real hostname. Test
-and reload Nginx so that the ACME challenge location is active:
+server's Nginx `conf.d` directory. Open the copied file and replace every occurrence of
+`trail.example.com` with the real hostname:
+
+```bash
+cp /opt/nightsky-trail/deploy/nginx/nightsky-trail-http.conf.example \
+  /opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf
+nano /opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf
+```
+
+Test and reload Nginx so that the ACME challenge location is active:
 
 ```bash
 docker compose exec nginx nginx -t
@@ -115,8 +123,16 @@ docker compose run --rm certbot certonly \
   -d trail.example.com
 ```
 
-After certbot succeeds, replace the temporary file with
-`deploy/nginx/nightsky-trail.conf.example`, again using the real hostname and certificate path.
+After certbot succeeds, replace the temporary file with the HTTPS template. This copy contains
+the placeholders again, so open the copied file and replace every `trail.example.com`, including
+the certificate paths:
+
+```bash
+cp /opt/nightsky-trail/deploy/nginx/nightsky-trail.conf.example \
+  /opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf
+nano /opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf
+```
+
 The upstream name is the Compose service `nightsky_gateway`, which is resolvable because both
 containers share the external edge network. Validate and reload the existing Nginx:
 
