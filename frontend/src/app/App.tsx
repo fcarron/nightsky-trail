@@ -9,7 +9,10 @@ import {
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
 import type { ElevationProfile } from "../features/elevation/elevationModel";
-import type { ElevationSurfaceSegment } from "../features/elevation/ElevationPanel";
+import type {
+  ElevationPanelSize,
+  ElevationSurfaceSegment,
+} from "../features/elevation/ElevationPanel";
 import { MapPanel } from "../features/map/MapPanel";
 import {
   distanceMetersBetween,
@@ -228,6 +231,7 @@ export function App() {
   const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
   const [openTopMenu, setOpenTopMenu] = useState<TopMenu | null>(null);
+  const [mobileHeaderOpen, setMobileHeaderOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSheetState, setMobileSheetState] =
     useState<MobileSheetState>("collapsed");
@@ -249,6 +253,8 @@ export function App() {
   const [elevationHoverPoint, setElevationHoverPoint] = useState<LonLat | null>(
     null,
   );
+  const [elevationPanelSize, setElevationPanelSize] =
+    useState<ElevationPanelSize>("compact");
   const [basePaceMinPerKm, setBasePaceMinPerKm] =
     useState(loadBasePaceMinPerKm);
   const [basePaceInput, setBasePaceInput] = useState(() =>
@@ -282,6 +288,11 @@ export function App() {
   const searchTimerRef = useRef<number | null>(null);
   const gpxInputRef = useRef<HTMLInputElement | null>(null);
   const topMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileSheetPointerRef = useRef<{
+    pointerId: number;
+    startY: number;
+  } | null>(null);
+  const mobileSheetSwipedRef = useRef(false);
   const effectiveComputedRoute =
     history.present.waypoints.length >= 2 ? routeComputeState.route : null;
   const effectiveRouteComputeStatus =
@@ -627,6 +638,16 @@ export function App() {
       : health === "checking"
         ? "API wird geprüft"
         : "API nicht erreichbar";
+
+  function setElevationPanelDisplay(size: ElevationPanelSize) {
+    setElevationPanelSize(size);
+    setElevationHoverPoint(null);
+    setMobileSheetState(size === "large" ? "half" : "collapsed");
+  }
+
+  function closeMobileProfile() {
+    setElevationPanelDisplay("compact");
+  }
 
   function addWaypoint(position: LonLat) {
     const id = nextWaypointId(waypointCounterRef);
@@ -1040,6 +1061,7 @@ export function App() {
     setSearchResults([]);
     setSearchStatus("idle");
     setSearchMessage(null);
+    setMobileHeaderOpen(false);
     setMobileSearchOpen(false);
     setSearchFocus((currentFocus) => ({
       lat: result.latitude,
@@ -1364,7 +1386,28 @@ export function App() {
 
   return (
     <main className="appShell">
-      <header className="topBar">
+      <header
+        className={`topBar ${mobileHeaderOpen ? "mobileHeaderOpen" : ""}`}
+      >
+        <button
+          type="button"
+          className="mobileHeaderToggle"
+          aria-expanded={mobileHeaderOpen}
+          aria-label={
+            mobileHeaderOpen ? "Navigation schließen" : "Navigation öffnen"
+          }
+          onClick={() => {
+            setMobileHeaderOpen((open) => {
+              if (open) {
+                setMobileSearchOpen(false);
+                setOpenTopMenu(null);
+              }
+              return !open;
+            });
+          }}
+        >
+          <span aria-hidden="true">{mobileHeaderOpen ? "×" : "N"}</span>
+        </button>
         <div className="brand">
           <span className="brandMark" aria-hidden="true">
             N
@@ -1437,29 +1480,81 @@ export function App() {
         </div>
       </header>
 
-      <section className="plannerLayout" aria-label="Routenplaner">
+      <section
+        className={`plannerLayout ${elevationPanelSize === "large" ? "plannerProfileMode" : ""}`}
+        aria-label="Routenplaner"
+      >
         <aside
           id="route-panel"
           aria-label="Routeninformationen"
-          className={`sidebar routeDock mobileSheet-${mobileSheetState}`}
+          className={`sidebar routeDock mobileSheet-${mobileSheetState} ${elevationPanelSize === "large" ? "mobileProfileMode" : ""}`}
         >
           <button
             type="button"
             className="mobileSheetHandle"
             aria-controls="route-panel"
             aria-expanded={mobileSheetState !== "collapsed"}
-            aria-label={mobileSheetActionLabel(mobileSheetState)}
-            onClick={() =>
-              setMobileSheetState(nextMobileSheetState(mobileSheetState))
-            }
+            aria-label={mobileSheetActionLabel(
+              mobileSheetState,
+              elevationPanelSize === "large",
+            )}
+            onPointerDown={(event) => {
+              mobileSheetPointerRef.current = {
+                pointerId: event.pointerId,
+                startY: event.clientY,
+              };
+              mobileSheetSwipedRef.current = false;
+            }}
+            onPointerUp={(event) => {
+              const gesture = mobileSheetPointerRef.current;
+              mobileSheetPointerRef.current = null;
+              if (!gesture || gesture.pointerId !== event.pointerId) {
+                return;
+              }
+
+              const distance = event.clientY - gesture.startY;
+              if (Math.abs(distance) < 36) {
+                return;
+              }
+
+              mobileSheetSwipedRef.current = true;
+              if (elevationPanelSize === "large") {
+                if (distance > 0) {
+                  closeMobileProfile();
+                }
+                return;
+              }
+              setMobileSheetState((state) =>
+                distance < 0
+                  ? expandMobileSheet(state)
+                  : collapseMobileSheet(state),
+              );
+            }}
+            onPointerCancel={() => {
+              mobileSheetPointerRef.current = null;
+              mobileSheetSwipedRef.current = false;
+            }}
+            onClick={() => {
+              if (mobileSheetSwipedRef.current) {
+                mobileSheetSwipedRef.current = false;
+                return;
+              }
+              if (elevationPanelSize === "large") {
+                closeMobileProfile();
+                return;
+              }
+              setMobileSheetState(nextMobileSheetState(mobileSheetState));
+            }}
           >
             <span className="mobileSheetGrip" aria-hidden="true" />
             <strong>
-              {selectedWaypoint
-                ? `Punkt ${selectedWaypointIndex + 1}`
-                : hasRoute
-                  ? "Tour"
-                  : "Route planen"}
+              {elevationPanelSize === "large"
+                ? "Höhenprofil"
+                : selectedWaypoint
+                  ? `Punkt ${selectedWaypointIndex + 1}`
+                  : hasRoute
+                    ? "Tour"
+                    : "Route planen"}
             </strong>
             <span className="mobileSheetChevron" aria-hidden="true" />
           </button>
@@ -1824,7 +1919,10 @@ export function App() {
             </section>
           ) : null}
 
-          <details className="detailDrawer">
+          <details
+            className="detailDrawer"
+            open={elevationPanelSize === "large" ? true : undefined}
+          >
             <summary>
               <span>Details</span>
               <small>
@@ -1840,6 +1938,8 @@ export function App() {
               status={elevationState.status}
               message={elevationState.message}
               onHoverPointChange={setElevationHoverPoint}
+              onSizeChange={setElevationPanelDisplay}
+              size={elevationPanelSize}
             />
 
             <details className="compactDetails">
@@ -2066,6 +2166,18 @@ export function App() {
           </details>
         </aside>
 
+        {elevationState.status === "ready" &&
+        elevationState.profile &&
+        elevationPanelSize !== "large" ? (
+          <button
+            type="button"
+            className={`mobileProfileAction mobileProfileAction-${mobileSheetState}`}
+            onClick={() => setElevationPanelDisplay("large")}
+          >
+            Profil
+          </button>
+        ) : null}
+
         <button
           type="button"
           className={`mobileDrawAction mobileDrawAction-${mobileSheetState}`}
@@ -2085,6 +2197,10 @@ export function App() {
           computedSegments={effectiveComputedRoute?.segments ?? null}
           graphhopperDebugVisible={ENABLE_DEV_TOOLS && graphhopperDebugVisible}
           elevationHoverPoint={elevationHoverPoint}
+          elevationMarkerAutoPan={elevationPanelSize === "large"}
+          elevationMarkerBottomPadding={
+            elevationPanelSize === "large" ? 310 : 40
+          }
           fitGeometry={history.present.importedGeometry}
           fitRequestId={routeFitRequestId}
           searchFocus={searchFocus}
@@ -2094,7 +2210,12 @@ export function App() {
           onAddWaypoint={addWaypoint}
           onInsertWaypoint={insertWaypoint}
           onMoveWaypoint={moveWaypoint}
-          onSelectWaypoint={setSelectedWaypointId}
+          onSelectWaypoint={(waypointId) => {
+            setSelectedWaypointId(waypointId);
+            if (waypointId) {
+              setMobileSheetState("half");
+            }
+          }}
           onDeleteWaypoint={deleteWaypoint}
         />
       </section>
@@ -2540,9 +2661,23 @@ function routeStatusLabel(
 
 function friendlyRouteError(message: string | null): string {
   if (message && /cannot find point|point not found/i.test(message)) {
-    return "Für mindestens einen Punkt wurde kein routbarer Weg gefunden. Punkt verschieben oder den Abschnitt auf Gerade setzen.";
+    return "Kein routbarer Weg gefunden. Punkt verschieben oder Abschnitt auf Gerade setzen.";
   }
   return message ?? "Route konnte nicht berechnet werden.";
+}
+
+function expandMobileSheet(state: MobileSheetState): MobileSheetState {
+  if (state === "collapsed") {
+    return "half";
+  }
+  return "full";
+}
+
+function collapseMobileSheet(state: MobileSheetState): MobileSheetState {
+  if (state === "full") {
+    return "half";
+  }
+  return "collapsed";
 }
 
 function nextMobileSheetState(state: MobileSheetState): MobileSheetState {
@@ -2555,7 +2690,13 @@ function nextMobileSheetState(state: MobileSheetState): MobileSheetState {
   return "collapsed";
 }
 
-function mobileSheetActionLabel(state: MobileSheetState): string {
+function mobileSheetActionLabel(
+  state: MobileSheetState,
+  profileModeActive = false,
+): string {
+  if (profileModeActive) {
+    return "Höhenprofil schließen";
+  }
   if (state === "collapsed") {
     return "Routenpanel öffnen";
   }

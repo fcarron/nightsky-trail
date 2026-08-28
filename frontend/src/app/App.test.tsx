@@ -1,5 +1,6 @@
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -65,6 +66,24 @@ describe("App", () => {
     expect(screen.queryByText("API bereit")).not.toBeInTheDocument();
   });
 
+  it("opens the mobile header only when requested", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    const header = screen.getByRole("banner");
+    expect(header).not.toHaveClass("mobileHeaderOpen");
+
+    await user.click(screen.getByRole("button", { name: "Navigation öffnen" }));
+    expect(header).toHaveClass("mobileHeaderOpen");
+
+    await user.click(
+      screen.getByRole("button", { name: "Navigation schließen" }),
+    );
+    expect(header).not.toHaveClass("mobileHeaderOpen");
+  });
+
   it("starts in exploration mode and enables route tools explicitly", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", createFetchMock());
@@ -113,6 +132,27 @@ describe("App", () => {
     await user.click(
       screen.getByRole("button", { name: "Routenpanel einklappen" }),
     );
+    expect(routePanel).toHaveClass("mobileSheet-collapsed");
+  });
+
+  it("moves the mobile route sheet one level with a vertical swipe", () => {
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    const routePanel = screen.getByRole("complementary", {
+      name: "Routeninformationen",
+    });
+    const handle = screen.getByRole("button", {
+      name: "Routenpanel öffnen",
+    });
+
+    fireEvent.pointerDown(handle, { clientY: 500, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientY: 430, pointerId: 1 });
+    expect(routePanel).toHaveClass("mobileSheet-half");
+
+    fireEvent.pointerDown(handle, { clientY: 430, pointerId: 2 });
+    fireEvent.pointerUp(handle, { clientY: 500, pointerId: 2 });
     expect(routePanel).toHaveClass("mobileSheet-collapsed");
   });
 
@@ -301,6 +341,33 @@ describe("App", () => {
       expect(screen.getByText("Aufstieg 88 m")).toBeInTheDocument(),
     );
     expect(screen.getByText("Abstieg 22 m")).toBeInTheDocument();
+  });
+
+  it("opens a map-first mobile profile mode", async () => {
+    const user = userEvent.setup();
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        routeResponses: [routeResponse({ distanceMeters: 1234 })],
+        elevationResponses: [
+          elevationResponse({ ascentMeters: 88, descentMeters: 22 }),
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Profil" }));
+    const routePanel = screen.getByRole("complementary", {
+      name: "Routeninformationen",
+    });
+    expect(routePanel).toHaveClass("mobileProfileMode");
+
+    await user.click(
+      screen.getByRole("button", { name: "Höhenprofil schließen" }),
+    );
+    expect(routePanel).not.toHaveClass("mobileProfileMode");
   });
 
   it("deletes the selected waypoint with the keyboard", async () => {

@@ -75,6 +75,8 @@ interface MapPanelProps {
   computedSegments: ComputedRouteSegment[] | null;
   graphhopperDebugVisible: boolean;
   elevationHoverPoint: LonLat | null;
+  elevationMarkerAutoPan?: boolean;
+  elevationMarkerBottomPadding?: number;
   fitGeometry?: LonLat[];
   fitRequestId: number;
   searchFocus: {
@@ -99,6 +101,8 @@ export function MapPanel({
   computedSegments,
   graphhopperDebugVisible,
   elevationHoverPoint,
+  elevationMarkerAutoPan = false,
+  elevationMarkerBottomPadding = 40,
   fitGeometry,
   fitRequestId,
   searchFocus,
@@ -853,14 +857,53 @@ export function MapPanel({
     if (!elevationHoverPoint) {
       return;
     }
-    source.addFeature(
-      new Feature(
-        new Point(
-          fromLonLat([elevationHoverPoint.lon, elevationHoverPoint.lat]),
-        ),
-      ),
+    const coordinate = fromLonLat([
+      elevationHoverPoint.lon,
+      elevationHoverPoint.lat,
+    ]);
+    source.addFeature(new Feature(new Point(coordinate)));
+
+    if (!elevationMarkerAutoPan) {
+      return;
+    }
+    const map = mapRef.current;
+    const size = map?.getSize();
+    if (!map || !size) {
+      return;
+    }
+    const markerPixel = map.getPixelFromCoordinate(coordinate);
+    const topEdge = 70;
+    const leftEdge = 40;
+    const rightEdge = Math.max(leftEdge, size[0] - 40);
+    const bottomEdge = Math.max(
+      topEdge,
+      size[1] - Math.min(elevationMarkerBottomPadding, size[1] / 2),
     );
-  }, [elevationHoverPoint]);
+    const targetPixel = [
+      Math.min(rightEdge, Math.max(leftEdge, markerPixel[0])),
+      Math.min(bottomEdge, Math.max(topEdge, markerPixel[1])),
+    ];
+    if (
+      targetPixel[0] === markerPixel[0] &&
+      targetPixel[1] === markerPixel[1]
+    ) {
+      return;
+    }
+    const center = map.getView().getCenter();
+    if (!center) {
+      return;
+    }
+    const centerPixel = map.getPixelFromCoordinate(center);
+    const nextCenter = map.getCoordinateFromPixel([
+      centerPixel[0] + markerPixel[0] - targetPixel[0],
+      centerPixel[1] + markerPixel[1] - targetPixel[1],
+    ]);
+    map.getView().animate({ center: nextCenter, duration: 180 });
+  }, [
+    elevationHoverPoint,
+    elevationMarkerAutoPan,
+    elevationMarkerBottomPadding,
+  ]);
 
   useEffect(() => {
     if (

@@ -26,7 +26,7 @@ registerEChartsModules([
   CanvasRenderer,
 ]);
 
-type ElevationPanelSize = "compact" | "large";
+export type ElevationPanelSize = "compact" | "large";
 
 type ProfileBandDatum = [
   centerKm: number,
@@ -80,6 +80,8 @@ interface ElevationPanelProps {
   status: "idle" | "loading" | "ready" | "error";
   message: string | null;
   onHoverPointChange?: (point: ElevationHoverPoint | null) => void;
+  onSizeChange?: (size: ElevationPanelSize) => void;
+  size?: ElevationPanelSize;
 }
 
 export function ElevationPanel({
@@ -88,9 +90,14 @@ export function ElevationPanel({
   status,
   message,
   onHoverPointChange,
+  onSizeChange,
+  size = "compact",
 }: ElevationPanelProps) {
   const chartRef = useRef<HTMLDivElement | null>(null);
-  const [panelSize, setPanelSize] = useState<ElevationPanelSize>("compact");
+  const [activePoint, setActivePoint] = useState<
+    ElevationProfile["points"][number] | null
+  >(null);
+  const panelSize = size;
   const elevationFloor = useMemo(() => {
     if (!profile) {
       return 0;
@@ -123,9 +130,12 @@ export function ElevationPanel({
       return;
     }
 
-    const chart = init(chartRef.current);
+    const chartElement = chartRef.current;
+    const chart = init(chartElement);
     let hoverFrame: number | null = null;
     let pendingHoverEvent: { offsetX: number; offsetY: number } | null = null;
+    let touchPointerId: number | null = null;
+    let touchSelectionActive = false;
     const elevationRange = Math.max(
       80,
       profile.maxElevationMeters - elevationFloor,
@@ -284,6 +294,40 @@ export function ElevationPanel({
       ],
     });
 
+    const updateHoverPoint = (event: { offsetX: number; offsetY: number }) => {
+      if (
+        !chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])
+      ) {
+        if (!touchSelectionActive) {
+          setActivePoint(null);
+          onHoverPointChange?.(null);
+        }
+        return;
+      }
+      const value = chart.convertFromPixel({ gridIndex: 0 }, [
+        event.offsetX,
+        event.offsetY,
+      ]);
+      if (!Array.isArray(value) || typeof value[0] !== "number") {
+        return;
+      }
+      const pointIndex = nearestElevationPointIndex(profile, value[0] * 1000);
+      const point = profile.points[pointIndex];
+      if (!point) {
+        return;
+      }
+      setActivePoint(point);
+      onHoverPointChange?.({
+        lon: point.longitude,
+        lat: point.latitude,
+      });
+      chart.dispatchAction({
+        type: "showTip",
+        seriesIndex: 0,
+        dataIndex: pointIndex,
+      });
+    };
+
     const handleMouseMove = (event: { offsetX: number; offsetY: number }) => {
       pendingHoverEvent = event;
       if (hoverFrame !== null) {
@@ -299,40 +343,61 @@ export function ElevationPanel({
       });
     };
 
-    const updateHoverPoint = (event: { offsetX: number; offsetY: number }) => {
-      if (
-        !chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])
-      ) {
-        onHoverPointChange?.(null);
-        return;
-      }
-      const value = chart.convertFromPixel({ gridIndex: 0 }, [
-        event.offsetX,
-        event.offsetY,
-      ]);
-      if (!Array.isArray(value) || typeof value[0] !== "number") {
-        onHoverPointChange?.(null);
-        return;
-      }
-      const point = nearestElevationPoint(profile, value[0] * 1000);
-      onHoverPointChange?.({
-        lon: point.longitude,
-        lat: point.latitude,
-      });
-    };
     const handleMouseOut = () => {
       pendingHoverEvent = null;
       if (hoverFrame !== null) {
         window.cancelAnimationFrame(hoverFrame);
         hoverFrame = null;
       }
-      onHoverPointChange?.(null);
+      if (!touchSelectionActive) {
+        setActivePoint(null);
+        onHoverPointChange?.(null);
+      }
+    };
+    const pointerOffset = (event: PointerEvent) => {
+      const bounds = chartElement.getBoundingClientRect();
+      return {
+        offsetX: event.clientX - bounds.left,
+        offsetY: event.clientY - bounds.top,
+      };
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") {
+        return;
+      }
+      if (touchPointerId !== null) {
+        return;
+      }
+      touchPointerId = event.pointerId;
+      touchSelectionActive = true;
+      const offset = pointerOffset(event);
+      if (offset) {
+        updateHoverPoint(offset);
+      }
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== touchPointerId) {
+        return;
+      }
+      const offset = pointerOffset(event);
+      if (offset) {
+        updateHoverPoint(offset);
+      }
+    };
+    const finishTouchPointer = (event: PointerEvent) => {
+      if (event.pointerId === touchPointerId) {
+        touchPointerId = null;
+      }
     };
     chart.getZr().on("mousemove", handleMouseMove);
     chart.getZr().on("mouseout", handleMouseOut);
+    chartElement.addEventListener("pointerdown", handlePointerDown);
+    chartElement.addEventListener("pointermove", handlePointerMove);
+    chartElement.addEventListener("pointerup", finishTouchPointer);
+    chartElement.addEventListener("pointercancel", finishTouchPointer);
 
     const resizeObserver = new ResizeObserver(() => chart.resize());
-    resizeObserver.observe(chartRef.current);
+    resizeObserver.observe(chartElement);
 
     return () => {
       if (hoverFrame !== null) {
@@ -340,6 +405,10 @@ export function ElevationPanel({
       }
       chart.getZr().off("mousemove", handleMouseMove);
       chart.getZr().off("mouseout", handleMouseOut);
+      chartElement.removeEventListener("pointerdown", handlePointerDown);
+      chartElement.removeEventListener("pointermove", handlePointerMove);
+      chartElement.removeEventListener("pointerup", finishTouchPointer);
+      chartElement.removeEventListener("pointercancel", finishTouchPointer);
       resizeObserver.disconnect();
       chart.dispose();
       onHoverPointChange?.(null);
@@ -397,18 +466,33 @@ export function ElevationPanel({
             <button
               type="button"
               aria-pressed={panelSize === "compact"}
-              onClick={() => setPanelSize("compact")}
+              onClick={() => onSizeChange?.("compact")}
             >
               Klein
             </button>
             <button
               type="button"
               aria-pressed={panelSize === "large"}
-              onClick={() => setPanelSize("large")}
+              onClick={() => onSizeChange?.("large")}
             >
               Gross
             </button>
           </div>
+          {panelSize === "large" && activePoint ? (
+            <div className="elevationScrubReadout" aria-live="polite">
+              <strong>{formatDistance(activePoint.distanceMeters)}</strong>
+              <span>
+                {formatElevationMeters(activePoint.smoothedElevationMeters)}
+              </span>
+              <span>{formatGradientPercent(activePoint.gradientPercent)}</span>
+              <span>
+                {surfaceSegmentAtDistance(
+                  surfaceSegments,
+                  activePoint.distanceMeters,
+                )?.label ?? "Weg unbekannt"}
+              </span>
+            </div>
+          ) : null}
           <div ref={chartRef} className="elevationChart" />
         </>
       ) : (
@@ -432,7 +516,7 @@ export function ElevationPanel({
             <button
               type="button"
               aria-pressed={false}
-              onClick={() => setPanelSize("compact")}
+              onClick={() => onSizeChange?.("compact")}
             >
               Klein
             </button>
@@ -611,15 +695,19 @@ function renderSurfaceBand(params: CustomRenderParams, api: CustomRenderApi) {
   };
 }
 
-function nearestElevationPoint(
+function nearestElevationPointIndex(
   profile: ElevationProfile,
   distanceMeters: number,
-) {
-  return profile.points.reduce((nearest, point) =>
-    Math.abs(point.distanceMeters - distanceMeters) <
-    Math.abs(nearest.distanceMeters - distanceMeters)
-      ? point
-      : nearest,
+): number {
+  return profile.points.reduce(
+    (nearestIndex, point, index) =>
+      Math.abs(point.distanceMeters - distanceMeters) <
+      Math.abs(
+        (profile.points[nearestIndex]?.distanceMeters ?? 0) - distanceMeters,
+      )
+        ? index
+        : nearestIndex,
+    0,
   );
 }
 
