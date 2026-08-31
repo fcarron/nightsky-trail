@@ -109,15 +109,68 @@ describe("App", () => {
       screen.queryByRole("combobox", { name: "Routing-Profil" }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
+    await user.click(screen.getByRole("button", { name: "Zeichnen" }));
 
-    expect(screen.getByText("Zeichnen")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zeichnen" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(
       screen.getByRole("combobox", { name: "Routing-Profil" }),
     ).toHaveValue("hike");
     expect(
-      screen.getByRole("checkbox", { name: "Wegen folgen" }),
-    ).toBeChecked();
+      screen.getByRole("button", { name: "Wegen folgen" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByText("Das Profil gilt für die gesamte Route."),
+    ).toBeInTheDocument();
+  });
+
+  it("protects an unsaved route before starting a new one", async () => {
+    const user = userEvent.setup();
+    const confirmMock = vi.spyOn(window, "confirm").mockReturnValue(false);
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("1.23 km")).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Neue Route" }));
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      "Die aktuelle Route enthält ungespeicherte Änderungen. Neue Route beginnen und Änderungen verwerfen?",
+    );
+    expect(screen.getByText("1.23 km")).toBeInTheDocument();
+
+    confirmMock.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Neue Route" }));
+
+    expect(
+      screen.getByText("Startpunkt auf der Karte setzen"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zeichnen" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("asks before clearing an unsaved route", async () => {
+    const user = userEvent.setup();
+    const confirmMock = vi.spyOn(window, "confirm").mockReturnValue(false);
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.click(screen.getByText("Weitere Aktionen"));
+    await user.click(screen.getByRole("button", { name: "Route leeren" }));
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      "Route leeren? Ungespeicherte Änderungen gehen verloren.",
+    );
+    expect(screen.getByText("2 Punkte · 1 Abschnitte")).toBeInTheDocument();
   });
 
   it("cycles the mobile route sheet through summary and detail states", async () => {
@@ -334,7 +387,7 @@ describe("App", () => {
     );
     expect(screen.getByText("Route berechnet")).toBeInTheDocument();
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Gerade");
-    expect(screen.getByLabelText("Legende")).toHaveTextContent("Routing");
+    expect(screen.getByLabelText("Legende")).toHaveTextContent("Wegen folgen");
     expect(
       screen.queryByLabelText("Wegbeschaffenheit"),
     ).not.toBeInTheDocument();
@@ -517,12 +570,17 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole("button", { name: "Route zeichnen" }));
+    await user.click(screen.getByRole("button", { name: "Zeichnen" }));
     const profileSelect = screen.getByRole("combobox", {
       name: "Routing-Profil",
     });
     await user.selectOptions(profileSelect, "bike");
     expect(profileSelect).toHaveValue("bike");
+    expect(
+      screen.getByText(
+        "Profilwechsel berechnet bestehende Abschnitte mit Wegen folgen neu.",
+      ),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([url]) =>

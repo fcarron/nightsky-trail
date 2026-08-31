@@ -84,6 +84,23 @@ describe("route planner reducer", () => {
     ]);
   });
 
+  it("starts a new route without retaining the previous undo history", () => {
+    let history = routePlannerReducer(initialPlannerHistory, {
+      type: "add-waypoint",
+      waypoint: { id: "a", position: { lon: 7.4, lat: 46.9 } },
+    });
+
+    history = routePlannerReducer(history, {
+      type: "reset",
+      plan: { routingProfile: "foot", waypoints: [], segments: [] },
+    });
+
+    expect(history.present.routingProfile).toBe("foot");
+    expect(history.present.waypoints).toEqual([]);
+    expect(history.past).toEqual([]);
+    expect(history.future).toEqual([]);
+  });
+
   it("rebuilds routed segments when reversing the route", () => {
     let history = initialPlannerHistory;
 

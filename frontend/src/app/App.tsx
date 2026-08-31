@@ -31,11 +31,13 @@ import {
 import {
   createPlannerHistory,
   initialPlannerHistory,
+  routePlansEqual,
   routePlannerReducer,
 } from "../features/route/routePlanner";
 import type {
   ComputedRoute,
   LonLat,
+  RoutePlan,
   SegmentMode,
 } from "../features/route/routeModel";
 import {
@@ -244,6 +246,7 @@ export function App() {
   const [accountDeleting, setAccountDeleting] = useState(false);
   const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
   const [activeTourId, setActiveTourId] = useState<string | null>(null);
+  const [savedRoutePlan, setSavedRoutePlan] = useState<RoutePlan | null>(null);
   const [tourName, setTourName] = useState(defaultTourName);
   const [tourActionPending, setTourActionPending] = useState(false);
   const [editingTourId, setEditingTourId] = useState<string | null>(null);
@@ -394,6 +397,9 @@ export function App() {
   );
   const activeTour =
     savedTours.find((tour) => tour.id === activeTourId) ?? null;
+  const hasUnsavedRouteChanges =
+    history.present.waypoints.length > 0 &&
+    (!savedRoutePlan || !routePlansEqual(history.present, savedRoutePlan));
   const importedGpxActive = Boolean(history.present.importedGeometry);
   const routeStatusKind = routeStatusClassName(
     effectiveRouteComputeStatus,
@@ -749,10 +755,63 @@ export function App() {
     deleteWaypoint(waypoint.id);
   }
 
+  function confirmDiscardUnsavedRoute(action: string) {
+    return (
+      !hasUnsavedRouteChanges ||
+      window.confirm(
+        `Die aktuelle Route enthält ungespeicherte Änderungen. ${action}`,
+      )
+    );
+  }
+
+  function startNewRoute() {
+    if (
+      !confirmDiscardUnsavedRoute(
+        "Neue Route beginnen und Änderungen verwerfen?",
+      )
+    ) {
+      return;
+    }
+
+    dispatch({
+      type: "reset",
+      plan: {
+        routingProfile: history.present.routingProfile,
+        waypoints: [],
+        segments: [],
+      },
+    });
+    setActiveTourId(null);
+    setSavedRoutePlan(null);
+    setTourName(defaultTourName());
+    setSelectedWaypointId(null);
+    setDrawingMode("routed");
+    setMapInteractionMode("draw");
+    setElevationPanelDisplay("compact");
+    setMobileSheetState("half");
+    setTourMessage("Neue Route: Startpunkt auf der Karte setzen.");
+  }
+
   function clearRoute() {
+    if (
+      hasWaypoints &&
+      !window.confirm(
+        hasUnsavedRouteChanges
+          ? "Route leeren? Ungespeicherte Änderungen gehen verloren."
+          : "Route leeren? Die gespeicherte Tour bleibt erhalten.",
+      )
+    ) {
+      return;
+    }
+
     dispatch({ type: "clear" });
     setActiveTourId(null);
+    setSavedRoutePlan(null);
+    setTourName(defaultTourName());
     setSelectedWaypointId(null);
+    setTourMessage(
+      "Route geleert. Mit Rückgängig kann sie wiederhergestellt werden.",
+    );
   }
 
   function selectAuthMode(mode: AuthMode) {
@@ -872,6 +931,7 @@ export function App() {
       setAuthState({ ...session, status: "ready" });
       setSavedTours([]);
       setActiveTourId(null);
+      setSavedRoutePlan(null);
       setTourName(defaultTourName());
       setOpenTopMenu(null);
     } catch (error: unknown) {
@@ -890,16 +950,18 @@ export function App() {
       return;
     }
 
+    const planToSave = history.present;
     setTourMessage(null);
     try {
       setTourActionPending(true);
       const response = activeTourId
         ? await updateSavedTour(activeTourId, {
             name,
-            routeData: history.present,
+            routeData: planToSave,
           })
-        : await createSavedTour(name, history.present);
+        : await createSavedTour(name, planToSave);
       setActiveTourId(response.tour.id);
+      setSavedRoutePlan(planToSave);
       const list = await listSavedTours();
       setSavedTours(list.tours);
       setTourName(response.tour.name);
@@ -912,11 +974,20 @@ export function App() {
   }
 
   function loadTour(tour: SavedTourDto) {
+    if (
+      !confirmDiscardUnsavedRoute(
+        `Tour „${tour.name}“ laden und Änderungen verwerfen?`,
+      )
+    ) {
+      return;
+    }
+
     try {
       const plan = parseRoutePlan(tour.routeData);
       dispatch({ type: "replace", plan });
       setSelectedWaypointId(null);
       setActiveTourId(tour.id);
+      setSavedRoutePlan(plan);
       setTourName(tour.name);
       setRouteFitRequestId((requestId) => requestId + 1);
       setTourMessage(`Tour geladen: ${tour.name}`);
@@ -964,6 +1035,7 @@ export function App() {
       setSavedTours(list.tours);
       if (tour.id === activeTourId) {
         setActiveTourId(null);
+        setSavedRoutePlan(null);
         setTourName(defaultTourName());
       }
       setTourMessage("Tour gelöscht.");
@@ -997,6 +1069,7 @@ export function App() {
       setAccountDeletePassword("");
       setSavedTours([]);
       setActiveTourId(null);
+      setSavedRoutePlan(null);
       setTourName(defaultTourName());
       setAuthFeedback({ tone: "success", message: "Konto wurde gelöscht." });
     } catch (error: unknown) {
@@ -1030,11 +1103,18 @@ export function App() {
   }
 
   async function importGpxFile(file: File) {
+    if (
+      !confirmDiscardUnsavedRoute("GPX importieren und Änderungen verwerfen?")
+    ) {
+      return;
+    }
+
     setTourMessage(null);
     try {
       const plan = importRoutePlanFromGpx(await file.text());
       dispatch({ type: "replace", plan });
       setActiveTourId(null);
+      setSavedRoutePlan(null);
       setSelectedWaypointId(null);
       setRouteFitRequestId((requestId) => requestId + 1);
       setTourMessage("GPX importiert. Original-Track bleibt erhalten.");
@@ -1874,7 +1954,7 @@ export function App() {
                   aria-pressed={mapInteractionMode === "draw"}
                   onClick={() => setMapInteractionMode("draw")}
                 >
-                  Route zeichnen
+                  Zeichnen
                 </button>
               </div>
             </div>
@@ -1901,27 +1981,30 @@ export function App() {
                     <option value="bike">Velo</option>
                   </select>
                 </label>
-                <label className="routeFollowToggle">
-                  <input
-                    type="checkbox"
-                    aria-label="Wegen folgen"
-                    checked={drawingMode === "routed"}
-                    onChange={(event) =>
-                      setDrawingMode(
-                        event.currentTarget.checked ? "routed" : "straight",
-                      )
-                    }
-                  />
-                  <span className="routeFollowTrack" aria-hidden="true">
-                    <span />
-                  </span>
-                  <span className="routeFollowLabel">
-                    <strong>Wegen folgen</strong>
-                    <small>
-                      {drawingMode === "routed" ? "Magnet" : "Gerade"}
-                    </small>
-                  </span>
-                </label>
+                <div className="segmentModeControl">
+                  <span>Neue Abschnitte</span>
+                  <div role="group" aria-label="Neue Abschnitte zeichnen">
+                    <button
+                      type="button"
+                      aria-pressed={drawingMode === "routed"}
+                      onClick={() => setDrawingMode("routed")}
+                    >
+                      Wegen folgen
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={drawingMode === "straight"}
+                      onClick={() => setDrawingMode("straight")}
+                    >
+                      Gerade
+                    </button>
+                  </div>
+                </div>
+                <small className="routingProfileEffect">
+                  {hasRoute
+                    ? "Profilwechsel berechnet bestehende Abschnitte mit Wegen folgen neu."
+                    : "Das Profil gilt für die gesamte Route."}
+                </small>
               </div>
             ) : null}
           </section>
@@ -2050,6 +2133,9 @@ export function App() {
           </div>
 
           <div className="quickToolbar" aria-label="Schnelle Routenaktionen">
+            <button type="button" onClick={startNewRoute}>
+              Neue Route
+            </button>
             <button
               type="button"
               className="quietAction"
@@ -2095,7 +2181,7 @@ export function App() {
                 disabled={!hasWaypoints}
                 onClick={clearRoute}
               >
-                Route löschen
+                Route leeren
               </button>
             </details>
           </div>
@@ -2159,7 +2245,10 @@ export function App() {
               <div>
                 <span>Bereit</span>
                 <strong>Startpunkt auf der Karte setzen</strong>
-                <small>Magnet folgt Wegen. GPX Import ist im Tour-Menü.</small>
+                <small>
+                  Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist
+                  im Datei-Menü.
+                </small>
               </div>
             </section>
           ) : null}
@@ -2387,7 +2476,7 @@ export function App() {
                           type="button"
                           onClick={() => toggleSegmentMode(segment.id)}
                         >
-                          {segment.mode === "straight" ? "Gerade" : "Routing"}
+                          {segmentModeLabel(segment.mode)}
                         </button>
                       </li>
                     ))}
@@ -2406,7 +2495,7 @@ export function App() {
                 className="legendLine legendLineRouted"
                 aria-hidden="true"
               />
-              <span>Routing</span>
+              <span>Wegen folgen</span>
             </div>
           </details>
         </aside>
@@ -2952,7 +3041,7 @@ function mobileSheetActionLabel(
 }
 
 function segmentModeLabel(mode: SegmentMode): string {
-  return mode === "routed" ? "Routing" : "Gerade";
+  return mode === "routed" ? "Wegen folgen" : "Gerade";
 }
 
 function defaultTourName(): string {

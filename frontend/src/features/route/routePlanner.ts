@@ -30,6 +30,7 @@ export type PlannerAction =
   | { type: "set-segment-mode"; id: string; mode: SegmentMode }
   | { type: "delete-waypoint"; id: string }
   | { type: "clear" }
+  | { type: "reset"; plan?: RoutePlan }
   | { type: "reverse" }
   | { type: "undo" }
   | { type: "redo" };
@@ -112,6 +113,9 @@ export function routePlannerReducer(
     case "clear":
       return commit(history, emptyPlan);
 
+    case "reset":
+      return createPlannerHistory(action.plan);
+
     case "reverse": {
       const waypoints = [...history.present.waypoints].reverse();
       return commit(history, {
@@ -179,7 +183,7 @@ function commit(history: PlannerHistory, nextPlan: RoutePlan): PlannerHistory {
   const normalizedPlan = normalizeRoutePlan(nextPlan);
   if (
     Object.is(history.present, normalizedPlan) ||
-    plansEqual(history.present, normalizedPlan)
+    routePlansEqual(history.present, normalizedPlan)
   ) {
     return history;
   }
@@ -299,7 +303,7 @@ function createSegment(
   };
 }
 
-function plansEqual(first: RoutePlan, second: RoutePlan): boolean {
+export function routePlansEqual(first: RoutePlan, second: RoutePlan): boolean {
   if (
     first.waypoints.length !== second.waypoints.length ||
     first.segments.length !== second.segments.length ||
