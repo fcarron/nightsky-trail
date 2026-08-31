@@ -1452,6 +1452,17 @@ export function App() {
                 tippen.
               </span>
             </div>
+            <div className="aboutOpenSource">
+              <strong>Open Source</strong>
+              <span>Veröffentlicht unter der MIT License.</span>
+              <a
+                href="https://github.com/fcarron/nightsky-trail"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Projekt auf GitHub
+              </a>
+            </div>
           </div>
         ) : null}
       </div>

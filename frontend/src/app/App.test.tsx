@@ -96,6 +96,10 @@ describe("App", () => {
     expect(
       screen.getByText(/Sperrungen und Wegzustand können fehlen/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/MIT License/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Projekt auf GitHub" }),
+    ).toHaveAttribute("href", "https://github.com/fcarron/nightsky-trail");
   });
 
   it("starts in exploration mode and enables route tools explicitly", async () => {

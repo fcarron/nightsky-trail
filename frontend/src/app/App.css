@@ -395,7 +395,8 @@ button:disabled {
 }
 
 .aboutInstall,
-.aboutNotice {
+.aboutNotice,
+.aboutOpenSource {
   display: grid;
   gap: 4px;
   border-top: 1px solid #d8dee5;
@@ -404,9 +405,20 @@ button:disabled {
 }
 
 .aboutInstall strong,
-.aboutNotice strong {
+.aboutNotice strong,
+.aboutOpenSource strong {
   color: #111827;
   font-size: 12px;
+}
+
+.aboutOpenSource a {
+  color: var(--color-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.aboutOpenSource a:hover {
+  text-decoration: underline;
 }
 
 .filePanel button,
@@ -1134,16 +1146,15 @@ button:disabled {
 
 .drawToolSettings {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 6px;
   border-top: 1px solid #e3e8ee;
   padding-top: 7px;
 }
 
 .routeProfileSelect {
   display: grid;
-  grid-template-columns: auto minmax(90px, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -1173,7 +1184,7 @@ button:disabled {
 
 .segmentModeControl {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
 }
@@ -1185,8 +1196,9 @@ button:disabled {
 }
 
 .segmentModeControl > div {
-  display: inline-grid;
-  grid-template-columns: auto auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 0;
   border: 1px solid #cbd5df;
   border-radius: 2px;
   padding: 2px;
@@ -2903,17 +2915,8 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .drawToolSettings {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
   .segmentModeControl {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .segmentModeControl > div {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 92px minmax(0, 1fr);
   }
 
   .quickToolbar,

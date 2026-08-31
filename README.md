@@ -4,6 +4,10 @@ nightsky trail is a lightweight route-planning web app for Switzerland, focused 
 
 It is intentionally smaller than Komoot, Strava, OpenRunner, or SchweizMobil: draw a route, follow the path network, inspect distance and elevation, estimate time, and import or export GPX files.
 
+**Live app:** https://trail.nightsky.ch
+
+**Source:** https://github.com/fcarron/nightsky-trail
+
 This is an independent project. It is not operated, endorsed, verified, or supported by swisstopo, OpenStreetMap, SchweizMobil, ASTRA, or GraphHopper. Those services and datasets are used as external data sources and are credited accordingly.
 
 ## Features
