@@ -25,6 +25,7 @@ services:
       - ${NIGHTSKY_ENV_FILE:-.env.production}
     environment:
       DJANGO_DATABASE_PATH: /data/app/db.sqlite3
+      DJANGO_STATIC_ROOT: /data/app/static
       GRAPHHOPPER_BASE_URL: http://nightsky_graphhopper:8989
       OSM_PBF_PATH: /data/osm/switzerland-latest.osm.pbf
       OSM_TRAIL_INDEX_PATH: /data/osm/trails.sqlite3
@@ -61,6 +62,8 @@ services:
         condition: service_healthy
     expose:
       - "80"
+    volumes:
+      - ${NIGHTSKY_DATA_DIR:-./data}/app:/data/app:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
       interval: 30s

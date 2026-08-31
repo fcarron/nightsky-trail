@@ -24,6 +24,7 @@ This is an independent project. It is not operated, endorsed, verified, or suppo
 - optional OSM `sac_scale` difficulty hints
 - trail surface summary from OSM details where available
 - lightweight Django session login and saved tours
+- explicit, token-based read-only sharing for saved tours
 - installable as a PWA
 
 No social feed, public profiles, activity recording, training analytics, recommendations, payments, or cloud sync are planned for the MVP.
@@ -113,6 +114,9 @@ The gateway can join an existing external Docker network, allowing an existing T
 proxy the complete site without exposing additional host ports. See
 [docs/deployment.md](docs/deployment.md) for the `/opt/nightsky-trail` installation, Nginx
 example, migrations, updates, and backups.
+
+Django Admin is available for local operations and can be protected in production with an
+edge-Nginx IP allowlist; see [the Django Admin deployment instructions](docs/deployment.md#django-admin).
 
 ## Data Sources
 

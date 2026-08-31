@@ -89,6 +89,7 @@ database migrations and start the complete stack:
 
 ```bash
 sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
+sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py collectstatic --noinput
 sudo docker compose --env-file .env.production -f compose.production.yaml up -d
 sudo docker compose --env-file .env.production -f compose.production.yaml ps
 ```
@@ -145,6 +146,52 @@ sudo docker compose exec nginx nginx -s reload
 The exact paths and Compose file name may differ in the existing server project. Keep its
 certificate renewal process unchanged.
 
+## Django Admin
+
+Django Admin is available at `/admin/` for operational tasks such as inspecting accounts and
+saved tours. It is not part of the public application UI.
+
+For local development, apply migrations, create a separate superuser, and open
+`http://127.0.0.1:8000/admin/`:
+
+```bash
+cd backend
+uv run python manage.py migrate
+uv run python manage.py createsuperuser
+```
+
+In production, the edge Nginx template deliberately denies all access to `/admin/` until its
+`allow` directive is replaced with your fixed public IP address or VPN egress IP. Keep the
+following structure in `/opt/bantigerjersey/nginx/conf.d/nightsky-trail.conf`:
+
+```nginx
+location ^~ /admin/ {
+    allow 203.0.113.42; # Replace with your own fixed IP or VPN egress IP.
+    deny all;
+    # Existing proxy settings follow here.
+}
+```
+
+Do not remove `deny all`, and do not use a broad office or mobile-provider range. After changing
+the IP, validate and reload the existing edge Nginx:
+
+```bash
+cd /opt/bantigerjersey
+sudo docker compose exec nginx nginx -t
+sudo docker compose exec nginx nginx -s reload
+```
+
+Create the production superuser inside the application stack:
+
+```bash
+cd /opt/nightsky-trail
+sudo docker compose --env-file .env.production -f compose.production.yaml run --rm \
+  nightsky_backend python manage.py createsuperuser
+```
+
+The edge Nginx must receive the real client IP directly. If a CDN or a further reverse proxy is
+placed in front of it, configure Nginx's trusted real-IP handling before relying on this allowlist.
+
 ## Updates
 
 ```bash
@@ -152,6 +199,7 @@ cd /opt/nightsky-trail
 git pull --ff-only
 sudo docker compose --env-file .env.production -f compose.production.yaml build
 sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
+sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py collectstatic --noinput
 sudo docker compose --env-file .env.production -f compose.production.yaml up -d
 ```
 

@@ -9,11 +9,12 @@ from django.utils.decorators import method_decorator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiTypes, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from planner.api.exceptions import (
+    ResourceNotFound,
     ServiceUnavailable,
     TooManyRequests,
     Unauthorized,
@@ -30,6 +31,7 @@ from planner.api.serializers import (
     RouteComputeRequestSerializer,
     SavedTourSerializer,
     SearchQuerySerializer,
+    SharedTourSerializer,
     TrailsQuerySerializer,
 )
 from planner.domain.elevation import ElevationValidationError, build_elevation_profile
@@ -85,7 +87,7 @@ class AuthSessionView(APIView):
 
     @extend_schema(
         operation_id="auth_session",
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object) -> Response:
         user = request_user(request)
@@ -111,7 +113,7 @@ class AuthRegisterView(APIView):
     @extend_schema(
         operation_id="auth_register",
         request=AuthRegisterSerializer,
-        responses={202: dict[str, object]},
+        responses={202: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = AuthRegisterSerializer(data=getattr(request, "data", {}))
@@ -168,7 +170,7 @@ class AuthLoginView(APIView):
     @extend_schema(
         operation_id="auth_login",
         request=AuthLoginSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = AuthLoginSerializer(data=getattr(request, "data", {}))
@@ -211,7 +213,7 @@ class EmailVerificationView(APIView):
     @extend_schema(
         operation_id="auth_verify_email",
         request=EmailTokenSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = EmailTokenSerializer(data=getattr(request, "data", {}))
@@ -310,7 +312,8 @@ class AuthLogoutView(APIView):
 
     @extend_schema(
         operation_id="auth_logout",
-        responses={200: dict[str, object]},
+        request=None,
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         logout(django_request(request))
@@ -352,7 +355,7 @@ class SavedTourListView(APIView):
 
     @extend_schema(
         operation_id="tour_list",
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object) -> Response:
         user = authenticated_user(request)
@@ -365,7 +368,7 @@ class SavedTourListView(APIView):
     @extend_schema(
         operation_id="tour_create",
         request=SavedTourSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         user = authenticated_user(request)
@@ -382,6 +385,9 @@ class SavedTourListView(APIView):
             name=serializer.validated_data["name"],
             route_data=serializer.validated_data["route_data"],
         )
+        if serializer.validated_data.get("share_enabled", False):
+            tour.set_sharing_enabled(True)
+            tour.save(update_fields=["share_enabled", "share_token", "updated_at"])
         return Response({"tour": SavedTourSerializer(tour).data})
 
 
@@ -392,7 +398,7 @@ class SavedTourDetailView(APIView):
 
     @extend_schema(
         operation_id="tour_detail",
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object, tour_id: str) -> Response:
         tour = tour_for_user(request, tour_id)
@@ -401,7 +407,7 @@ class SavedTourDetailView(APIView):
     @extend_schema(
         operation_id="tour_update",
         request=SavedTourSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def patch(self, request: object, tour_id: str) -> Response:
         tour = tour_for_user(request, tour_id)
@@ -413,9 +419,12 @@ class SavedTourDetailView(APIView):
                 {"fields": serializer.errors},
             )
 
+        share_enabled = serializer.validated_data.pop("share_enabled", None)
         for field, value in serializer.validated_data.items():
             setattr(tour, field, value)
-        tour.save(update_fields=[*serializer.validated_data.keys(), "updated_at"])
+        if share_enabled is not None:
+            tour.set_sharing_enabled(share_enabled)
+        tour.save()
         return Response({"tour": SavedTourSerializer(tour).data})
 
     @extend_schema(
@@ -428,6 +437,29 @@ class SavedTourDetailView(APIView):
         return Response({"status": "deleted"})
 
 
+class SharedTourView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="shared_tour_detail",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request: object, share_token: str) -> Response:
+        try:
+            tour = SavedTour.objects.get(
+                share_enabled=True,
+                share_token=share_token,
+            )
+        except SavedTour.DoesNotExist as error:
+            raise ResourceNotFound(
+                "shared_tour_not_found",
+                "Shared tour was not found.",
+                {},
+            ) from error
+        return Response({"tour": SharedTourSerializer(tour).data})
+
+
 class RouteComputeView(APIView):
     authentication_classes: list[type[object]] = []
     permission_classes: list[type[object]] = []
@@ -435,7 +467,7 @@ class RouteComputeView(APIView):
     @extend_schema(
         operation_id="route_compute",
         request=RouteComputeRequestSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = RouteComputeRequestSerializer(data=getattr(request, "data", {}))
@@ -506,7 +538,7 @@ class ElevationProfileView(APIView):
     @extend_schema(
         operation_id="elevation_profile",
         request=ElevationProfileRequestSerializer,
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = ElevationProfileRequestSerializer(data=getattr(request, "data", {}))
@@ -570,7 +602,7 @@ class SearchView(APIView):
 
     @extend_schema(
         operation_id="search",
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object) -> Response:
         serializer = SearchQuerySerializer(data=getattr(request, "query_params", {}))
@@ -613,7 +645,7 @@ class TrailsView(APIView):
 
     @extend_schema(
         operation_id="trails",
-        responses={200: dict[str, object]},
+        responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object) -> Response:
         serializer = TrailsQuerySerializer(data=getattr(request, "query_params", {}))

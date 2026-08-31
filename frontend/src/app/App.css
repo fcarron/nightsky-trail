@@ -61,6 +61,111 @@ button:disabled {
   background: #f4f6f8;
 }
 
+.publicTourShell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: 52px minmax(440px, 1fr) auto;
+  background: #f4f6f8;
+}
+
+.publicTourTopBar {
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #d8dee5;
+  background: #ffffff;
+  padding: 6px 20px;
+}
+
+.publicTourTopBar .brand {
+  color: inherit;
+  text-decoration: none;
+}
+
+.publicTourPlanLink {
+  min-height: 30px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: var(--color-accent);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.publicTourPlanLink:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.publicTourMapArea {
+  position: relative;
+  min-height: 440px;
+}
+
+.publicTourMapArea > .mapSurface {
+  position: absolute;
+  inset: 0;
+}
+
+.publicTourSummary {
+  position: absolute;
+  z-index: 35;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: min(330px, calc(100vw - 32px));
+  gap: 7px;
+  border: 1px solid #d4dbe3;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
+  padding: 10px;
+}
+
+.publicTourSummary > span,
+.publicTourSummary > p {
+  margin: 0;
+  color: #66717d;
+  font-size: 12px;
+}
+
+.publicTourSummary h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.publicTourSummary .runSummaryGrid {
+  border: 0;
+  padding: 0;
+}
+
+.publicTourError {
+  color: var(--color-danger) !important;
+}
+
+.publicTourProfile {
+  border-top: 1px solid #d8dee5;
+  background: #ffffff;
+  padding: 10px 14px 14px;
+}
+
+.publicTourProfile .elevationPanel-large {
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(190px, 260px) minmax(420px, 1fr);
+  max-height: none;
+  overflow: visible;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
 .topBar {
   position: relative;
   z-index: 60;
@@ -649,7 +754,10 @@ button:disabled {
 
 .savedTourActions button,
 .savedTourRenameForm button,
-.accountActions > button {
+.accountActions > button,
+.savedTourShareLink {
+  display: grid;
+  place-items: center;
   min-height: 27px;
   border: 1px solid #cbd5df;
   border-radius: 2px;
@@ -657,11 +765,13 @@ button:disabled {
   color: #66717d;
   padding: 0 7px;
   font-size: 11px;
+  text-decoration: none;
 }
 
 .savedTourActions button:hover:not(:disabled),
 .savedTourRenameForm button:hover:not(:disabled),
-.accountActions > button:hover {
+.accountActions > button:hover,
+.savedTourShareLink:hover {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
   color: var(--color-accent);
@@ -3093,6 +3203,117 @@ button:disabled {
   .mobileProfileMode .elevationPanel-large .elevationChart {
     grid-row: 3;
     grid-column: 1 / -1;
+    height: 210px;
+  }
+
+  .publicTourShell {
+    grid-template-rows: 48px minmax(390px, 1fr) auto;
+  }
+
+  .publicTourTopBar {
+    padding: 5px 10px;
+  }
+
+  .publicTourTopBar .brand {
+    min-width: 0;
+  }
+
+  .publicTourPlanLink {
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .publicTourMapArea {
+    min-height: 390px;
+  }
+
+  .publicTourSummary {
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 7px 9px;
+  }
+
+  .publicTourSummary > span {
+    display: none;
+  }
+
+  .publicTourSummary h1 {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .publicTourSummary .runSummaryGrid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  .publicTourSummary .runSummaryGrid div,
+  .publicTourSummary .runSummaryGrid div:first-child {
+    border: 0;
+    border-right: 1px solid #e3e8ee;
+    border-radius: 0;
+    background: transparent;
+    padding: 2px 5px;
+  }
+
+  .publicTourSummary .runSummaryGrid div:last-child {
+    border-right: 0;
+  }
+
+  .publicTourSummary .runSummaryGrid dt {
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .publicTourSummary .runSummaryGrid dd,
+  .publicTourSummary .runSummaryGrid div:first-child dd {
+    overflow: hidden;
+    margin-top: 1px;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .publicTourSummary .runSummaryGrid dd small {
+    display: none;
+  }
+
+  .publicTourSummary > p {
+    grid-column: 1 / -1;
+    font-size: 10px;
+  }
+
+  .publicTourProfile {
+    padding: 7px 10px 10px;
+  }
+
+  .publicTourProfile .elevationPanel-large {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .publicTourProfile .elevationPanel-large .panelHeader,
+  .publicTourProfile .elevationPanel-large .elevationStats,
+  .publicTourProfile .elevationPanel-large .elevationPanelControls,
+  .publicTourProfile .elevationPanel-large .elevationChart {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .publicTourProfile .elevationPanel-large .elevationChart {
     height: 210px;
   }
 }

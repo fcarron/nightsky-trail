@@ -41,6 +41,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
   });
 
   afterEach(() => {
@@ -64,6 +65,35 @@ describe("App", () => {
       ).toBe(true),
     );
     expect(screen.queryByText("API bereit")).not.toBeInTheDocument();
+  });
+
+  it("shows a shared tour as a read-only public route", async () => {
+    window.history.replaceState({}, "", "/t/8fK3mPq2vW7xY4zA1bC6dE9f");
+    const fetchMock = createFetchMock({
+      sharedTourResponse: sharedTourResponse(),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("link", { name: "Eigene Tour planen" }),
+    ).toHaveAttribute("href", "/");
+    expect(screen.queryByText("Route zeichnen")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("Geteilte Runde")).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("1.23 km")).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(screen.getByText("18 min")).toBeInTheDocument());
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        url
+          .toString()
+          .endsWith("/api/v1/public/tours/8fK3mPq2vW7xY4zA1bC6dE9f"),
+      ),
+    ).toBe(true);
   });
 
   it("opens the mobile header only when requested", async () => {
@@ -675,12 +705,14 @@ function createFetchMock(
     passwordResetResponse?: Promise<Response> | Response;
     routeResponses?: Array<Promise<Response> | Response>;
     elevationResponses?: Array<Promise<Response> | Response>;
+    sharedTourResponse?: Promise<Response> | Response;
   } = {},
 ) {
   const routeResponses = [...(options.routeResponses ?? [])];
   const elevationResponses = [...(options.elevationResponses ?? [])];
   const authRegisterResponse = options.authRegisterResponse;
   const passwordResetResponse = options.passwordResetResponse;
+  const sharedTourResponse = options.sharedTourResponse;
 
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = input.toString();
@@ -700,6 +732,15 @@ function createFetchMock(
           headers: { "Content-Type": "application/json" },
         }),
       );
+    }
+
+    if (url.includes("/api/v1/public/tours/")) {
+      if (!sharedTourResponse) {
+        return Promise.reject(new Error("Unexpected shared tour request"));
+      }
+      return sharedTourResponse instanceof Response
+        ? Promise.resolve(sharedTourResponse.clone())
+        : sharedTourResponse;
     }
 
     if (url.endsWith("/api/v1/auth/register")) {
@@ -761,6 +802,33 @@ function createFetchMock(
 
     return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
   });
+}
+
+function sharedTourResponse() {
+  return new Response(
+    JSON.stringify({
+      tour: {
+        name: "Geteilte Runde",
+        routeData: {
+          waypoints: [
+            { id: "waypoint-1", position: { lon: 7.4, lat: 46.9 } },
+            { id: "waypoint-2", position: { lon: 8.5, lat: 47.3 } },
+          ],
+          segments: [
+            {
+              id: "waypoint-1-waypoint-2",
+              fromWaypointId: "waypoint-1",
+              toWaypointId: "waypoint-2",
+              mode: "straight",
+            },
+          ],
+        },
+        createdAt: "2026-08-31T12:00:00Z",
+        updatedAt: "2026-08-31T12:00:00Z",
+      },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
 }
 
 function elevationResponse({

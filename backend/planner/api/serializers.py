@@ -71,6 +71,8 @@ class SavedTourSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     name = serializers.CharField(max_length=160)
     routeData = serializers.JSONField(source="route_data")
+    shareEnabled = serializers.BooleanField(source="share_enabled", required=False)
+    shareId = serializers.CharField(source="share_token", allow_null=True, read_only=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
 
@@ -87,6 +89,13 @@ class SavedTourSerializer(serializers.Serializer):
             raise serializers.ValidationError("Route data is too large.")
 
         return value
+
+
+class SharedTourSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    routeData = serializers.JSONField(source="route_data", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
 
 
 class LineStringGeometrySerializer(serializers.Serializer):

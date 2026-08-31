@@ -28,6 +28,7 @@ import {
   exportPointsToGpx,
   importRoutePlanFromGpx,
 } from "../features/route/gpx";
+import { SharedTourPage } from "../features/route/SharedTourPage";
 import {
   createPlannerHistory,
   initialPlannerHistory,
@@ -216,6 +217,15 @@ const NATURAL_SURFACES = new Set([
 ]);
 
 export function App() {
+  const sharedTourId = sharedTourIdFromPath(window.location.pathname);
+  if (sharedTourId) {
+    return <SharedTourPage shareId={sharedTourId} />;
+  }
+
+  return <PlannerApp />;
+}
+
+function PlannerApp() {
   const authLinkRef = useRef<AuthLink | null>(readAuthLink());
   const [health, setHealth] = useState<HealthState>("checking");
   const [authState, setAuthState] = useState<AuthState>({
@@ -1022,6 +1032,39 @@ export function App() {
     }
   }
 
+  async function setTourSharing(tour: SavedTourDto, shareEnabled: boolean) {
+    setTourMessage(null);
+    try {
+      setTourActionPending(true);
+      const response = await updateSavedTour(tour.id, { shareEnabled });
+      const list = await listSavedTours();
+      setSavedTours(list.tours);
+      setTourMessage(
+        response.tour.shareEnabled
+          ? "Freigabe aktiviert. Der Link ist nur mit diesem Token erreichbar."
+          : "Freigabe beendet. Der bisherige Link funktioniert nicht mehr.",
+      );
+    } catch (error: unknown) {
+      setTourMessage(errorMessage(error));
+    } finally {
+      setTourActionPending(false);
+    }
+  }
+
+  async function copyTourShareLink(tour: SavedTourDto) {
+    if (!tour.shareId) {
+      return;
+    }
+
+    const link = sharedTourUrl(tour.shareId);
+    try {
+      await navigator.clipboard.writeText(link);
+      setTourMessage("Freigabe-Link kopiert.");
+    } catch {
+      window.prompt("Freigabe-Link kopieren:", link);
+    }
+  }
+
   async function removeTour(tour: SavedTourDto) {
     if (!window.confirm(`Tour "${tour.name}" endgültig löschen?`)) {
       return;
@@ -1366,6 +1409,36 @@ export function App() {
                               >
                                 Umbenennen
                               </button>
+                              <button
+                                type="button"
+                                disabled={tourActionPending}
+                                onClick={() =>
+                                  void setTourSharing(tour, !tour.shareEnabled)
+                                }
+                              >
+                                {tour.shareEnabled
+                                  ? "Freigabe beenden"
+                                  : "Freigeben"}
+                              </button>
+                              {tour.shareEnabled && tour.shareId ? (
+                                <>
+                                  <a
+                                    className="savedTourShareLink"
+                                    href={sharedTourUrl(tour.shareId)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Öffnen
+                                  </a>
+                                  <button
+                                    type="button"
+                                    disabled={tourActionPending}
+                                    onClick={() => void copyTourShareLink(tour)}
+                                  >
+                                    Link kopieren
+                                  </button>
+                                </>
+                              ) : null}
                               <button
                                 className="dangerAction"
                                 type="button"
@@ -2566,6 +2639,15 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function sharedTourUrl(shareId: string): string {
+  return new URL(`/t/${shareId}`, window.location.origin).toString();
+}
+
+function sharedTourIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/t\/([A-Za-z0-9_-]{20,})\/?$/);
+  return match?.[1] ?? null;
 }
 
 function summarizeGraphhopperDebug(route: ComputedRoute | null) {

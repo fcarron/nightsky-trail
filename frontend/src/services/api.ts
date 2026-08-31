@@ -14,6 +14,7 @@ import type {
   RouteComputeResponse,
   SavedTourListResponse,
   SavedTourResponse,
+  SharedTourResponse,
   SearchResponse,
   SearchResultDto,
   TrailsResponse,
@@ -149,9 +150,31 @@ export async function createSavedTour(
 
 export async function updateSavedTour(
   id: string,
-  data: { name?: string; routeData?: unknown },
+  data: { name?: string; routeData?: unknown; shareEnabled?: boolean },
 ): Promise<SavedTourResponse> {
   return submitTourRequest(`/api/v1/tours/${id}`, "PATCH", data);
+}
+
+export async function getSharedTour(
+  shareId: string,
+  signal?: AbortSignal,
+): Promise<SharedTourResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/public/tours/${shareId}`,
+    {
+      signal,
+    },
+  );
+  const payload: unknown = await readResponsePayload(response);
+  if (!response.ok) {
+    throw new ApiRequestError(
+      toApiError(payload, "Shared tour request failed", response.status),
+    );
+  }
+  if (!isSharedTourResponse(payload)) {
+    throw new Error("Shared tour returned an invalid response.");
+  }
+  return payload;
 }
 
 export async function deleteSavedTour(id: string): Promise<void> {
@@ -499,6 +522,22 @@ function isSavedTour(payload: unknown): boolean {
   return (
     isRecord(payload) &&
     typeof payload.id === "string" &&
+    typeof payload.name === "string" &&
+    "routeData" in payload &&
+    typeof payload.shareEnabled === "boolean" &&
+    (payload.shareId === null || typeof payload.shareId === "string") &&
+    typeof payload.createdAt === "string" &&
+    typeof payload.updatedAt === "string"
+  );
+}
+
+function isSharedTourResponse(payload: unknown): payload is SharedTourResponse {
+  return isRecord(payload) && isSharedTour(payload.tour);
+}
+
+function isSharedTour(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
     typeof payload.name === "string" &&
     "routeData" in payload &&
     typeof payload.createdAt === "string" &&

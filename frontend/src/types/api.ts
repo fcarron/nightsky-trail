@@ -16,6 +16,8 @@ export interface SavedTourDto {
   id: string;
   name: string;
   routeData: unknown;
+  shareEnabled: boolean;
+  shareId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +28,17 @@ export interface SavedTourResponse {
 
 export interface SavedTourListResponse {
   tours: SavedTourDto[];
+}
+
+export interface SharedTourDto {
+  name: string;
+  routeData: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SharedTourResponse {
+  tour: SharedTourDto;
 }
 
 export interface SearchResponse {

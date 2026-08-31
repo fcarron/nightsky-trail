@@ -45,6 +45,25 @@ class Unauthorized(APIException):
         }
 
 
+class ResourceNotFound(APIException):
+    status_code = 404
+    default_code = "not_found"
+    default_detail = "The requested resource was not found."
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+    ) -> None:
+        self.default_code = code
+        self.detail = {
+            "code": code,
+            "message": message,
+            "details": details or {},
+        }
+
+
 class TooManyRequests(APIException):
     status_code = 429
     default_code = "rate_limited"

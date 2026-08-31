@@ -197,6 +197,66 @@ def test_user_cannot_read_another_users_tour() -> None:
     assert response.status_code == 422
     assert response.json()["code"] == "tour_not_found"
 
+    share_response = other.patch(
+        reverse("tour-detail", kwargs={"tour_id": tour_id}),
+        {"shareEnabled": True},
+        format="json",
+    )
+
+    assert share_response.status_code == 422
+    assert share_response.json()["code"] == "tour_not_found"
+
+
+@pytest.mark.django_db
+def test_tour_sharing_is_explicit_and_public_response_hides_private_data() -> None:
+    owner = authenticated_client("owner@example.com")
+    create_response = owner.post(
+        reverse("tour-list"),
+        {"name": "Shared loop", "routeData": {"waypoints": [], "segments": []}},
+        format="json",
+    )
+    private_tour = create_response.json()["tour"]
+
+    assert private_tour["shareEnabled"] is False
+    assert private_tour["shareId"] is None
+
+    share_response = owner.patch(
+        reverse("tour-detail", kwargs={"tour_id": private_tour["id"]}),
+        {"shareEnabled": True},
+        format="json",
+    )
+
+    assert share_response.status_code == 200
+    shared_tour = share_response.json()["tour"]
+    assert shared_tour["shareEnabled"] is True
+    assert isinstance(shared_tour["shareId"], str)
+    assert len(shared_tour["shareId"]) >= 20
+
+    public_client = APIClient()
+    public_response = public_client.get(
+        reverse("shared-tour", kwargs={"share_token": shared_tour["shareId"]}),
+    )
+
+    assert public_response.status_code == 200
+    public_tour = public_response.json()["tour"]
+    assert public_tour["name"] == "Shared loop"
+    assert public_tour["routeData"] == {"waypoints": [], "segments": []}
+    assert set(public_tour) == {"name", "routeData", "createdAt", "updatedAt"}
+
+    disable_response = owner.patch(
+        reverse("tour-detail", kwargs={"tour_id": private_tour["id"]}),
+        {"shareEnabled": False},
+        format="json",
+    )
+    assert disable_response.status_code == 200
+    assert disable_response.json()["tour"]["shareId"] is None
+
+    disabled_response = public_client.get(
+        reverse("shared-tour", kwargs={"share_token": shared_tour["shareId"]}),
+    )
+    assert disabled_response.status_code == 404
+    assert disabled_response.json()["code"] == "shared_tour_not_found"
+
 
 @pytest.mark.django_db
 def test_register_and_login_require_csrf_token() -> None:
