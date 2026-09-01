@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { ComputedRoute } from "../route/routeModel";
 import {
   FLAT_HIKING_PACE_MIN_PER_KM,
+  calculateKilometreSplits,
+  detectClimbs,
   estimatePersonalRunningMinutes,
   resampleGeometryForElevation,
   toElevationProfileRequest,
@@ -80,6 +82,52 @@ describe("personal running-time estimate", () => {
     expect(estimatePersonalRunningMinutes(sparse, 6.5)).toBe(
       estimatePersonalRunningMinutes(dense, 6.5),
     );
+  });
+});
+
+describe("route analysis", () => {
+  it("creates kilometre splits including the final partial kilometre", () => {
+    const splits = calculateKilometreSplits(
+      buildProfile(samplesForSlope(2_250, 10)),
+      6.5,
+    );
+
+    expect(splits).toHaveLength(3);
+    expect(splits[2]).toMatchObject({
+      startDistanceMeters: 2_000,
+      endDistanceMeters: 2_250,
+    });
+    expect(splits[0].ascentMeters).toBeCloseTo(100, 0);
+    expect(splits[0].runningMinutes).not.toBeNull();
+  });
+
+  it("keeps a short interruption inside a continuous climb", () => {
+    const profile = buildProfile([
+      ...samplesForSlope(600, 20),
+      {
+        distanceMeters: 700,
+        elevationMeters: 110,
+        smoothedElevationMeters: 110,
+        gradientPercent: -10,
+        latitude: 46.9,
+        longitude: 7.4,
+      },
+      {
+        distanceMeters: 1_800,
+        elevationMeters: 330,
+        smoothedElevationMeters: 330,
+        gradientPercent: 20,
+        latitude: 46.9,
+        longitude: 7.4,
+      },
+    ]);
+    const climbs = detectClimbs(profile, 6.5);
+
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0]).toMatchObject({
+      elevationGainMeters: 330,
+      score: expect.closeTo(6.05, 1),
+    });
   });
 });
 

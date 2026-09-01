@@ -2179,6 +2179,72 @@ button:disabled {
   min-width: 0;
 }
 
+.routeAnalysis {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  min-width: 0;
+}
+
+.routeAnalysis-profile {
+  grid-row: 4;
+  grid-column: 1;
+}
+
+.analysisTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.analysisTabs button {
+  min-height: 28px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #fff;
+  color: #66717d;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.analysisTabs button[aria-selected="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 750;
+}
+
+.analysisList {
+  display: grid;
+  max-height: 180px;
+  overflow: auto;
+  border-top: 1px solid #d8dee5;
+}
+
+.analysisRow {
+  display: grid;
+  grid-template-columns: 82px repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 0;
+  border-bottom: 1px solid #edf0f3;
+  background: #fff;
+  color: #52606d;
+  padding: 5px 8px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.analysisRow:hover,
+.analysisRow:focus-visible {
+  background: var(--color-accent-soft);
+  outline: none;
+}
+
+.analysisRow strong {
+  color: #111827;
+}
+
 .elevationPanelDockControl .elevationPanelControls {
   justify-content: flex-start;
 }
@@ -3204,6 +3270,22 @@ button:disabled {
     grid-row: 3;
     grid-column: 1 / -1;
     height: 210px;
+  }
+
+  .mobileProfileMode .routeAnalysis {
+    grid-row: 3;
+    grid-column: 1 / -1;
+  }
+
+  .analysisList {
+    max-height: 240px;
+  }
+
+  .analysisRow {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px 8px;
+    min-height: 62px;
+    font-size: 11px;
   }
 
   .publicTourShell {

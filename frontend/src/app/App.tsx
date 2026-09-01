@@ -4,10 +4,13 @@ import type { FormEvent, MutableRefObject } from "react";
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
   estimatePersonalRunningMinutes,
+  calculateKilometreSplits,
+  detectClimbs,
   formatDurationMinutes,
   toElevationProfile,
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
+import type { AnalysisTab } from "../features/elevation/RouteAnalysis";
 import type { ElevationProfile } from "../features/elevation/elevationModel";
 import type {
   ElevationPanelSize,
@@ -291,6 +294,11 @@ function PlannerApp() {
   );
   const [elevationPanelSize, setElevationPanelSize] =
     useState<ElevationPanelSize>("compact");
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("profile");
+  const [analysisHighlightRange, setAnalysisHighlightRange] = useState<{
+    startDistanceMeters: number;
+    endDistanceMeters: number;
+  } | null>(null);
   const [basePaceMinPerKm, setBasePaceMinPerKm] =
     useState(loadBasePaceMinPerKm);
   const [basePaceInput, setBasePaceInput] = useState(() =>
@@ -404,6 +412,26 @@ function PlannerApp() {
   const elevationSurfaceSegments = useMemo(
     () => surfaceSegmentsForElevation(effectiveComputedRoute),
     [effectiveComputedRoute],
+  );
+  const kilometreSplits = useMemo(
+    () =>
+      elevationState.profile
+        ? calculateKilometreSplits(
+            elevationState.profile,
+            calibratedTimeEnabled ? basePaceMinPerKm : undefined,
+          )
+        : [],
+    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
+  );
+  const climbs = useMemo(
+    () =>
+      elevationState.profile
+        ? detectClimbs(
+            elevationState.profile,
+            calibratedTimeEnabled ? basePaceMinPerKm : undefined,
+          )
+        : [],
+    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
   );
   const activeTour =
     savedTours.find((tour) => tour.id === activeTourId) ?? null;
@@ -2358,6 +2386,31 @@ function PlannerApp() {
               onHoverPointChange={setElevationHoverPoint}
               onSizeChange={setElevationPanelDisplay}
               size={elevationPanelSize}
+              analysisTab={analysisTab}
+              splits={kilometreSplits}
+              climbs={climbs}
+              onAnalysisTabChange={setAnalysisTab}
+              onAnalysisRangeChange={(range) => {
+                setAnalysisHighlightRange(range);
+                if (!range || !elevationState.profile) {
+                  setElevationHoverPoint(null);
+                  return;
+                }
+                const midpoint =
+                  (range.startDistanceMeters + range.endDistanceMeters) / 2;
+                const point = elevationState.profile.points.reduce(
+                  (nearest, current) =>
+                    Math.abs(current.distanceMeters - midpoint) <
+                    Math.abs(nearest.distanceMeters - midpoint)
+                      ? current
+                      : nearest,
+                );
+                setElevationHoverPoint({
+                  lon: point.longitude,
+                  lat: point.latitude,
+                });
+              }}
+              highlightedRange={analysisHighlightRange}
             />
 
             <details className="compactDetails">

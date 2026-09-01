@@ -40,6 +40,39 @@ export interface ElevationGradientBand {
   group: GradientGroup;
 }
 
+export interface DistanceRange {
+  startDistanceMeters: number;
+  endDistanceMeters: number;
+}
+
+export interface KilometreSplit extends DistanceRange {
+  index: number;
+  ascentMeters: number;
+  descentMeters: number;
+  netGradientPercent: number;
+  maxUphillGradientPercent: number;
+  maxDownhillGradientPercent: number;
+  hikingMinutes: number;
+  runningMinutes: number | null;
+}
+
+export interface Climb extends DistanceRange {
+  index: number;
+  elevationGainMeters: number;
+  averageGradientPercent: number;
+  maxRelevantGradientPercent: number;
+  hikingMinutes: number;
+  runningMinutes: number | null;
+  score: number;
+}
+
+export const DEFAULT_CLIMB_DETECTION = {
+  minimumDistanceMeters: 500,
+  minimumElevationGainMeters: 100,
+  maximumInterruptionDistanceMeters: 150,
+  maximumInterruptionLossMeters: 25,
+} as const;
+
 export interface GradientGroup {
   id: string;
   label: string;
@@ -256,6 +289,257 @@ export function estimatePersonalRunningMinutes(
   }
 
   return Math.round(totalMinutes);
+}
+
+export function calculateKilometreSplits(
+  profile: ElevationProfile,
+  flatRunningPaceMinPerKm?: number,
+): KilometreSplit[] {
+  const result: KilometreSplit[] = [];
+  for (
+    let start = 0, index = 1;
+    start < profile.distanceMeters;
+    start += 1000, index += 1
+  ) {
+    const end = Math.min(profile.distanceMeters, start + 1000);
+    result.push({
+      ...rangeStatistics(profile, start, end, flatRunningPaceMinPerKm),
+      index,
+    });
+  }
+  return result;
+}
+
+export function detectClimbs(
+  profile: ElevationProfile,
+  flatRunningPaceMinPerKm?: number,
+  config = DEFAULT_CLIMB_DETECTION,
+): Climb[] {
+  const points = profile.points;
+  const climbs: Climb[] = [];
+  let startIndex: number | null = null;
+  let peakIndex = 0;
+  let interruptionStart: number | null = null;
+
+  const finish = (endIndex: number) => {
+    if (startIndex === null) return;
+    const start = points[startIndex];
+    const end = points[endIndex];
+    const distance = end.distanceMeters - start.distanceMeters;
+    const gain = end.smoothedElevationMeters - start.smoothedElevationMeters;
+    if (
+      distance >= config.minimumDistanceMeters &&
+      gain >= config.minimumElevationGainMeters
+    ) {
+      const stats = rangeStatistics(
+        profile,
+        start.distanceMeters,
+        end.distanceMeters,
+        flatRunningPaceMinPerKm,
+      );
+      climbs.push({
+        ...stats,
+        index: climbs.length + 1,
+        elevationGainMeters: gain,
+        averageGradientPercent: (gain / distance) * 100,
+        maxRelevantGradientPercent: stats.maxUphillGradientPercent,
+        score: (gain * gain) / (10 * distance),
+      });
+    }
+    startIndex = null;
+    interruptionStart = null;
+  };
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const point = points[index];
+    const delta =
+      point.smoothedElevationMeters - previous.smoothedElevationMeters;
+    if (startIndex === null) {
+      if (delta > 0) {
+        startIndex = index - 1;
+        peakIndex = index;
+      }
+      continue;
+    }
+    if (
+      point.smoothedElevationMeters >= points[peakIndex].smoothedElevationMeters
+    ) {
+      peakIndex = index;
+      interruptionStart = null;
+      continue;
+    }
+    interruptionStart ??= index - 1;
+    const interruptionDistance =
+      point.distanceMeters - points[interruptionStart].distanceMeters;
+    const loss =
+      points[peakIndex].smoothedElevationMeters - point.smoothedElevationMeters;
+    if (
+      interruptionDistance > config.maximumInterruptionDistanceMeters ||
+      loss > config.maximumInterruptionLossMeters
+    ) {
+      finish(peakIndex);
+      if (delta > 0) {
+        startIndex = index - 1;
+        peakIndex = index;
+      }
+    }
+  }
+  finish(peakIndex);
+  return climbs;
+}
+
+function rangeStatistics(
+  profile: ElevationProfile,
+  startDistanceMeters: number,
+  endDistanceMeters: number,
+  flatRunningPaceMinPerKm?: number,
+): Omit<KilometreSplit, "index"> {
+  const points = pointsInRange(
+    profile.points,
+    startDistanceMeters,
+    endDistanceMeters,
+  );
+  let ascent = 0;
+  let descent = 0;
+  let maxUp = 0;
+  let maxDown = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const delta =
+      points[index].smoothedElevationMeters -
+      points[index - 1].smoothedElevationMeters;
+    if (delta > 0) ascent += delta;
+    else descent -= delta;
+  }
+  for (const point of points) {
+    maxUp = Math.max(maxUp, point.gradientPercent);
+    maxDown = Math.min(maxDown, point.gradientPercent);
+  }
+  const distance = endDistanceMeters - startDistanceMeters;
+  const net =
+    distance > 0
+      ? (((points.at(-1)?.smoothedElevationMeters ?? 0) -
+          points[0].smoothedElevationMeters) *
+          100) /
+        distance
+      : 0;
+  return {
+    startDistanceMeters,
+    endDistanceMeters,
+    ascentMeters: ascent,
+    descentMeters: descent,
+    netGradientPercent: net,
+    maxUphillGradientPercent: maxUp,
+    maxDownhillGradientPercent: maxDown,
+    hikingMinutes: estimateHikingMinutesForRange(
+      profile,
+      startDistanceMeters,
+      endDistanceMeters,
+    ),
+    runningMinutes:
+      flatRunningPaceMinPerKm === undefined
+        ? null
+        : estimateRunningMinutesForRange(
+            profile,
+            startDistanceMeters,
+            endDistanceMeters,
+            flatRunningPaceMinPerKm,
+          ),
+  };
+}
+
+function pointsInRange(
+  points: ElevationPoint[],
+  start: number,
+  end: number,
+): ElevationPoint[] {
+  return [
+    pointAtDistance(points, start),
+    ...points.filter(
+      (point) => point.distanceMeters > start && point.distanceMeters < end,
+    ),
+    pointAtDistance(points, end),
+  ];
+}
+
+function pointAtDistance(
+  points: ElevationPoint[],
+  distanceMeters: number,
+): ElevationPoint {
+  const after =
+    points.find((point) => point.distanceMeters >= distanceMeters) ??
+    points.at(-1)!;
+  const before =
+    [...points]
+      .reverse()
+      .find((point) => point.distanceMeters <= distanceMeters) ?? points[0];
+  const distance = after.distanceMeters - before.distanceMeters;
+  const ratio =
+    distance > 0 ? (distanceMeters - before.distanceMeters) / distance : 0;
+  return {
+    ...before,
+    distanceMeters,
+    smoothedElevationMeters:
+      before.smoothedElevationMeters +
+      (after.smoothedElevationMeters - before.smoothedElevationMeters) * ratio,
+    gradientPercent:
+      before.gradientPercent +
+      (after.gradientPercent - before.gradientPercent) * ratio,
+  };
+}
+
+function estimateHikingMinutesForRange(
+  profile: ElevationProfile,
+  start: number,
+  end: number,
+): number {
+  return estimateRangeMinutes(profile, start, end, FLAT_HIKING_PACE_MIN_PER_KM);
+}
+
+function estimateRunningMinutesForRange(
+  profile: ElevationProfile,
+  start: number,
+  end: number,
+  flatPace: number,
+): number {
+  return estimateRangeMinutes(profile, start, end, flatPace, true);
+}
+
+function estimateRangeMinutes(
+  profile: ElevationProfile,
+  start: number,
+  end: number,
+  flatPace: number,
+  running = false,
+): number {
+  const boundaries = fixedSegmentBoundaries(
+    end - start,
+    profile.hikingTime.segmentLengthMeters,
+  ).map((value) => value + start);
+  let total = 0;
+  const scale = flatPace / FLAT_HIKING_PACE_MIN_PER_KM;
+  for (let index = 1; index < boundaries.length; index += 1) {
+    const distance = boundaries[index] - boundaries[index - 1];
+    const delta =
+      interpolateSmoothedElevationAtDistance(
+        profile.points,
+        boundaries[index],
+      ) -
+      interpolateSmoothedElevationAtDistance(
+        profile.points,
+        boundaries[index - 1],
+      );
+    const slope = (delta * 100) / distance;
+    const hikingPace = swissHikingMinutesPerKm(slope);
+    const pace = running
+      ? flatPace +
+        (hikingPace - FLAT_HIKING_PACE_MIN_PER_KM) *
+          scale *
+          (slope > 0 ? DEFAULT_RUNNING_UPHILL_CORRECTION : 1)
+      : hikingPace;
+    total += (distance / 1000) * pace;
+  }
+  return Math.round(total);
 }
 
 function swissHikingMinutesPerKm(slopePercent: number): number {

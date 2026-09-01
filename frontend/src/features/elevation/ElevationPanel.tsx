@@ -11,6 +11,8 @@ import { CanvasRenderer } from "echarts/renderers";
 
 import { formatDistance } from "../route/routeGeometry";
 import type { ElevationProfile } from "./elevationModel";
+import type { Climb, KilometreSplit } from "./elevationModel";
+import { RouteAnalysis, type AnalysisTab } from "./RouteAnalysis";
 import {
   formatElevationMeters,
   formatGradientPercent,
@@ -82,6 +84,17 @@ interface ElevationPanelProps {
   onHoverPointChange?: (point: ElevationHoverPoint | null) => void;
   onSizeChange?: (size: ElevationPanelSize) => void;
   size?: ElevationPanelSize;
+  analysisTab?: AnalysisTab;
+  splits?: KilometreSplit[];
+  climbs?: Climb[];
+  onAnalysisTabChange?: (tab: AnalysisTab) => void;
+  onAnalysisRangeChange?: (
+    range: { startDistanceMeters: number; endDistanceMeters: number } | null,
+  ) => void;
+  highlightedRange?: {
+    startDistanceMeters: number;
+    endDistanceMeters: number;
+  } | null;
 }
 
 export function ElevationPanel({
@@ -92,6 +105,12 @@ export function ElevationPanel({
   onHoverPointChange,
   onSizeChange,
   size = "compact",
+  analysisTab = "profile",
+  splits = [],
+  climbs = [],
+  onAnalysisTabChange,
+  onAnalysisRangeChange,
+  highlightedRange = null,
 }: ElevationPanelProps) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [activePoint, setActivePoint] = useState<
@@ -259,6 +278,18 @@ export function ElevationPanel({
           data: chartData.line,
           lineStyle: { color: "rgba(244, 248, 251, 0.82)", width: 1.5 },
           name: "Höhe",
+          markArea: highlightedRange
+            ? {
+                data: [
+                  [
+                    { xAxis: highlightedRange.startDistanceMeters / 1000 },
+                    { xAxis: highlightedRange.endDistanceMeters / 1000 },
+                  ],
+                ],
+                itemStyle: { color: "rgba(25, 103, 210, 0.12)" },
+                silent: true,
+              }
+            : undefined,
           showSymbol: false,
           silent: true,
           smooth: 0.15,
@@ -419,7 +450,9 @@ export function ElevationPanel({
     onHoverPointChange,
     profile,
     panelSize,
+    analysisTab,
     surfaceSegments,
+    highlightedRange,
   ]);
 
   const statusLabel =
@@ -493,7 +526,18 @@ export function ElevationPanel({
               </span>
             </div>
           ) : null}
-          <div ref={chartRef} className="elevationChart" />
+          {panelSize === "large" ? (
+            <RouteAnalysis
+              activeTab={analysisTab}
+              splits={splits}
+              climbs={climbs}
+              onTabChange={onAnalysisTabChange ?? (() => undefined)}
+              onRangeChange={onAnalysisRangeChange ?? (() => undefined)}
+            />
+          ) : null}
+          {analysisTab === "profile" || panelSize === "compact" ? (
+            <div ref={chartRef} className="elevationChart" />
+          ) : null}
         </>
       ) : (
         <p className="panelEmpty">
