@@ -796,7 +796,7 @@ function renderAnalysisRange(params: CustomRenderParams, api: CustomRenderApi) {
           x: startX,
           y: params.coordSys.y,
         },
-        style: { fill: "rgba(0, 184, 212, 0.3)" },
+        style: { fill: "rgba(0, 184, 212, 0.2)" },
         type: "rect",
       },
       {

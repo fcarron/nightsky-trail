@@ -133,7 +133,7 @@ function ClimbList({
       {climbs.length ? (
         <>
           <div className="analysisTableHeader" aria-hidden="true">
-            <span>Aufwand</span>
+            <span>Anstieg</span>
             <span>Distanz</span>
             <span>Auf</span>
             <span>Ø Gradient</span>

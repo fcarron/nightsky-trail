@@ -111,6 +111,113 @@ describe("route analysis", () => {
     expect(climb.score).toBeCloseTo(expectedPenalty / 10, 5);
   });
 
+  it("keeps a short but noticeable descent inside a continuous climb", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(500, 120),
+        elevationPoint(700, 70),
+        elevationPoint(1_400, 220),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0]).toMatchObject({
+      startDistanceMeters: 0,
+      endDistanceMeters: 1_400,
+      elevationGainMeters: 220,
+    });
+  });
+
+  it("keeps a large climb together when a 70 m valley recovers quickly", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(2_500, 500),
+        elevationPoint(2_600, 430),
+        elevationPoint(2_750, 500),
+        elevationPoint(4_750, 900),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0]).toMatchObject({
+      startDistanceMeters: 0,
+      endDistanceMeters: 4_750,
+      elevationGainMeters: 900,
+    });
+  });
+
+  it("splits a large climb after a long unrecovered valley", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(2_500, 500),
+        elevationPoint(2_600, 430),
+        elevationPoint(4_250, 430),
+        elevationPoint(6_250, 830),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(2);
+    expect(climbs.map((climb) => climb.elevationGainMeters)).toEqual([
+      500, 400,
+    ]);
+  });
+
+  it("splits a large climb immediately after a loss above its hard threshold", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(5_000, 1_000),
+        elevationPoint(5_200, 840),
+        elevationPoint(7_200, 1_240),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(2);
+    expect(climbs.map((climb) => climb.elevationGainMeters)).toEqual([
+      1_000, 400,
+    ]);
+  });
+
+  it("ends a climb after a long plateau without a new high point", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(2_500, 500),
+        elevationPoint(3_200, 500),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0]?.endDistanceMeters).toBe(2_500);
+  });
+
+  it("splits climbs after a sustained meaningful descent", () => {
+    const climbs = detectClimbs(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(600, 120),
+        elevationPoint(1_000, 60),
+        elevationPoint(1_700, 180),
+      ]),
+    );
+
+    expect(climbs).toHaveLength(2);
+    expect(climbs.map((climb) => climb.elevationGainMeters)).toEqual([
+      120, 120,
+    ]);
+  });
+
+  it("filters climbs with less than five extra hiking minutes", () => {
+    const climbs = detectClimbs(
+      buildProfile([elevationPoint(0, 0), elevationPoint(800, 80)]),
+    );
+
+    expect(climbs).toEqual([]);
+  });
+
   it("creates kilometre splits including the final partial kilometre", () => {
     const splits = calculateKilometreSplits(
       buildProfile(samplesForSlope(2_250, 10)),

@@ -71,12 +71,35 @@ export interface Climb extends DistanceRange {
 export type ClimbEffortCategory =
   "leicht" | "moderat" | "anspruchsvoll" | "hart" | "sehr hart" | "extrem";
 
-export const DEFAULT_CLIMB_DETECTION = {
-  minimumDistanceMeters: 500,
-  minimumElevationGainMeters: 100,
-  maximumInterruptionDistanceMeters: 150,
-  maximumInterruptionLossMeters: 25,
-} as const;
+export interface ClimbDetectionConfig {
+  minimumDistanceMeters: number;
+  minimumElevationGainMeters: number;
+  minimumTimePenaltyMinutes: number;
+  softSplitLossFactor: number;
+  softSplitLossMinimumMeters: number;
+  softSplitLossMaximumMeters: number;
+  hardSplitLossFactor: number;
+  hardSplitLossMinimumMeters: number;
+  hardSplitLossMaximumMeters: number;
+  plateauSplitDistanceFactor: number;
+  plateauSplitDistanceMinimumMeters: number;
+  plateauSplitDistanceMaximumMeters: number;
+}
+
+export const DEFAULT_CLIMB_DETECTION: ClimbDetectionConfig = {
+  minimumDistanceMeters: 400,
+  minimumElevationGainMeters: 80,
+  minimumTimePenaltyMinutes: 5,
+  softSplitLossFactor: 0.1,
+  softSplitLossMinimumMeters: 30,
+  softSplitLossMaximumMeters: 80,
+  hardSplitLossFactor: 0.2,
+  hardSplitLossMinimumMeters: 60,
+  hardSplitLossMaximumMeters: 150,
+  plateauSplitDistanceFactor: 0.12,
+  plateauSplitDistanceMinimumMeters: 400,
+  plateauSplitDistanceMaximumMeters: 1_200,
+};
 
 export function climbEffortCategoryForScore(
   score: number,
@@ -335,7 +358,7 @@ export function detectClimbs(
   const climbs: Climb[] = [];
   let startIndex: number | null = null;
   let peakIndex = 0;
-  let interruptionStart: number | null = null;
+  let recoverableValley = false;
 
   const finish = (endIndex: number) => {
     if (startIndex === null) return;
@@ -361,19 +384,21 @@ export function detectClimbs(
       const flatTimeMinutes = (distance / 1000) * FLAT_HIKING_PACE_MIN_PER_KM;
       const timePenaltyMinutes = climbTimeMinutes - flatTimeMinutes;
       const score = timePenaltyMinutes / 10;
-      climbs.push({
-        ...stats,
-        index: climbs.length + 1,
-        elevationGainMeters: gain,
-        averageGradientPercent: (gain / distance) * 100,
-        maxRelevantGradientPercent: stats.maxUphillGradientPercent,
-        score,
-        timePenaltyMinutes,
-        category: climbEffortCategoryForScore(score),
-      });
+      if (timePenaltyMinutes >= config.minimumTimePenaltyMinutes) {
+        climbs.push({
+          ...stats,
+          index: climbs.length + 1,
+          elevationGainMeters: gain,
+          averageGradientPercent: (gain / distance) * 100,
+          maxRelevantGradientPercent: stats.maxUphillGradientPercent,
+          score,
+          timePenaltyMinutes,
+          category: climbEffortCategoryForScore(score),
+        });
+      }
     }
     startIndex = null;
-    interruptionStart = null;
+    recoverableValley = false;
   };
 
   for (let index = 1; index < points.length; index += 1) {
@@ -385,34 +410,85 @@ export function detectClimbs(
       if (delta > 0) {
         startIndex = index - 1;
         peakIndex = index;
+        recoverableValley = false;
       }
       continue;
     }
-    if (
-      point.smoothedElevationMeters >= points[peakIndex].smoothedElevationMeters
-    ) {
+    const start = points[startIndex];
+    const peak = points[peakIndex];
+    const candidateGainMeters =
+      peak.smoothedElevationMeters - start.smoothedElevationMeters;
+    const candidateLengthMeters = point.distanceMeters - start.distanceMeters;
+    const splitThresholds = climbSplitThresholds(
+      candidateGainMeters,
+      candidateLengthMeters,
+      config,
+    );
+    const loss = peak.smoothedElevationMeters - point.smoothedElevationMeters;
+    const distanceBelowPeakMeters = point.distanceMeters - peak.distanceMeters;
+
+    if (point.smoothedElevationMeters > peak.smoothedElevationMeters) {
       peakIndex = index;
-      interruptionStart = null;
+      recoverableValley = false;
       continue;
     }
-    interruptionStart ??= index - 1;
-    const interruptionDistance =
-      point.distanceMeters - points[interruptionStart].distanceMeters;
-    const loss =
-      points[peakIndex].smoothedElevationMeters - point.smoothedElevationMeters;
+
     if (
-      interruptionDistance > config.maximumInterruptionDistanceMeters ||
-      loss > config.maximumInterruptionLossMeters
+      recoverableValley &&
+      loss <= 0 &&
+      distanceBelowPeakMeters < splitThresholds.plateauSplitDistanceMeters
+    ) {
+      peakIndex = index;
+      recoverableValley = false;
+      continue;
+    }
+
+    if (loss >= splitThresholds.softSplitLossMeters) {
+      recoverableValley = true;
+    }
+
+    if (
+      loss >= splitThresholds.hardSplitLossMeters ||
+      distanceBelowPeakMeters >= splitThresholds.plateauSplitDistanceMeters
     ) {
       finish(peakIndex);
       if (delta > 0) {
         startIndex = index - 1;
         peakIndex = index;
+        recoverableValley = false;
       }
     }
   }
   finish(peakIndex);
   return climbs;
+}
+
+function climbSplitThresholds(
+  candidateGainMeters: number,
+  candidateLengthMeters: number,
+  config: ClimbDetectionConfig,
+) {
+  return {
+    softSplitLossMeters: clamp(
+      config.softSplitLossFactor * candidateGainMeters,
+      config.softSplitLossMinimumMeters,
+      config.softSplitLossMaximumMeters,
+    ),
+    hardSplitLossMeters: clamp(
+      config.hardSplitLossFactor * candidateGainMeters,
+      config.hardSplitLossMinimumMeters,
+      config.hardSplitLossMaximumMeters,
+    ),
+    plateauSplitDistanceMeters: clamp(
+      config.plateauSplitDistanceFactor * candidateLengthMeters,
+      config.plateauSplitDistanceMinimumMeters,
+      config.plateauSplitDistanceMaximumMeters,
+    ),
+  };
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
 }
 
 function rangeStatistics(
