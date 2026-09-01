@@ -4,6 +4,7 @@ import type { ComputedRoute } from "../route/routeModel";
 import {
   FLAT_HIKING_PACE_MIN_PER_KM,
   calculateKilometreSplits,
+  climbCategoryForScore,
   detectClimbs,
   estimatePersonalRunningMinutes,
   resampleGeometryForElevation,
@@ -86,6 +87,16 @@ describe("personal running-time estimate", () => {
 });
 
 describe("route analysis", () => {
+  it("assigns FIETS-inspired climb categories at the defined thresholds", () => {
+    expect(climbCategoryForScore(6.5)).toBe("HC");
+    expect(climbCategoryForScore(5)).toBe("1");
+    expect(climbCategoryForScore(3.5)).toBe("2");
+    expect(climbCategoryForScore(2)).toBe("3");
+    expect(climbCategoryForScore(0.5)).toBe("4");
+    expect(climbCategoryForScore(0.25)).toBe("5");
+    expect(climbCategoryForScore(0.24)).toBeNull();
+  });
+
   it("creates kilometre splits including the final partial kilometre", () => {
     const splits = calculateKilometreSplits(
       buildProfile(samplesForSlope(2_250, 10)),

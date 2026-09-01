@@ -64,7 +64,10 @@ export interface Climb extends DistanceRange {
   hikingMinutes: number;
   runningMinutes: number | null;
   score: number;
+  category: ClimbCategory | null;
 }
+
+export type ClimbCategory = "HC" | "1" | "2" | "3" | "4" | "5";
 
 export const DEFAULT_CLIMB_DETECTION = {
   minimumDistanceMeters: 500,
@@ -72,6 +75,16 @@ export const DEFAULT_CLIMB_DETECTION = {
   maximumInterruptionDistanceMeters: 150,
   maximumInterruptionLossMeters: 25,
 } as const;
+
+export function climbCategoryForScore(score: number): ClimbCategory | null {
+  if (score >= 6.5) return "HC";
+  if (score >= 5) return "1";
+  if (score >= 3.5) return "2";
+  if (score >= 2) return "3";
+  if (score >= 0.5) return "4";
+  if (score >= 0.25) return "5";
+  return null;
+}
 
 export interface GradientGroup {
   id: string;
@@ -337,13 +350,15 @@ export function detectClimbs(
         end.distanceMeters,
         flatRunningPaceMinPerKm,
       );
+      const score = (gain * gain) / (10 * distance);
       climbs.push({
         ...stats,
         index: climbs.length + 1,
         elevationGainMeters: gain,
         averageGradientPercent: (gain / distance) * 100,
         maxRelevantGradientPercent: stats.maxUphillGradientPercent,
-        score: (gain * gain) / (10 * distance),
+        score,
+        category: climbCategoryForScore(score),
       });
     }
     startIndex = null;

@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from "react";
+
 import type { Climb, KilometreSplit } from "./elevationModel";
 import {
   formatDurationMinutes,
@@ -6,15 +8,18 @@ import {
 } from "./elevationModel";
 
 export type AnalysisTab = "profile" | "splits" | "climbs";
+type AnalysisRange = {
+  startDistanceMeters: number;
+  endDistanceMeters: number;
+};
 
 interface RouteAnalysisProps {
   activeTab: AnalysisTab;
   splits: KilometreSplit[];
   climbs: Climb[];
   onTabChange: (tab: AnalysisTab) => void;
-  onRangeChange: (
-    range: { startDistanceMeters: number; endDistanceMeters: number } | null,
-  ) => void;
+  onRangeChange: (range: AnalysisRange | null) => void;
+  profileOverview?: ReactNode;
 }
 
 export function RouteAnalysis({
@@ -23,7 +28,23 @@ export function RouteAnalysis({
   climbs,
   onTabChange,
   onRangeChange,
+  profileOverview,
 }: RouteAnalysisProps) {
+  const [selectedRange, setSelectedRange] = useState<AnalysisRange | null>(
+    null,
+  );
+  const selectRange = (range: AnalysisRange) => {
+    const nextRange = rangesEqual(selectedRange, range) ? null : range;
+    setSelectedRange(nextRange);
+    onRangeChange(nextRange);
+  };
+  const rangeInteractions = {
+    onRangeEnter: onRangeChange,
+    onRangeLeave: () => onRangeChange(selectedRange),
+    onRangeSelect: selectRange,
+    selectedRange,
+  };
+
   return (
     <section
       className={`routeAnalysis routeAnalysis-${activeTab}`}
@@ -50,11 +71,12 @@ export function RouteAnalysis({
           </button>
         ))}
       </div>
+      {activeTab !== "profile" ? profileOverview : null}
       {activeTab === "splits" ? (
-        <SplitList splits={splits} onRangeChange={onRangeChange} />
+        <SplitList splits={splits} {...rangeInteractions} />
       ) : null}
       {activeTab === "climbs" ? (
-        <ClimbList climbs={climbs} onRangeChange={onRangeChange} />
+        <ClimbList climbs={climbs} {...rangeInteractions} />
       ) : null}
     </section>
   );
@@ -62,20 +84,29 @@ export function RouteAnalysis({
 
 function SplitList({
   splits,
-  onRangeChange,
-}: Pick<RouteAnalysisProps, "splits" | "onRangeChange">) {
+  ...interactions
+}: Pick<RouteAnalysisProps, "splits"> & RangeInteractions) {
   return (
     <div className="analysisList splitList">
+      <div className="analysisTableHeader" aria-hidden="true">
+        <span>Abschnitt</span>
+        <span>Auf</span>
+        <span>Ab</span>
+        <span>Ø Gradient</span>
+        <span>Max. auf</span>
+        <span>Zeit</span>
+      </div>
       {splits.map((split) => (
         <button
           key={split.index}
           type="button"
           className="analysisRow"
-          onMouseEnter={() => onRangeChange(split)}
-          onFocus={() => onRangeChange(split)}
-          onMouseLeave={() => onRangeChange(null)}
-          onBlur={() => onRangeChange(null)}
-          onClick={() => onRangeChange(split)}
+          aria-pressed={rangesEqual(interactions.selectedRange, split)}
+          onMouseEnter={() => interactions.onRangeEnter(split)}
+          onFocus={() => interactions.onRangeEnter(split)}
+          onMouseLeave={interactions.onRangeLeave}
+          onBlur={interactions.onRangeLeave}
+          onClick={() => interactions.onRangeSelect(split)}
         >
           <strong>KM {split.index}</strong>
           <span>+{Math.round(split.ascentMeters)} m</span>
@@ -95,45 +126,81 @@ function SplitList({
 
 function ClimbList({
   climbs,
-  onRangeChange,
-}: Pick<RouteAnalysisProps, "climbs" | "onRangeChange">) {
+  ...interactions
+}: Pick<RouteAnalysisProps, "climbs"> & RangeInteractions) {
   return (
     <div className="analysisList">
       {climbs.length ? (
-        climbs.map((climb) => (
-          <button
-            key={climb.index}
-            type="button"
-            className="analysisRow climbRow"
-            onMouseEnter={() => onRangeChange(climb)}
-            onFocus={() => onRangeChange(climb)}
-            onMouseLeave={() => onRangeChange(null)}
-            onBlur={() => onRangeChange(null)}
-            onClick={() => onRangeChange(climb)}
-          >
-            <strong>Anstieg {climb.index}</strong>
-            <span>
-              {(
-                (climb.endDistanceMeters - climb.startDistanceMeters) /
-                1000
-              ).toFixed(1)}{" "}
-              km
-            </span>
-            <span>+{formatElevationMeters(climb.elevationGainMeters)}</span>
-            <span>Ø {formatGradientPercent(climb.averageGradientPercent)}</span>
-            <span>Score {climb.score.toFixed(1)}</span>
-            <span>
-              {formatDurationMinutes(
-                climb.runningMinutes ?? climb.hikingMinutes,
-              )}
-            </span>
-          </button>
-        ))
+        <>
+          <div className="analysisTableHeader" aria-hidden="true">
+            <span>Anstieg</span>
+            <span>Distanz</span>
+            <span>Auf</span>
+            <span>Ø Gradient</span>
+            <span>FIETS</span>
+            <span>Zeit</span>
+          </div>
+          {climbs.map((climb) => (
+            <button
+              key={climb.index}
+              type="button"
+              className="analysisRow climbRow"
+              aria-pressed={rangesEqual(interactions.selectedRange, climb)}
+              onMouseEnter={() => interactions.onRangeEnter(climb)}
+              onFocus={() => interactions.onRangeEnter(climb)}
+              onMouseLeave={interactions.onRangeLeave}
+              onBlur={interactions.onRangeLeave}
+              onClick={() => interactions.onRangeSelect(climb)}
+            >
+              <span className="climbLabel">
+                {climb.category ? (
+                  <strong className="climbCategory">
+                    {climb.category === "HC" ? "HC" : `${climb.category}. Kat.`}
+                  </strong>
+                ) : null}
+                <span>Anstieg {climb.index}</span>
+              </span>
+              <span>
+                {(
+                  (climb.endDistanceMeters - climb.startDistanceMeters) /
+                  1000
+                ).toFixed(1)}{" "}
+                km
+              </span>
+              <span>+{formatElevationMeters(climb.elevationGainMeters)}</span>
+              <span>
+                Ø {formatGradientPercent(climb.averageGradientPercent)}
+              </span>
+              <span title="FIETS-inspirierter Anstiegswert">
+                {climb.score.toFixed(1)}
+              </span>
+              <span>
+                {formatDurationMinutes(
+                  climb.runningMinutes ?? climb.hikingMinutes,
+                )}
+              </span>
+            </button>
+          ))}
+        </>
       ) : (
         <p className="panelEmpty">
           Keine markanten Anstiege nach den aktuellen Schwellenwerten.
         </p>
       )}
     </div>
+  );
+}
+
+interface RangeInteractions {
+  selectedRange: AnalysisRange | null;
+  onRangeEnter: (range: AnalysisRange) => void;
+  onRangeLeave: () => void;
+  onRangeSelect: (range: AnalysisRange) => void;
+}
+
+function rangesEqual(first: AnalysisRange | null, second: AnalysisRange) {
+  return (
+    first?.startDistanceMeters === second.startDistanceMeters &&
+    first.endDistanceMeters === second.endDistanceMeters
   );
 }

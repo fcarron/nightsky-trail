@@ -286,8 +286,20 @@ export function ElevationPanel({
                     { xAxis: highlightedRange.endDistanceMeters / 1000 },
                   ],
                 ],
-                itemStyle: { color: "rgba(25, 103, 210, 0.12)" },
+                itemStyle: { color: "rgba(0, 184, 212, 0.26)" },
                 silent: true,
+              }
+            : undefined,
+          markLine: highlightedRange
+            ? {
+                data: [
+                  { xAxis: highlightedRange.startDistanceMeters / 1000 },
+                  { xAxis: highlightedRange.endDistanceMeters / 1000 },
+                ],
+                label: { show: false },
+                lineStyle: { color: "#007c91", type: "solid", width: 1.5 },
+                silent: true,
+                symbol: "none",
               }
             : undefined,
           showSymbol: false,
@@ -297,6 +309,28 @@ export function ElevationPanel({
           type: "line",
           yAxisIndex: 0,
         },
+        ...(highlightedRange
+          ? [
+              {
+                coordinateSystem: "cartesian2d",
+                data: [
+                  [
+                    highlightedRange.startDistanceMeters / 1000,
+                    highlightedRange.endDistanceMeters / 1000,
+                  ],
+                ],
+                name: "Ausgewählter Bereich",
+                renderItem: (
+                  params: CustomRenderParams,
+                  api: CustomRenderApi,
+                ) => renderAnalysisRange(params, api),
+                silent: true,
+                type: "custom",
+                yAxisIndex: 0,
+                z: 10,
+              },
+            ]
+          : []),
         ...(panelSize === "large" && chartData.surfaceBands.length
           ? [
               {
@@ -466,17 +500,17 @@ export function ElevationPanel({
 
   const panel = (
     <section
-      className={`elevationPanel elevationPanel-${panelSize}`}
-      aria-label="Höhenprofil"
+      className={`elevationPanel elevationPanel-${panelSize} elevationPanel-analysis-${analysisTab}`}
+      aria-label="Routenanalyse"
     >
       <div className="panelHeader">
-        <h2>Höhenprofil</h2>
+        <h2>{panelSize === "large" ? "Routenanalyse" : "Höhenprofil"}</h2>
         <span aria-live="polite">{statusLabel}</span>
       </div>
 
       {profile ? (
         <>
-          {panelSize === "large" ? (
+          {panelSize === "large" && analysisTab === "profile" ? (
             <dl className="elevationStats">
               <div>
                 <dt>Abstieg</dt>
@@ -533,6 +567,12 @@ export function ElevationPanel({
               climbs={climbs}
               onTabChange={onAnalysisTabChange ?? (() => undefined)}
               onRangeChange={onAnalysisRangeChange ?? (() => undefined)}
+              profileOverview={
+                <div
+                  ref={analysisTab === "profile" ? undefined : chartRef}
+                  className="elevationChart elevationChartOverview"
+                />
+              }
             />
           ) : null}
           {analysisTab === "profile" || panelSize === "compact" ? (
@@ -553,7 +593,7 @@ export function ElevationPanel({
       <>
         <section className="elevationPanel elevationPanel-compact elevationPanelDockControl">
           <div className="panelHeader">
-            <h2>Höhenprofil</h2>
+            <h2>Routenanalyse</h2>
             <span aria-live="polite">{statusLabel}</span>
           </div>
           <div className="elevationPanelControls" aria-label="Profilgrösse">
@@ -736,6 +776,51 @@ function renderSurfaceBand(params: CustomRenderParams, api: CustomRenderApi) {
       opacity: 0.72,
     },
     type: "rect",
+  };
+}
+
+function renderAnalysisRange(params: CustomRenderParams, api: CustomRenderApi) {
+  if (!params.coordSys) {
+    return null;
+  }
+  const startX = api.coord([Number(api.value(0)), 0])[0];
+  const endX = api.coord([Number(api.value(1)), 0])[0];
+  const width = Math.max(1, endX - startX);
+
+  return {
+    children: [
+      {
+        shape: {
+          height: params.coordSys.height,
+          width,
+          x: startX,
+          y: params.coordSys.y,
+        },
+        style: { fill: "rgba(0, 184, 212, 0.3)" },
+        type: "rect",
+      },
+      {
+        shape: {
+          x1: startX,
+          x2: startX,
+          y1: params.coordSys.y,
+          y2: params.coordSys.y + params.coordSys.height,
+        },
+        style: { stroke: "#007c91", lineWidth: 2 },
+        type: "line",
+      },
+      {
+        shape: {
+          x1: endX,
+          x2: endX,
+          y1: params.coordSys.y,
+          y2: params.coordSys.y + params.coordSys.height,
+        },
+        style: { stroke: "#007c91", lineWidth: 2 },
+        type: "line",
+      },
+    ],
+    type: "group",
   };
 }
 

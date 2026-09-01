@@ -43,6 +43,7 @@ import {
 } from "./mapConstants";
 import {
   difficultyStyle,
+  analysisRangeStyle,
   elevationHoverStyle,
   graphhopperDebugStyle,
   routeStyle,
@@ -72,6 +73,7 @@ interface MapPanelProps {
   computedSegments: ComputedRouteSegment[] | null;
   graphhopperDebugVisible: boolean;
   elevationHoverPoint: LonLat | null;
+  analysisRangeGeometry?: LonLat[];
   elevationMarkerAutoPan?: boolean;
   elevationMarkerBottomPadding?: number;
   fitGeometry?: LonLat[];
@@ -98,6 +100,7 @@ export function MapPanel({
   computedSegments,
   graphhopperDebugVisible,
   elevationHoverPoint,
+  analysisRangeGeometry = [],
   elevationMarkerAutoPan = false,
   elevationMarkerBottomPadding = 40,
   fitGeometry,
@@ -131,6 +134,7 @@ export function MapPanel({
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
   const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
+  const analysisRangeSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultyRequestIdRef = useRef(0);
   const difficultyRequestInFlightRef = useRef(false);
   const difficultyQueuedLoadRef = useRef(false);
@@ -439,6 +443,12 @@ export function MapPanel({
       zIndex: 28,
     });
     elevationHoverLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const analysisRangeLayer = new VectorLayer({
+      source: analysisRangeSourceRef.current,
+      style: analysisRangeStyle,
+      zIndex: 27,
+    });
+    analysisRangeLayer.set("layerRole", "overlay" satisfies LayerRole);
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
     difficultyLayerRef.current = difficultyLayer;
     standardLayerRef.current = standardLayer;
@@ -485,6 +495,7 @@ export function MapPanel({
     map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
     map.addLayer(routeLayer);
+    map.addLayer(analysisRangeLayer);
     map.addLayer(elevationHoverLayer);
     map.addLayer(graphhopperDebugLayer);
     map.addLayer(pointLayer);
@@ -930,6 +941,23 @@ export function MapPanel({
       size,
     });
   }, [fitGeometry, fitRequestId, mapReady, waypoints]);
+
+  useEffect(() => {
+    const source = analysisRangeSourceRef.current;
+    source.clear();
+    if (analysisRangeGeometry.length < 2) {
+      return;
+    }
+    source.addFeature(
+      new Feature(
+        new LineString(
+          analysisRangeGeometry.map((point) =>
+            fromLonLat([point.lon, point.lat]),
+          ),
+        ),
+      ),
+    );
+  }, [analysisRangeGeometry]);
 
   useEffect(() => {
     const source = elevationHoverSourceRef.current;

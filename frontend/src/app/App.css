@@ -2174,20 +2174,40 @@ button:disabled {
 }
 
 .elevationPanel-large .elevationChart {
-  grid-row: 1 / span 3;
+  grid-row: 2;
   grid-column: 2;
   min-width: 0;
 }
 
 .routeAnalysis {
-  grid-row: 1 / span 3;
+  grid-row: 1;
   grid-column: 2;
   min-width: 0;
 }
 
-.routeAnalysis-profile {
-  grid-row: 4;
+.routeAnalysis-splits,
+.routeAnalysis-climbs {
+  grid-row: 1 / span 3;
+}
+
+.elevationPanel-large.elevationPanel-analysis-splits,
+.elevationPanel-large.elevationPanel-analysis-climbs {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: min(46vh, 430px);
+}
+
+.elevationPanel-analysis-splits .panelHeader,
+.elevationPanel-analysis-climbs .panelHeader,
+.elevationPanel-analysis-splits .elevationPanelControls,
+.elevationPanel-analysis-climbs .elevationPanelControls,
+.elevationPanel-analysis-splits .routeAnalysis,
+.elevationPanel-analysis-climbs .routeAnalysis {
   grid-column: 1;
+}
+
+.elevationPanel-analysis-splits .routeAnalysis,
+.elevationPanel-analysis-climbs .routeAnalysis {
+  grid-row: 2;
 }
 
 .analysisTabs {
@@ -2220,6 +2240,22 @@ button:disabled {
   border-top: 1px solid #d8dee5;
 }
 
+.elevationChartOverview {
+  height: 118px;
+  margin-bottom: 7px;
+}
+
+.analysisTableHeader {
+  display: grid;
+  grid-template-columns: 82px repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  border-bottom: 1px solid #d8dee5;
+  color: #66717d;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
 .analysisRow {
   display: grid;
   grid-template-columns: 82px repeat(5, minmax(0, 1fr));
@@ -2236,13 +2272,35 @@ button:disabled {
 }
 
 .analysisRow:hover,
-.analysisRow:focus-visible {
+.analysisRow:focus-visible,
+.analysisRow[aria-pressed="true"] {
   background: var(--color-accent-soft);
   outline: none;
 }
 
 .analysisRow strong {
   color: #111827;
+}
+
+.climbCategory {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  color: #ffffff !important;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.climbLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #111827;
+  font-weight: 750;
 }
 
 .elevationPanelDockControl .elevationPanelControls {

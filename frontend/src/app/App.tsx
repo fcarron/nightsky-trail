@@ -433,6 +433,18 @@ function PlannerApp() {
         : [],
     [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
   );
+  const analysisRangeGeometry = useMemo(() => {
+    if (!analysisHighlightRange || !elevationState.profile) {
+      return [];
+    }
+    return elevationState.profile.points
+      .filter(
+        (point) =>
+          point.distanceMeters >= analysisHighlightRange.startDistanceMeters &&
+          point.distanceMeters <= analysisHighlightRange.endDistanceMeters,
+      )
+      .map((point) => ({ lon: point.longitude, lat: point.latitude }));
+  }, [analysisHighlightRange, elevationState.profile]);
   const activeTour =
     savedTours.find((tour) => tour.id === activeTourId) ?? null;
   const hasUnsavedRouteChanges =
@@ -2373,7 +2385,7 @@ function PlannerApp() {
               <span>Details</span>
               <small>
                 {elevationState.status === "ready"
-                  ? "Profil bereit"
+                  ? "Analyse bereit"
                   : "Profil · Wegpunkte · Abschnitte"}
               </small>
             </summary>
@@ -2668,6 +2680,7 @@ function PlannerApp() {
           computedSegments={effectiveComputedRoute?.segments ?? null}
           graphhopperDebugVisible={ENABLE_DEV_TOOLS && graphhopperDebugVisible}
           elevationHoverPoint={elevationHoverPoint}
+          analysisRangeGeometry={analysisRangeGeometry}
           elevationMarkerAutoPan={elevationPanelSize === "large"}
           elevationMarkerBottomPadding={
             elevationPanelSize === "large" ? 310 : 40

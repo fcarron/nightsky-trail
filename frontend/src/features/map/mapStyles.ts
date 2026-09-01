@@ -79,6 +79,33 @@ const elevationHoverMarkerStyle = new Style({
   }),
 });
 
+const analysisRangeLineStyle = [
+  new Style({
+    stroke: new Stroke({
+      color: "rgba(255, 255, 255, 0.94)",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 13,
+    }),
+  }),
+  new Style({
+    stroke: new Stroke({
+      color: "#0d263f",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 9,
+    }),
+  }),
+  new Style({
+    stroke: new Stroke({
+      color: "#00b8d4",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 4.5,
+    }),
+  }),
+];
+
 const matchedDifficultyStyle = [
   new Style({
     stroke: new Stroke({
@@ -148,6 +175,10 @@ export function graphhopperDebugStyle(feature: FeatureLike): Style {
 
 export function elevationHoverStyle(): Style {
   return elevationHoverMarkerStyle;
+}
+
+export function analysisRangeStyle(): Style[] {
+  return analysisRangeLineStyle;
 }
 
 export function difficultyStyle(feature: FeatureLike): Style[] {
