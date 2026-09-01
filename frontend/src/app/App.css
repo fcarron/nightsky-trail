@@ -2282,7 +2282,7 @@ button:disabled {
   color: #111827;
 }
 
-.climbCategory {
+.climbEffort {
   display: inline-flex;
   width: fit-content;
   align-items: center;
@@ -2301,6 +2301,17 @@ button:disabled {
   gap: 6px;
   color: #111827;
   font-weight: 750;
+}
+
+.climbScore {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.climbScore small {
+  color: #66717d;
+  font-size: 10px;
 }
 
 .elevationPanelDockControl .elevationPanelControls {

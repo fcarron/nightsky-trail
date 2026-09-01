@@ -4,7 +4,7 @@ import type { ComputedRoute } from "../route/routeModel";
 import {
   FLAT_HIKING_PACE_MIN_PER_KM,
   calculateKilometreSplits,
-  climbCategoryForScore,
+  climbEffortCategoryForScore,
   detectClimbs,
   estimatePersonalRunningMinutes,
   resampleGeometryForElevation,
@@ -87,14 +87,28 @@ describe("personal running-time estimate", () => {
 });
 
 describe("route analysis", () => {
-  it("assigns FIETS-inspired climb categories at the defined thresholds", () => {
-    expect(climbCategoryForScore(6.5)).toBe("HC");
-    expect(climbCategoryForScore(5)).toBe("1");
-    expect(climbCategoryForScore(3.5)).toBe("2");
-    expect(climbCategoryForScore(2)).toBe("3");
-    expect(climbCategoryForScore(0.5)).toBe("4");
-    expect(climbCategoryForScore(0.25)).toBe("5");
-    expect(climbCategoryForScore(0.24)).toBeNull();
+  it("assigns effort categories at the defined score thresholds", () => {
+    expect(climbEffortCategoryForScore(0.99)).toBe("leicht");
+    expect(climbEffortCategoryForScore(1)).toBe("moderat");
+    expect(climbEffortCategoryForScore(2.5)).toBe("anspruchsvoll");
+    expect(climbEffortCategoryForScore(4.5)).toBe("hart");
+    expect(climbEffortCategoryForScore(7.5)).toBe("sehr hart");
+    expect(climbEffortCategoryForScore(13)).toBe("extrem");
+  });
+
+  it("scores a climb from its segment-wise hiking-time penalty", () => {
+    const profile = buildProfile([
+      elevationPoint(0, 0),
+      elevationPoint(500, 100),
+      elevationPoint(1_000, 100),
+    ]);
+
+    const [climb] = detectClimbs(profile);
+    const expectedPenalty =
+      (swissHikingMinutesPerKmForTest(20) - FLAT_HIKING_PACE_MIN_PER_KM) * 0.5;
+
+    expect(climb.timePenaltyMinutes).toBeCloseTo(expectedPenalty, 5);
+    expect(climb.score).toBeCloseTo(expectedPenalty / 10, 5);
   });
 
   it("creates kilometre splits including the final partial kilometre", () => {
@@ -137,8 +151,10 @@ describe("route analysis", () => {
     expect(climbs).toHaveLength(1);
     expect(climbs[0]).toMatchObject({
       elevationGainMeters: 330,
-      score: expect.closeTo(6.05, 1),
+      score: expect.any(Number),
+      timePenaltyMinutes: expect.any(Number),
     });
+    expect(climbs[0].score).toBeCloseTo(climbs[0].timePenaltyMinutes / 10, 5);
   });
 });
 
@@ -148,6 +164,17 @@ function buildRoute(geometry: ComputedRoute["geometry"]): ComputedRoute {
     geometry,
     segments: [],
     warnings: [],
+  };
+}
+
+function elevationPoint(distanceMeters: number, elevationMeters: number) {
+  return {
+    distanceMeters,
+    elevationMeters,
+    gradientPercent: 0,
+    latitude: 46.9,
+    longitude: 7.4,
+    smoothedElevationMeters: elevationMeters,
   };
 }
 

@@ -64,10 +64,12 @@ export interface Climb extends DistanceRange {
   hikingMinutes: number;
   runningMinutes: number | null;
   score: number;
-  category: ClimbCategory | null;
+  timePenaltyMinutes: number;
+  category: ClimbEffortCategory;
 }
 
-export type ClimbCategory = "HC" | "1" | "2" | "3" | "4" | "5";
+export type ClimbEffortCategory =
+  "leicht" | "moderat" | "anspruchsvoll" | "hart" | "sehr hart" | "extrem";
 
 export const DEFAULT_CLIMB_DETECTION = {
   minimumDistanceMeters: 500,
@@ -76,14 +78,15 @@ export const DEFAULT_CLIMB_DETECTION = {
   maximumInterruptionLossMeters: 25,
 } as const;
 
-export function climbCategoryForScore(score: number): ClimbCategory | null {
-  if (score >= 6.5) return "HC";
-  if (score >= 5) return "1";
-  if (score >= 3.5) return "2";
-  if (score >= 2) return "3";
-  if (score >= 0.5) return "4";
-  if (score >= 0.25) return "5";
-  return null;
+export function climbEffortCategoryForScore(
+  score: number,
+): ClimbEffortCategory {
+  if (score >= 13) return "extrem";
+  if (score >= 7.5) return "sehr hart";
+  if (score >= 4.5) return "hart";
+  if (score >= 2.5) return "anspruchsvoll";
+  if (score >= 1) return "moderat";
+  return "leicht";
 }
 
 export interface GradientGroup {
@@ -350,7 +353,14 @@ export function detectClimbs(
         end.distanceMeters,
         flatRunningPaceMinPerKm,
       );
-      const score = (gain * gain) / (10 * distance);
+      const climbTimeMinutes = calculateHikingMinutesForRange(
+        profile,
+        start.distanceMeters,
+        end.distanceMeters,
+      );
+      const flatTimeMinutes = (distance / 1000) * FLAT_HIKING_PACE_MIN_PER_KM;
+      const timePenaltyMinutes = climbTimeMinutes - flatTimeMinutes;
+      const score = timePenaltyMinutes / 10;
       climbs.push({
         ...stats,
         index: climbs.length + 1,
@@ -358,7 +368,8 @@ export function detectClimbs(
         averageGradientPercent: (gain / distance) * 100,
         maxRelevantGradientPercent: stats.maxUphillGradientPercent,
         score,
-        category: climbCategoryForScore(score),
+        timePenaltyMinutes,
+        category: climbEffortCategoryForScore(score),
       });
     }
     startIndex = null;
@@ -527,6 +538,31 @@ function estimateRangeMinutes(
   flatPace: number,
   running = false,
 ): number {
+  return Math.round(
+    calculateRangeMinutes(profile, start, end, flatPace, running),
+  );
+}
+
+function calculateHikingMinutesForRange(
+  profile: ElevationProfile,
+  start: number,
+  end: number,
+): number {
+  return calculateRangeMinutes(
+    profile,
+    start,
+    end,
+    FLAT_HIKING_PACE_MIN_PER_KM,
+  );
+}
+
+function calculateRangeMinutes(
+  profile: ElevationProfile,
+  start: number,
+  end: number,
+  flatPace: number,
+  running = false,
+): number {
   const boundaries = fixedSegmentBoundaries(
     end - start,
     profile.hikingTime.segmentLengthMeters,
@@ -554,7 +590,7 @@ function estimateRangeMinutes(
       : hikingPace;
     total += (distance / 1000) * pace;
   }
-  return Math.round(total);
+  return total;
 }
 
 function swissHikingMinutesPerKm(slopePercent: number): number {

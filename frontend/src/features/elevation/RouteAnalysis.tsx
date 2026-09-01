@@ -133,11 +133,11 @@ function ClimbList({
       {climbs.length ? (
         <>
           <div className="analysisTableHeader" aria-hidden="true">
-            <span>Anstieg</span>
+            <span>Aufwand</span>
             <span>Distanz</span>
             <span>Auf</span>
             <span>Ø Gradient</span>
-            <span>FIETS</span>
+            <span>Score</span>
             <span>Zeit</span>
           </div>
           {climbs.map((climb) => (
@@ -153,11 +153,12 @@ function ClimbList({
               onClick={() => interactions.onRangeSelect(climb)}
             >
               <span className="climbLabel">
-                {climb.category ? (
-                  <strong className="climbCategory">
-                    {climb.category === "HC" ? "HC" : `${climb.category}. Kat.`}
-                  </strong>
-                ) : null}
+                <strong
+                  className="climbEffort"
+                  title="Körperlicher Aufwand des Anstiegs, keine technische Schwierigkeit"
+                >
+                  {climb.category}
+                </strong>
                 <span>Anstieg {climb.index}</span>
               </span>
               <span>
@@ -171,8 +172,12 @@ function ClimbList({
               <span>
                 Ø {formatGradientPercent(climb.averageGradientPercent)}
               </span>
-              <span title="FIETS-inspirierter Anstiegswert">
-                {climb.score.toFixed(1)}
+              <span
+                className="climbScore"
+                title="Zusätzliche Wanderzeit gegenüber derselben Distanz flach"
+              >
+                <strong>{climb.score.toFixed(1)}</strong>
+                <small>+{Math.round(climb.timePenaltyMinutes)} min</small>
               </span>
               <span>
                 {formatDurationMinutes(
