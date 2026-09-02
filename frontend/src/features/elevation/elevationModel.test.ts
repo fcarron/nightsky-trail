@@ -246,10 +246,18 @@ describe("route analysis", () => {
 
     expect(
       distribution.find((bin) => bin.label === "10 bis 12.5 %"),
-    ).toMatchObject({ distanceMeters: 100 });
+    ).toMatchObject({
+      ascentMeters: 10,
+      descentMeters: 0,
+      distanceMeters: 100,
+    });
     expect(
       distribution.find((bin) => bin.label === "-20 bis -17.5 %"),
-    ).toMatchObject({ distanceMeters: 300 });
+    ).toMatchObject({
+      ascentMeters: 0,
+      descentMeters: 60,
+      distanceMeters: 300,
+    });
     expect(
       distribution.reduce((total, bin) => total + bin.distanceMeters, 0),
     ).toBe(400);

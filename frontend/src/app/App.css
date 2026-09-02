@@ -2382,7 +2382,6 @@ button:disabled {
   grid-column: 7;
 }
 
-.gradientHistogramHeader span:first-child,
 .gradientHistogramHeader span:last-child {
   text-align: right;
 }
@@ -2485,6 +2484,16 @@ button:disabled {
   background: var(--color-accent);
 }
 
+.gradientHistogramBin.is-selected .gradientHistogramBar {
+  background: #123b73;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.gradientHistogramBin.is-muted:not(:hover):not(:focus-visible)
+  .gradientHistogramBar {
+  opacity: 0.38;
+}
+
 .gradientHistogramBin:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
@@ -2534,6 +2543,64 @@ button:disabled {
   right: 0;
   left: auto;
   transform: none;
+}
+
+.gradientSelectionSummary {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #cbd9e8;
+  border-radius: 3px;
+  background: #f5f9fd;
+  padding: 6px 8px;
+}
+
+.gradientSelectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #173f76;
+  font-size: 11px;
+}
+
+.gradientSelectionHeading button {
+  border: 0;
+  background: transparent;
+  color: #315d96;
+  cursor: pointer;
+  padding: 2px 3px;
+  font: inherit;
+}
+
+.gradientSelectionHeading button:hover,
+.gradientSelectionHeading button:focus-visible {
+  text-decoration: underline;
+}
+
+.gradientSelectionSummary dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.gradientSelectionSummary dl > div {
+  min-width: 0;
+}
+
+.gradientSelectionSummary dt {
+  color: #75808c;
+  font-size: 10px;
+}
+
+.gradientSelectionSummary dd {
+  overflow: hidden;
+  margin: 1px 0 0;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sustainedGradientSummary {
@@ -3686,6 +3753,14 @@ button:disabled {
   .sustainedGradientRow {
     grid-template-columns: 56px repeat(2, minmax(0, 1fr));
     gap: 5px;
+    font-size: 11px;
+  }
+
+  .gradientSelectionSummary dl {
+    gap: 5px;
+  }
+
+  .gradientSelectionSummary dd {
     font-size: 11px;
   }
 

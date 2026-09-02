@@ -114,6 +114,7 @@ function GradientAnalysis({
   const [activeBin, setActiveBin] = useState<GradientDistributionBin | null>(
     null,
   );
+  const [selectedBinLabels, setSelectedBinLabels] = useState<string[]>([]);
   const totalDistanceMeters = distribution.reduce(
     (total, bin) => total + bin.distanceMeters,
     0,
@@ -125,6 +126,24 @@ function GradientAnalysis({
   const yAxisMaximumPercentage = histogramAxisMaximum(
     (maxDistanceMeters / Math.max(totalDistanceMeters, 1)) * 100,
   );
+  const selectedBins = distribution.filter((bin) =>
+    selectedBinLabels.includes(bin.label),
+  );
+  const selectedTotals = selectedBins.reduce(
+    (totals, bin) => ({
+      ascentMeters: totals.ascentMeters + bin.ascentMeters,
+      descentMeters: totals.descentMeters + bin.descentMeters,
+      distanceMeters: totals.distanceMeters + bin.distanceMeters,
+    }),
+    { ascentMeters: 0, descentMeters: 0, distanceMeters: 0 },
+  );
+  const toggleBin = (label: string) => {
+    setSelectedBinLabels((current) =>
+      current.includes(label)
+        ? current.filter((selectedLabel) => selectedLabel !== label)
+        : [...current, label],
+    );
+  };
 
   return (
     <section className="gradientAnalysis" aria-label="Gradient-Verteilung">
@@ -139,7 +158,11 @@ function GradientAnalysis({
           <span>{formatHistogramPercentage(yAxisMaximumPercentage / 2)}</span>
           <span>0 %</span>
         </div>
-        <div className="gradientHistogram" role="list">
+        <div
+          className="gradientHistogram"
+          role="group"
+          aria-label="Gradientbereiche auswählen"
+        >
           {distribution.map((bin) => {
             const percentage =
               totalDistanceMeters > 0
@@ -149,17 +172,18 @@ function GradientAnalysis({
               <button
                 key={bin.label}
                 type="button"
-                role="listitem"
-                className={
-                  bin === activeBin
-                    ? "gradientHistogramBin is-active"
-                    : "gradientHistogramBin"
-                }
-                aria-label={`${bin.label}: ${formatGradientDistance(bin.distanceMeters)}, ${percentage.toFixed(1)} Prozent der Route`}
+                className={gradientBinClassName(
+                  bin === activeBin,
+                  selectedBinLabels.includes(bin.label),
+                  selectedBinLabels.length > 0,
+                )}
+                aria-label={`${bin.label}: ${formatGradientDistance(bin.distanceMeters)}, ${percentage.toFixed(1)} Prozent der Route, ${formatBinElevation(bin)}`}
+                aria-pressed={selectedBinLabels.includes(bin.label)}
                 onBlur={() => setActiveBin(null)}
                 onFocus={() => setActiveBin(bin)}
                 onMouseEnter={() => setActiveBin(bin)}
                 onMouseLeave={() => setActiveBin(null)}
+                onClick={() => toggleBin(bin.label)}
                 style={
                   {
                     "--gradient-bar-height": `${Math.max(
@@ -174,6 +198,7 @@ function GradientAnalysis({
                   <strong>{bin.label}</strong>
                   <span>{formatGradientDistance(bin.distanceMeters)}</span>
                   <span>{percentage.toFixed(1)} %</span>
+                  <span>{formatBinElevation(bin)}</span>
                 </span>
               </button>
             );
@@ -197,6 +222,43 @@ function GradientAnalysis({
       <p className="gradientHistogramUnit" aria-hidden="true">
         Gradient (%)
       </p>
+      {selectedBins.length > 0 ? (
+        <section
+          className="gradientSelectionSummary"
+          aria-label="Ausgewählte Gradientbereiche"
+        >
+          <div className="gradientSelectionHeading">
+            <strong>
+              Auswahl · {formatSelectedBinCount(selectedBins.length)}
+            </strong>
+            <button type="button" onClick={() => setSelectedBinLabels([])}>
+              Zurücksetzen
+            </button>
+          </div>
+          <dl>
+            <div>
+              <dt>Distanz</dt>
+              <dd>{formatGradientDistance(selectedTotals.distanceMeters)}</dd>
+            </div>
+            <div>
+              <dt>Streckenanteil</dt>
+              <dd>
+                {formatSelectionPercentage(
+                  selectedTotals.distanceMeters,
+                  totalDistanceMeters,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Höhenmeter</dt>
+              <dd>
+                +{Math.round(selectedTotals.ascentMeters)} m · -
+                {Math.round(selectedTotals.descentMeters)} m
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
       <div className="sustainedGradientSummary">
         <div className="sustainedGradientTitle">
           <h3>Steilste Passagen</h3>
@@ -405,6 +467,37 @@ function formatGradientDistance(distanceMeters: number): string {
   return distanceMeters >= 1_000
     ? `${(distanceMeters / 1_000).toFixed(2)} km`
     : `${Math.round(distanceMeters)} m`;
+}
+
+function formatBinElevation(bin: GradientDistributionBin): string {
+  return `+${Math.round(bin.ascentMeters)} m · -${Math.round(bin.descentMeters)} m`;
+}
+
+function gradientBinClassName(
+  isActive: boolean,
+  isSelected: boolean,
+  hasSelection: boolean,
+): string {
+  return [
+    "gradientHistogramBin",
+    isActive ? "is-active" : "",
+    isSelected ? "is-selected" : "",
+    hasSelection && !isSelected ? "is-muted" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function formatSelectedBinCount(count: number): string {
+  return count === 1 ? "1 Bereich" : `${count} Bereiche`;
+}
+
+function formatSelectionPercentage(
+  selectedDistanceMeters: number,
+  totalDistanceMeters: number,
+): string {
+  if (totalDistanceMeters <= 0) return "0.0 %";
+  return `${((selectedDistanceMeters / totalDistanceMeters) * 100).toFixed(1)} %`;
 }
 
 function formatGradientWindow(windowMeters: number): string {

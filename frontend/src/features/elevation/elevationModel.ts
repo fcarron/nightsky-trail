@@ -119,6 +119,8 @@ export interface GradientGroup {
 }
 
 export interface GradientDistributionBin {
+  ascentMeters: number;
+  descentMeters: number;
   distanceMeters: number;
   endGradientPercent: number | null;
   label: string;
@@ -380,6 +382,8 @@ export function calculateGradientDistribution(
     );
     if (bin) {
       bin.distanceMeters += interval.distanceMeters;
+      bin.ascentMeters += Math.max(0, interval.elevationDeltaMeters);
+      bin.descentMeters += Math.max(0, -interval.elevationDeltaMeters);
     }
   }
 
@@ -853,6 +857,8 @@ function interpolateSmoothedElevationAtDistance(
 function createGradientDistributionBins(): GradientDistributionBin[] {
   const bins: GradientDistributionBin[] = [
     {
+      ascentMeters: 0,
+      descentMeters: 0,
       distanceMeters: 0,
       endGradientPercent: -GRADIENT_DISTRIBUTION_LIMIT_PERCENT,
       label: `< -${GRADIENT_DISTRIBUTION_LIMIT_PERCENT} %`,
@@ -869,6 +875,8 @@ function createGradientDistributionBins(): GradientDistributionBin[] {
       index * GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT;
     const end = start + GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT;
     bins.push({
+      ascentMeters: 0,
+      descentMeters: 0,
       distanceMeters: 0,
       endGradientPercent: end,
       label: `${formatGradientBinNumber(start)} bis ${formatGradientBinNumber(end)} %`,
@@ -877,6 +885,8 @@ function createGradientDistributionBins(): GradientDistributionBin[] {
   }
 
   bins.push({
+    ascentMeters: 0,
+    descentMeters: 0,
     distanceMeters: 0,
     endGradientPercent: null,
     label: `> ${GRADIENT_DISTRIBUTION_LIMIT_PERCENT} %`,
@@ -909,6 +919,7 @@ function gradientDistributionBinForPercent(
 function smoothedElevationIntervals(points: ElevationPoint[]) {
   const intervals: Array<{
     distanceMeters: number;
+    elevationDeltaMeters: number;
     gradientPercent: number;
   }> = [];
   for (let index = 1; index < points.length; index += 1) {
@@ -920,6 +931,8 @@ function smoothedElevationIntervals(points: ElevationPoint[]) {
     }
     intervals.push({
       distanceMeters,
+      elevationDeltaMeters:
+        current.smoothedElevationMeters - previous.smoothedElevationMeters,
       gradientPercent:
         ((current.smoothedElevationMeters - previous.smoothedElevationMeters) *
           100) /
