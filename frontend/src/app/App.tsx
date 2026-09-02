@@ -1570,9 +1570,10 @@ function PlannerApp() {
             </p>
             <p>
               Hochwertige Schweizer Karten und Höhenprofile auf Basis von
-              swisstopo-Daten unterstützen dich bei der Planung. Für offizielle
-              Wanderwege zeigen wir zusätzlich vorhandene T3- und T4-Hinweise
-              aus OpenStreetMap.
+              swisstopo-Daten unterstützen dich bei der Planung. Zusätzlich
+              zeigen wir vorhandene T3-Hinweise auf offiziellen Bergwanderwegen
+              und T5-Hinweise auf offiziellen Alpinwanderwegen aus
+              OpenStreetMap.
             </p>
             <div className="aboutNotice">
               <strong>Planungshinweis</strong>
