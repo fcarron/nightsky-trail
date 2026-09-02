@@ -479,6 +479,7 @@ describe("App", () => {
       expect(screen.getByText("Aufstieg 88 m")).toBeInTheDocument(),
     );
     expect(screen.getByText("Abstieg 22 m")).toBeInTheDocument();
+    expect(screen.getByText("71 Hm+/km · bergig")).toBeInTheDocument();
   });
 
   it("opens a map-first mobile profile mode", async () => {

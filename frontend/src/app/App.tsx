@@ -2243,7 +2243,10 @@ function PlannerApp() {
                   ? `${formatKilometers(effortKilometers)} km`
                   : "-"}
                 {climbMetersPerKilometer !== null ? (
-                  <small>{Math.round(climbMetersPerKilometer)} hm/km</small>
+                  <small>
+                    {Math.round(climbMetersPerKilometer)} Hm+/km ·{" "}
+                    {routeTerrainLabel(climbMetersPerKilometer)}
+                  </small>
                 ) : null}
               </dd>
             </div>
@@ -3025,6 +3028,14 @@ function formatKilometers(value: number): string {
     maximumFractionDigits: 1,
     minimumFractionDigits: value < 10 ? 1 : 0,
   });
+}
+
+function routeTerrainLabel(climbMetersPerKilometer: number): string {
+  if (climbMetersPerKilometer < 15) return "flach";
+  if (climbMetersPerKilometer < 30) return "leicht hügelig";
+  if (climbMetersPerKilometer < 50) return "hügelig";
+  if (climbMetersPerKilometer < 80) return "bergig";
+  return "sehr bergig";
 }
 
 function currentRoutePoints(
