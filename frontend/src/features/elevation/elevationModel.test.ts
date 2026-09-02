@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ComputedRoute } from "../route/routeModel";
 import {
   FLAT_HIKING_PACE_MIN_PER_KM,
+  calculateGradientDistribution,
   calculateKilometreSplits,
+  calculateSustainedGradients,
   climbEffortCategoryForScore,
   detectClimbs,
   estimatePersonalRunningMinutes,
@@ -231,6 +233,77 @@ describe("route analysis", () => {
     });
     expect(splits[0].ascentMeters).toBeCloseTo(100, 0);
     expect(splits[0].runningMinutes).not.toBeNull();
+  });
+
+  it("weights gradient bins by their segment distance", () => {
+    const distribution = calculateGradientDistribution(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(100, 10),
+        elevationPoint(400, -50),
+      ]),
+    );
+
+    expect(
+      distribution.find((bin) => bin.label === "10 bis 12.5 %"),
+    ).toMatchObject({ distanceMeters: 100 });
+    expect(
+      distribution.find((bin) => bin.label === "-20 bis -17.5 %"),
+    ).toMatchObject({ distanceMeters: 300 });
+    expect(
+      distribution.reduce((total, bin) => total + bin.distanceMeters, 0),
+    ).toBe(400);
+  });
+
+  it("finds steep gradients over sustained distance windows", () => {
+    const sustainedGradients = calculateSustainedGradients(
+      buildProfile([
+        elevationPoint(0, 0),
+        elevationPoint(100, 20),
+        elevationPoint(200, 0),
+        elevationPoint(500, 50),
+        elevationPoint(1_000, -50),
+      ]),
+    );
+
+    expect(sustainedGradients).toEqual([
+      {
+        downhillGradientPercent: -20,
+        downhillRange: {
+          endDistanceMeters: 200,
+          startDistanceMeters: 100,
+        },
+        uphillGradientPercent: 20,
+        uphillRange: {
+          endDistanceMeters: 100,
+          startDistanceMeters: 0,
+        },
+        windowMeters: 100,
+      },
+      {
+        downhillGradientPercent: -20,
+        downhillRange: {
+          endDistanceMeters: 1_000,
+          startDistanceMeters: 500,
+        },
+        uphillGradientPercent: 10,
+        uphillRange: {
+          endDistanceMeters: 500,
+          startDistanceMeters: 0,
+        },
+        windowMeters: 500,
+      },
+      {
+        downhillGradientPercent: -5,
+        downhillRange: {
+          endDistanceMeters: 1_000,
+          startDistanceMeters: 0,
+        },
+        uphillGradientPercent: null,
+        uphillRange: null,
+        windowMeters: 1_000,
+      },
+    ]);
   });
 
   it("keeps a short interruption inside a continuous climb", () => {

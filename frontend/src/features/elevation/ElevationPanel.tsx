@@ -12,13 +12,20 @@ import { CanvasRenderer } from "echarts/renderers";
 
 import { formatDistance } from "../route/routeGeometry";
 import { createClimbPeakMarkers } from "./climbMarkers";
-import type { ElevationProfile } from "./elevationModel";
-import type { Climb, KilometreSplit } from "./elevationModel";
+import type {
+  Climb,
+  ElevationProfile,
+  GradientDistributionBin,
+  KilometreSplit,
+  SustainedGradient,
+} from "./elevationModel";
 import { RouteAnalysis, type AnalysisTab } from "./RouteAnalysis";
 import {
   formatElevationMeters,
   formatGradientPercent,
   gradientGroupForPercent,
+  calculateGradientDistribution,
+  calculateSustainedGradients,
 } from "./elevationModel";
 
 registerEChartsModules([
@@ -146,6 +153,14 @@ export function ElevationPanel({
         ? createClimbPeakMarkers(profile, climbs)
         : [],
     [climbs, panelSize, profile],
+  );
+  const gradientDistribution = useMemo<GradientDistributionBin[]>(
+    () => (profile ? calculateGradientDistribution(profile) : []),
+    [profile],
+  );
+  const sustainedGradients = useMemo<SustainedGradient[]>(
+    () => (profile ? calculateSustainedGradients(profile) : []),
+    [profile],
   );
 
   useEffect(() => {
@@ -600,6 +615,8 @@ export function ElevationPanel({
               activeTab={analysisTab}
               splits={splits}
               climbs={climbs}
+              gradientDistribution={gradientDistribution}
+              sustainedGradients={sustainedGradients}
               onTabChange={onAnalysisTabChange ?? (() => undefined)}
               onRangeChange={onAnalysisRangeChange ?? (() => undefined)}
               profileOverview={

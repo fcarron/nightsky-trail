@@ -118,6 +118,21 @@ export interface GradientGroup {
   color: string;
 }
 
+export interface GradientDistributionBin {
+  distanceMeters: number;
+  endGradientPercent: number | null;
+  label: string;
+  startGradientPercent: number | null;
+}
+
+export interface SustainedGradient {
+  downhillGradientPercent: number | null;
+  downhillRange: DistanceRange | null;
+  uphillGradientPercent: number | null;
+  uphillRange: DistanceRange | null;
+  windowMeters: number;
+}
+
 export const GRADIENT_GROUPS: GradientGroup[] = [
   { id: "easy", label: "<5%", color: "#dcefb4" },
   { id: "moderate", label: "5-10%", color: "#f4d35e" },
@@ -126,6 +141,9 @@ export const GRADIENT_GROUPS: GradientGroup[] = [
   { id: "very-steep", label: "20-30%", color: "#b91c1c" },
   { id: "extreme", label: ">30%", color: "#7f1d1d" },
 ];
+export const GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT = 2.5;
+export const GRADIENT_DISTRIBUTION_LIMIT_PERCENT = 30;
+export const SUSTAINED_GRADIENT_WINDOWS_METERS = [100, 500, 1_000] as const;
 export const FLAT_HIKING_PACE_MIN_PER_KM = 14.271;
 export const DEFAULT_RUNNING_UPHILL_CORRECTION = 1.2;
 const SWISS_HIKING_COEFFICIENTS = [
@@ -347,6 +365,100 @@ export function calculateKilometreSplits(
     });
   }
   return result;
+}
+
+export function calculateGradientDistribution(
+  profile: ElevationProfile,
+): GradientDistributionBin[] {
+  const bins = createGradientDistributionBins();
+  const intervals = smoothedElevationIntervals(profile.points);
+
+  for (const interval of intervals) {
+    const bin = gradientDistributionBinForPercent(
+      bins,
+      interval.gradientPercent,
+    );
+    if (bin) {
+      bin.distanceMeters += interval.distanceMeters;
+    }
+  }
+
+  return bins;
+}
+
+export function calculateSustainedGradients(
+  profile: ElevationProfile,
+  windowsMeters: readonly number[] = SUSTAINED_GRADIENT_WINDOWS_METERS,
+): SustainedGradient[] {
+  if (profile.points.length < 2) {
+    return windowsMeters.map((windowMeters) => ({
+      downhillGradientPercent: null,
+      downhillRange: null,
+      uphillGradientPercent: null,
+      uphillRange: null,
+      windowMeters,
+    }));
+  }
+
+  return windowsMeters.map((windowMeters) => {
+    if (windowMeters <= 0 || profile.distanceMeters < windowMeters) {
+      return {
+        downhillGradientPercent: null,
+        downhillRange: null,
+        uphillGradientPercent: null,
+        uphillRange: null,
+        windowMeters,
+      };
+    }
+
+    const lastStart = profile.distanceMeters - windowMeters;
+    const starts = uniqueSortedNumbers([
+      0,
+      lastStart,
+      ...profile.points
+        .map((point) => point.distanceMeters)
+        .filter((distance) => distance > 0 && distance < lastStart),
+    ]);
+    let steepestUphill = 0;
+    let steepestDownhill = 0;
+    let uphillRange: DistanceRange | null = null;
+    let downhillRange: DistanceRange | null = null;
+
+    for (const startDistanceMeters of starts) {
+      const elevationDelta =
+        interpolateSmoothedElevationAtDistance(
+          profile.points,
+          startDistanceMeters + windowMeters,
+        ) -
+        interpolateSmoothedElevationAtDistance(
+          profile.points,
+          startDistanceMeters,
+        );
+      const gradientPercent = (elevationDelta * 100) / windowMeters;
+      if (gradientPercent > steepestUphill) {
+        steepestUphill = gradientPercent;
+        uphillRange = {
+          startDistanceMeters,
+          endDistanceMeters: startDistanceMeters + windowMeters,
+        };
+      }
+      if (gradientPercent < steepestDownhill) {
+        steepestDownhill = gradientPercent;
+        downhillRange = {
+          startDistanceMeters,
+          endDistanceMeters: startDistanceMeters + windowMeters,
+        };
+      }
+    }
+
+    return {
+      downhillGradientPercent: steepestDownhill < 0 ? steepestDownhill : null,
+      downhillRange,
+      uphillGradientPercent: steepestUphill > 0 ? steepestUphill : null,
+      uphillRange,
+      windowMeters,
+    };
+  });
 }
 
 export function detectClimbs(
@@ -736,6 +848,93 @@ function interpolateSmoothedElevationAtDistance(
   }
 
   return lastPoint.smoothedElevationMeters;
+}
+
+function createGradientDistributionBins(): GradientDistributionBin[] {
+  const bins: GradientDistributionBin[] = [
+    {
+      distanceMeters: 0,
+      endGradientPercent: -GRADIENT_DISTRIBUTION_LIMIT_PERCENT,
+      label: `< -${GRADIENT_DISTRIBUTION_LIMIT_PERCENT} %`,
+      startGradientPercent: null,
+    },
+  ];
+  const binCount =
+    (GRADIENT_DISTRIBUTION_LIMIT_PERCENT * 2) /
+    GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT;
+
+  for (let index = 0; index < binCount; index += 1) {
+    const start =
+      -GRADIENT_DISTRIBUTION_LIMIT_PERCENT +
+      index * GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT;
+    const end = start + GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT;
+    bins.push({
+      distanceMeters: 0,
+      endGradientPercent: end,
+      label: `${formatGradientBinNumber(start)} bis ${formatGradientBinNumber(end)} %`,
+      startGradientPercent: start,
+    });
+  }
+
+  bins.push({
+    distanceMeters: 0,
+    endGradientPercent: null,
+    label: `> ${GRADIENT_DISTRIBUTION_LIMIT_PERCENT} %`,
+    startGradientPercent: GRADIENT_DISTRIBUTION_LIMIT_PERCENT,
+  });
+  return bins;
+}
+
+function gradientDistributionBinForPercent(
+  bins: GradientDistributionBin[],
+  gradientPercent: number,
+): GradientDistributionBin | undefined {
+  if (gradientPercent < -GRADIENT_DISTRIBUTION_LIMIT_PERCENT) {
+    return bins[0];
+  }
+  if (gradientPercent > GRADIENT_DISTRIBUTION_LIMIT_PERCENT) {
+    return bins.at(-1);
+  }
+
+  const regularBinIndex = Math.min(
+    Math.floor(
+      (gradientPercent + GRADIENT_DISTRIBUTION_LIMIT_PERCENT) /
+        GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT,
+    ),
+    bins.length - 3,
+  );
+  return bins[regularBinIndex + 1];
+}
+
+function smoothedElevationIntervals(points: ElevationPoint[]) {
+  const intervals: Array<{
+    distanceMeters: number;
+    gradientPercent: number;
+  }> = [];
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const distanceMeters = current.distanceMeters - previous.distanceMeters;
+    if (distanceMeters <= 0) {
+      continue;
+    }
+    intervals.push({
+      distanceMeters,
+      gradientPercent:
+        ((current.smoothedElevationMeters - previous.smoothedElevationMeters) *
+          100) /
+        distanceMeters,
+    });
+  }
+  return intervals;
+}
+
+function uniqueSortedNumbers(values: number[]): number[] {
+  return [...new Set(values)].sort((first, second) => first - second);
+}
+
+function formatGradientBinNumber(value: number): string {
+  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
 function buildGradientBands(points: ElevationPoint[]): ElevationGradientBand[] {
