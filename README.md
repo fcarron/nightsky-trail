@@ -1,8 +1,8 @@
 # nightsky trail
 
-nightsky trail is a lightweight route-planning web app for Switzerland, focused on trail running and hiking.
+nightsky trail is a privacy-friendly route planner and trail-analysis web app for Switzerland, focused on trail running and hiking.
 
-It is intentionally smaller than Komoot, Strava, OpenRunner, or SchweizMobil: draw a route, follow the path network, inspect distance and elevation, estimate time, and import or export GPX files.
+It combines swisstopo maps with route drawing, elevation and gradient analysis, hiking difficulty, personal time estimates, and detailed route statistics. The goal is a focused planning tool rather than a social or activity-tracking platform.
 
 **Live app:** https://trail.nightsky.ch
 
@@ -18,6 +18,10 @@ This is an independent project. It is not operated, endorsed, verified, or suppo
 - optional straight-line route segments
 - GPX import and export
 - elevation profile with gradient colouring
+- route terrain classification based on elevation gain per kilometre
+- automatic climb detection with trail-oriented Climb Effort scores
+- kilometre splits with elevation and time statistics
+- gradient distribution and sustained-gradient analysis
 - Swiss hiking-time estimate based on the segment polynomial method
 - optional personal running-time estimate based on a configured flat pace
 - official swisstopo hiking trail categories
@@ -27,11 +31,11 @@ This is an independent project. It is not operated, endorsed, verified, or suppo
 - explicit, token-based read-only sharing for saved tours
 - installable as a PWA
 
-No social feed, public profiles, activity recording, training analytics, recommendations, payments, or cloud sync are planned for the MVP.
+No social feed, public profiles, activity recording, training analytics, advertising, payments, or automatic fitness-platform sync are planned.
 
 ## Status
 
-The project is a local MVP/prototype. The core planning workflow works, including routing, elevation profiles, GPX import/export, saved tours, and optional trail overlays.
+The project is actively developed and publicly deployed. The core planning workflow works, including routing, elevation profiles, GPX import/export, accounts, saved and shared tours, and trail analysis.
 
 Some parts are still prototype-level:
 
@@ -184,7 +188,7 @@ Set `DJANGO_ENV=production`, a long random `DJANGO_SECRET_KEY`, the public host 
 
 Planning remains available without an account. Server-side saved tours use optional accounts with a required, verified email address. Login, registration, email verification, and password reset use Django sessions and time-limited one-time links. Authentication and public compute endpoints are rate-limited in Django's cache. Identical elevation profiles and location searches are cached to reduce repeated upstream requests. For more than one backend process, configure Django's cache with a shared backend before scaling out.
 
-Transactional email uses Brevo SMTP when an email feature is added. Create an SMTP key in Brevo, verify the sending domain, and configure these values outside git:
+Transactional email uses Brevo SMTP for account email verification, password reset, and other system emails. Create an SMTP key in Brevo, verify the sending domain, and configure these values outside git:
 
 ```bash
 BREVO_SMTP_HOST=smtp-relay.brevo.com
