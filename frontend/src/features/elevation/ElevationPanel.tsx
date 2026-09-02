@@ -4,12 +4,14 @@ import { CustomChart, LineChart } from "echarts/charts";
 import {
   DataZoomComponent,
   GridComponent,
+  MarkPointComponent,
   TooltipComponent,
 } from "echarts/components";
 import { graphic, init, use as registerEChartsModules } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
 import { formatDistance } from "../route/routeGeometry";
+import { createClimbPeakMarkers } from "./climbMarkers";
 import type { ElevationProfile } from "./elevationModel";
 import type { Climb, KilometreSplit } from "./elevationModel";
 import { RouteAnalysis, type AnalysisTab } from "./RouteAnalysis";
@@ -24,6 +26,7 @@ registerEChartsModules([
   LineChart,
   DataZoomComponent,
   GridComponent,
+  MarkPointComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
@@ -137,6 +140,13 @@ export function ElevationPanel({
       surfaceBands: createSurfaceBands(surfaceSegments, profile.distanceMeters),
     };
   }, [elevationFloor, profile, surfaceSegments]);
+  const climbPeakMarkers = useMemo(
+    () =>
+      panelSize === "large" && profile
+        ? createClimbPeakMarkers(profile, climbs)
+        : [],
+    [climbs, panelSize, profile],
+  );
 
   useEffect(() => {
     if (
@@ -277,6 +287,35 @@ export function ElevationPanel({
         {
           data: chartData.line,
           lineStyle: { color: "rgba(244, 248, 251, 0.82)", width: 1.5 },
+          markPoint: climbPeakMarkers.length
+            ? {
+                data: climbPeakMarkers,
+                itemStyle: {
+                  borderColor: "#ffffff",
+                  borderWidth: 2,
+                  color: "#315d96",
+                },
+                label: {
+                  backgroundColor: "rgba(255, 255, 255, 0.9)",
+                  borderColor: "rgba(49, 93, 150, 0.42)",
+                  borderRadius: 2,
+                  borderWidth: 1,
+                  color: "#1d3d70",
+                  distance: 5,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  formatter: (params: { value: unknown }) =>
+                    String(params.value),
+                  padding: [2, 4],
+                  position: "top",
+                  show: true,
+                },
+                labelLayout: { hideOverlap: true },
+                silent: true,
+                symbol: "circle",
+                symbolSize: 9,
+              }
+            : undefined,
           name: "Höhe",
           markArea: highlightedRange
             ? {
@@ -485,6 +524,7 @@ export function ElevationPanel({
     profile,
     panelSize,
     analysisTab,
+    climbPeakMarkers,
     surfaceSegments,
     highlightedRange,
   ]);
