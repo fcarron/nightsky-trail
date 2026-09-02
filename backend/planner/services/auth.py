@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from hashlib import sha256
-
 from django.conf import settings
-from django.core.cache import cache
+
+from planner.services.rate_limit import consume_rate_limit, request_client_ip
 
 
 def login_attempt_allowed(request: object, identifier: str) -> bool:
@@ -46,27 +45,16 @@ def _attempt_allowed(
     if limit <= 0:
         return True
 
-    request_meta = getattr(request, "META", {})
-    remote_address = str(request_meta.get("REMOTE_ADDR", "unknown"))
-    keys = (
-        _rate_limit_key(action, "ip", remote_address),
-        _rate_limit_key(action, "identifier", identifier.casefold()),
+    return consume_rate_limit(
+        action,
+        "ip",
+        request_client_ip(request),
+        limit=limit,
+        window_seconds=window_seconds,
+    ) and consume_rate_limit(
+        action,
+        "identifier",
+        identifier.casefold(),
+        limit=limit,
+        window_seconds=window_seconds,
     )
-    return all(_consume(key, limit, window_seconds) for key in keys)
-
-
-def _consume(key: str, limit: int, window_seconds: int) -> bool:
-    if cache.add(key, 1, timeout=window_seconds):
-        return True
-
-    try:
-        attempts = cache.incr(key)
-    except ValueError:
-        cache.set(key, 1, timeout=window_seconds)
-        return True
-    return attempts <= limit
-
-
-def _rate_limit_key(action: str, scope: str, value: str) -> str:
-    identifier = sha256(value.encode("utf-8")).hexdigest()
-    return f"auth-rate-limit:{action}:{scope}:{identifier}"

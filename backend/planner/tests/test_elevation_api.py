@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from planner.domain.elevation import ElevationSample
 from planner.integrations.swisstopo import LineStringGeometry, SwisstopoUnavailableError
+
+
+@pytest.fixture(autouse=True)
+def clear_api_cache() -> None:
+    cache.clear()
 
 
 @pytest.mark.django_db

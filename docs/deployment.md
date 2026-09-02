@@ -281,6 +281,6 @@ These backups remain on the same server and protect against accidental deletion 
 corruption. Copy the backup directory to another machine or storage provider if protection
 against complete server or disk loss is required.
 
-Do not scale the Django backend above one process yet. Authentication rate limits use the
-in-process Django cache, and SQLite is intentionally retained for this lightweight deployment.
+Do not scale the Django backend above one process yet. Rate limits plus elevation and search
+results use the in-process Django cache, and SQLite is intentionally retained for this lightweight deployment.
 A shared cache and PostgreSQL should be introduced together only when actual load requires it.

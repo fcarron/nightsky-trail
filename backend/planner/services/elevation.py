@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, replace
+from hashlib import sha256
 from math import ceil, hypot
 from typing import Protocol
 
+from django.core.cache import cache
+
 from planner.domain.coordinates import lv95_to_wgs84, wgs84_to_lv95
-from planner.domain.elevation import ElevationSample
+from planner.domain.elevation import ElevationProfile, ElevationSample, build_elevation_profile
 from planner.integrations.swisstopo import LineStringGeometry, SwisstopoUnavailableError
 
 ELEVATION_SAMPLE_SPACING_METERS = 25.0
 ELEVATION_CHUNK_LENGTH_METERS = 10_000.0
 SWISSTOPO_MAX_PROFILE_SAMPLES = 500
 DISTANCE_ROUNDING_TOLERANCE_METERS = 0.001
+ELEVATION_CACHE_VERSION = "v1"
 
 
 class ElevationClient(Protocol):
@@ -27,6 +32,35 @@ class ElevationClient(Protocol):
 class ElevationGeometryChunk:
     coordinates: list[list[float]]
     distance_meters: float
+
+
+def get_elevation_profile(
+    client: ElevationClient,
+    coordinates: list[list[float]],
+    *,
+    cache_timeout_seconds: int,
+) -> ElevationProfile:
+    cache_key = elevation_cache_key(coordinates)
+    if cache_timeout_seconds > 0:
+        cached_profile = cache.get(cache_key)
+        if isinstance(cached_profile, ElevationProfile):
+            return cached_profile
+
+    profile = build_elevation_profile(load_elevation_samples(client, coordinates))
+    if cache_timeout_seconds > 0:
+        cache.set(cache_key, profile, timeout=cache_timeout_seconds)
+    return profile
+
+
+def elevation_cache_key(coordinates: list[list[float]]) -> str:
+    normalized_geometry = [
+        [round(float(longitude), 7), round(float(latitude), 7)]
+        for longitude, latitude in coordinates
+    ]
+    digest = sha256(
+        json.dumps(normalized_geometry, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"elevation-profile:{ELEVATION_CACHE_VERSION}:{digest}"
 
 
 def load_elevation_samples(

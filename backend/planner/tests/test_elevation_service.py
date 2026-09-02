@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from django.core.cache import cache
+
 from planner.domain.coordinates import lv95_to_wgs84, wgs84_to_lv95
 from planner.domain.elevation import ElevationSample
 from planner.integrations.swisstopo import LineStringGeometry
-from planner.services.elevation import load_elevation_samples, split_elevation_geometry
+from planner.services.elevation import (
+    get_elevation_profile,
+    load_elevation_samples,
+    split_elevation_geometry,
+)
 
 
 def test_long_geometry_is_split_into_continuous_chunks() -> None:
@@ -34,6 +40,18 @@ def test_chunk_samples_are_merged_with_global_distance_and_no_duplicate_boundari
         22_500,
         25_000,
     ]
+
+
+def test_profile_is_cached_by_normalized_geometry() -> None:
+    cache.clear()
+    client = FakeElevationClient()
+    coordinates = eastbound_coordinates(step_meters=100, count=2)
+
+    first = get_elevation_profile(client, coordinates, cache_timeout_seconds=60)
+    second = get_elevation_profile(client, coordinates, cache_timeout_seconds=60)
+
+    assert first == second
+    assert client.sample_counts == [5]
 
 
 class FakeElevationClient:

@@ -58,7 +58,7 @@ The elevation implementation uses swisstopo profile data as the source of truth.
 
 ## Caching
 
-Use Django's cache interface first. Planned cache keys include elevation by geometry hash. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. The official swisstopo GeoPackage is cached under `data/swisstopo/`. Redis is not part of the scaffold.
+Use Django's cache interface first. Elevation profiles are cached by normalized geometry hash and location searches by normalized query. Public routing, elevation, and search endpoints have configurable per-IP limits. OSM trail overlay data is cached in a local SQLite index derived from the configured Switzerland PBF extract. The official swisstopo GeoPackage is cached under `data/swisstopo/`. Redis is not part of the scaffold.
 
 ## Production topology
 

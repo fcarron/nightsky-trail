@@ -478,7 +478,9 @@ button:disabled {
 }
 
 .filePanel {
-  width: min(210px, calc(100vw - 32px));
+  width: min(190px, calc(100vw - 32px));
+  gap: 0;
+  padding: 4px;
 }
 
 .aboutPanel {
@@ -500,6 +502,7 @@ button:disabled {
 
 .aboutInstall,
 .aboutNotice,
+.aboutPrivacy,
 .aboutOpenSource {
   display: grid;
   gap: 4px;
@@ -510,6 +513,7 @@ button:disabled {
 
 .aboutInstall strong,
 .aboutNotice strong,
+.aboutPrivacy strong,
 .aboutOpenSource strong {
   color: #111827;
   font-size: 12px;
@@ -525,7 +529,23 @@ button:disabled {
   text-decoration: underline;
 }
 
-.filePanel button,
+.filePanel button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #111827;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.filePanel button + button {
+  border-top: 1px solid #e3e8ee;
+  border-radius: 0 0 2px 2px;
+}
+
 .menuEmptyState button {
   min-height: 30px;
   border: 1px solid #cbd5df;
@@ -539,13 +559,20 @@ button:disabled {
 }
 
 .filePanel button:hover:not(:disabled),
+.filePanel button:focus-visible,
 .menuEmptyState button:hover {
-  border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.filePanel button:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
 }
 
 .filePanel button:disabled {
   color: #8a96a3;
+  cursor: not-allowed;
 }
 
 .menuEmptyState {

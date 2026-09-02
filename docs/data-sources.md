@@ -35,7 +35,7 @@ https://wiki.openstreetmap.org/wiki/OpenTopoMap
 
 Operational rules:
 
-- cache elevation profiles and trail-overlay responses where practical;
+- cache elevation profiles and trail-overlay responses;
 - do not make unnecessary repeated swisstopo profile requests for unchanged route geometry;
 - use public Overpass only for development or low-volume fallback;
 - for public production use, prefer local/imported OSM data and self-hosted derived services;

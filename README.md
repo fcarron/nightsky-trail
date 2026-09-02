@@ -182,7 +182,7 @@ GRAPHHOPPER_BASE_URL=http://graphhopper:8989
 
 Set `DJANGO_ENV=production`, a long random `DJANGO_SECRET_KEY`, the public host name, and the public HTTPS origin in `DJANGO_CSRF_TRUSTED_ORIGINS` before deploying. In production the app refuses to start without that secret. Sessions use secure, HTTP-only, same-site cookies and unsafe API requests are protected with Django CSRF tokens.
 
-Planning remains available without an account. Server-side saved tours use optional accounts with a required, verified email address. Login, registration, email verification, and password reset use Django sessions and time-limited one-time links. Authentication endpoints are rate-limited in Django's cache. For more than one backend process, configure Django's cache with a shared backend before scaling out.
+Planning remains available without an account. Server-side saved tours use optional accounts with a required, verified email address. Login, registration, email verification, and password reset use Django sessions and time-limited one-time links. Authentication and public compute endpoints are rate-limited in Django's cache. Identical elevation profiles and location searches are cached to reduce repeated upstream requests. For more than one backend process, configure Django's cache with a shared backend before scaling out.
 
 Transactional email uses Brevo SMTP when an email feature is added. Create an SMTP key in Brevo, verify the sending domain, and configure these values outside git:
 

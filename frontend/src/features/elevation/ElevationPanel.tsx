@@ -571,6 +571,16 @@ export function ElevationPanel({
               Einklappen
             </button>
           ) : null}
+          {panelSize === "compact" && profile && onSizeChange ? (
+            <button
+              type="button"
+              className="panelCollapseButton"
+              aria-label="Routenanalyse anzeigen"
+              onClick={() => onSizeChange("large")}
+            >
+              Anzeigen
+            </button>
+          ) : null}
         </div>
       </div>
 

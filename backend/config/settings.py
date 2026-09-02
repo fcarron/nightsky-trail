@@ -128,6 +128,13 @@ DATABASE_BACKUP_DIR = Path(
     )
 )
 DATABASE_BACKUP_KEEP = int(os.environ.get("DATABASE_BACKUP_KEEP", "14"))
+TRUST_PROXY_CLIENT_IP = (
+    os.environ.get(
+        "DJANGO_TRUST_PROXY_CLIENT_IP",
+        str(DJANGO_ENV == "production"),
+    ).lower()
+    == "true"
+)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -143,6 +150,12 @@ AUTH_PASSWORD_RESET_RATE_LIMIT = int(os.environ.get("AUTH_PASSWORD_RESET_RATE_LI
 AUTH_PASSWORD_RESET_RATE_WINDOW_SECONDS = int(
     os.environ.get("AUTH_PASSWORD_RESET_RATE_WINDOW_SECONDS", "3600")
 )
+PUBLIC_API_RATE_WINDOW_SECONDS = int(os.environ.get("PUBLIC_API_RATE_WINDOW_SECONDS", "300"))
+ROUTE_RATE_LIMIT = int(os.environ.get("ROUTE_RATE_LIMIT", "180"))
+ELEVATION_RATE_LIMIT = int(os.environ.get("ELEVATION_RATE_LIMIT", "120"))
+SEARCH_RATE_LIMIT = int(os.environ.get("SEARCH_RATE_LIMIT", "180"))
+ELEVATION_CACHE_TIMEOUT_SECONDS = int(os.environ.get("ELEVATION_CACHE_TIMEOUT_SECONDS", "86400"))
+SEARCH_CACHE_TIMEOUT_SECONDS = int(os.environ.get("SEARCH_CACHE_TIMEOUT_SECONDS", "86400"))
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

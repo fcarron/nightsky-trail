@@ -20,10 +20,14 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
     profile,
     status,
     message,
+    onSizeChange,
+    size,
   }: {
     profile: { ascentMeters: number; descentMeters: number } | null;
     status: string;
     message: string | null;
+    onSizeChange: (size: "compact" | "large") => void;
+    size: "compact" | "large";
   }) => (
     <section aria-label="Höhenprofil">
       <span>{status === "error" ? message : status}</span>
@@ -31,6 +35,15 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
         <>
           <span>Aufstieg {profile.ascentMeters} m</span>
           <span>Abstieg {profile.descentMeters} m</span>
+          {size === "compact" ? (
+            <button
+              type="button"
+              aria-label="Routenanalyse anzeigen"
+              onClick={() => onSizeChange("large")}
+            >
+              Anzeigen
+            </button>
+          ) : null}
         </>
       ) : null}
     </section>
@@ -126,6 +139,10 @@ describe("App", () => {
     expect(
       screen.getByText(/Sperrungen und Wegzustand können fehlen/),
     ).toBeInTheDocument();
+    expect(screen.getByText("Tracker-frei & werbefrei")).toBeInTheDocument();
+    expect(screen.getByText(/Keine Webanalyse/)).toHaveTextContent(
+      "Keine Webanalyse · keine Werbe-Tracker · keine Werbung",
+    );
     expect(screen.getByText(/MIT License/)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Projekt auf GitHub" }),
@@ -480,6 +497,30 @@ describe("App", () => {
     );
     expect(screen.getByText("Abstieg 22 m")).toBeInTheDocument();
     expect(screen.getByText("71 Hm+/km · bergig")).toBeInTheDocument();
+  });
+
+  it("offers route analysis from the compact elevation profile", async () => {
+    const user = userEvent.setup();
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        routeResponses: [routeResponse({ distanceMeters: 1234 })],
+        elevationResponses: [
+          elevationResponse({ ascentMeters: 88, descentMeters: 22 }),
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Routenanalyse anzeigen" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Höhenprofil schließen" }),
+    ).toBeInTheDocument();
   });
 
   it("opens a map-first mobile profile mode", async () => {

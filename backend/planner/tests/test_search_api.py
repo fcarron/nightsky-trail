@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from planner.integrations.swisstopo import SearchResult
+
+
+@pytest.fixture(autouse=True)
+def clear_api_cache() -> None:
+    cache.clear()
 
 
 def test_search_endpoint_returns_normalized_results(monkeypatch) -> None:

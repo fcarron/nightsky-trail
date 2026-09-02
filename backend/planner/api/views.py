@@ -34,7 +34,7 @@ from planner.api.serializers import (
     SharedTourSerializer,
     TrailsQuerySerializer,
 )
-from planner.domain.elevation import ElevationValidationError, build_elevation_profile
+from planner.domain.elevation import ElevationValidationError
 from planner.domain.route import (
     RouteValidationError,
     SegmentRequest,
@@ -61,8 +61,10 @@ from planner.services.auth import (
     password_reset_attempt_allowed,
     registration_attempt_allowed,
 )
-from planner.services.elevation import load_elevation_samples
+from planner.services.elevation import get_elevation_profile
+from planner.services.rate_limit import request_rate_limit_allowed
 from planner.services.routing import compute_route
+from planner.services.search import search_locations
 from planner.services.trails import build_trails_response
 
 logger = logging.getLogger(__name__)
@@ -470,6 +472,12 @@ class RouteComputeView(APIView):
         responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
+        enforce_public_api_rate_limit(
+            "route",
+            request,
+            settings.ROUTE_RATE_LIMIT,
+            "Too many routing requests. Please try again shortly.",
+        )
         serializer = RouteComputeRequestSerializer(data=getattr(request, "data", {}))
         if not serializer.is_valid():
             raise UnprocessableEntity(
@@ -541,6 +549,12 @@ class ElevationProfileView(APIView):
         responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
+        enforce_public_api_rate_limit(
+            "elevation",
+            request,
+            settings.ELEVATION_RATE_LIMIT,
+            "Too many elevation requests. Please try again shortly.",
+        )
         serializer = ElevationProfileRequestSerializer(data=getattr(request, "data", {}))
         if not serializer.is_valid():
             raise UnprocessableEntity(
@@ -552,14 +566,14 @@ class ElevationProfileView(APIView):
         geometry = serializer.validated_data["geometry"]
         coordinates = geometry["coordinates"]
         try:
-            samples = load_elevation_samples(
+            profile = get_elevation_profile(
                 SwisstopoClient(
                     settings.SWISSTOPO_BASE_URL,
                     timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
                 ),
                 coordinates,
+                cache_timeout_seconds=settings.ELEVATION_CACHE_TIMEOUT_SECONDS,
             )
-            profile = build_elevation_profile(samples)
         except SwisstopoUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, {}) from error
         except ElevationValidationError as error:
@@ -603,6 +617,12 @@ class SearchView(APIView):
         responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request: object) -> Response:
+        enforce_public_api_rate_limit(
+            "search",
+            request,
+            settings.SEARCH_RATE_LIMIT,
+            "Too many search requests. Please try again shortly.",
+        )
         serializer = SearchQuerySerializer(data=getattr(request, "query_params", {}))
         if not serializer.is_valid():
             raise UnprocessableEntity(
@@ -613,10 +633,15 @@ class SearchView(APIView):
 
         data = serializer.validated_data
         try:
-            results = SwisstopoClient(
-                settings.SWISSTOPO_BASE_URL,
-                timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
-            ).search_locations(data["q"], limit=data["limit"])
+            results = search_locations(
+                SwisstopoClient(
+                    settings.SWISSTOPO_BASE_URL,
+                    timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
+                ),
+                data["q"],
+                limit=data["limit"],
+                cache_timeout_seconds=settings.SEARCH_CACHE_TIMEOUT_SECONDS,
+            )
         except SwisstopoSearchUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, {}) from error
 
@@ -676,6 +701,21 @@ class TrailsView(APIView):
 
 def django_request(request: object) -> object:
     return getattr(request, "_request", request)
+
+
+def enforce_public_api_rate_limit(
+    action: str,
+    request: object,
+    limit: int,
+    message: str,
+) -> None:
+    if not request_rate_limit_allowed(
+        action,
+        django_request(request),
+        limit=limit,
+        window_seconds=settings.PUBLIC_API_RATE_WINDOW_SECONDS,
+    ):
+        raise TooManyRequests(message)
 
 
 def request_user(request: object) -> object:

@@ -1518,6 +1518,38 @@ function PlannerApp() {
       <div className="manageMenu topManageMenu">
         <button
           type="button"
+          aria-expanded={openTopMenu === "files"}
+          onClick={() =>
+            setOpenTopMenu((menu) => (menu === "files" ? null : "files"))
+          }
+        >
+          Datei
+        </button>
+        {openTopMenu === "files" ? (
+          <div className="managePanel filePanel" aria-label="Dateiaktionen">
+            <button
+              type="button"
+              onClick={() => {
+                setOpenTopMenu(null);
+                gpxInputRef.current?.click();
+              }}
+            >
+              GPX importieren
+            </button>
+            <button
+              type="button"
+              disabled={history.present.waypoints.length < 2}
+              onClick={exportGpx}
+            >
+              GPX exportieren
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="manageMenu topManageMenu">
+        <button
+          type="button"
           aria-expanded={openTopMenu === "about"}
           onClick={() =>
             setOpenTopMenu((menu) => (menu === "about" ? null : "about"))
@@ -1565,6 +1597,12 @@ function PlannerApp() {
                 tippen.
               </span>
             </div>
+            <div className="aboutPrivacy">
+              <strong>Tracker-frei &amp; werbefrei</strong>
+              <span>
+                Keine Webanalyse · keine Werbe-Tracker · keine Werbung
+              </span>
+            </div>
             <div className="aboutOpenSource">
               <strong>Open Source</strong>
               <span>Veröffentlicht unter der MIT License.</span>
@@ -1576,38 +1614,6 @@ function PlannerApp() {
                 Projekt auf GitHub
               </a>
             </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="manageMenu topManageMenu">
-        <button
-          type="button"
-          aria-expanded={openTopMenu === "files"}
-          onClick={() =>
-            setOpenTopMenu((menu) => (menu === "files" ? null : "files"))
-          }
-        >
-          Datei
-        </button>
-        {openTopMenu === "files" ? (
-          <div className="managePanel filePanel" aria-label="Dateiaktionen">
-            <button
-              type="button"
-              onClick={() => {
-                setOpenTopMenu(null);
-                gpxInputRef.current?.click();
-              }}
-            >
-              GPX importieren
-            </button>
-            <button
-              type="button"
-              disabled={history.present.waypoints.length < 2}
-              onClick={exportGpx}
-            >
-              GPX exportieren
-            </button>
           </div>
         ) : null}
       </div>
@@ -2643,9 +2649,7 @@ function PlannerApp() {
           </details>
         </aside>
 
-        {elevationState.status === "ready" &&
-        elevationState.profile &&
-        elevationPanelSize !== "large" ? (
+        {effectiveComputedRoute && elevationPanelSize !== "large" ? (
           <button
             type="button"
             className={`profileDockTrigger profileDockTrigger-${mobileSheetState}`}
@@ -2653,7 +2657,13 @@ function PlannerApp() {
             onClick={() => setElevationPanelDisplay("large")}
           >
             <span>Höhenprofil</span>
-            <small>Öffnen</small>
+            <small>
+              {elevationState.status === "loading"
+                ? "Wird berechnet"
+                : elevationState.status === "error"
+                  ? "Fehler anzeigen"
+                  : "Anzeigen"}
+            </small>
           </button>
         ) : null}
 
