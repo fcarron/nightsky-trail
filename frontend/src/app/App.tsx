@@ -2315,11 +2315,6 @@ function PlannerApp() {
               className="contextPanel"
               aria-label="Ausgewählter Wegpunkt"
             >
-              <div>
-                <span>Ausgewählt</span>
-                <strong>Punkt {selectedWaypointIndex + 1}</strong>
-                <small>{formatCoordinate(selectedWaypoint.position)}</small>
-              </div>
               <div className="contextActions">
                 {previousSelectedSegment ? (
                   <button
@@ -2378,16 +2373,12 @@ function PlannerApp() {
           ) : null}
 
           <details
-            className="detailDrawer"
+            className={`detailDrawer ${elevationPanelSize === "large" ? "detailDrawer-profileOpen" : ""}`}
             open={elevationPanelSize === "large" ? true : undefined}
           >
             <summary>
-              <span>Details</span>
-              <small>
-                {elevationState.status === "ready"
-                  ? "Analyse bereit"
-                  : "Profil · Wegpunkte · Abschnitte"}
-              </small>
+              <span>Routendetails</span>
+              <small>Runde · Weg · Wegpunkte</small>
             </summary>
 
             <ElevationPanel
@@ -2654,10 +2645,12 @@ function PlannerApp() {
         elevationPanelSize !== "large" ? (
           <button
             type="button"
-            className={`mobileProfileAction mobileProfileAction-${mobileSheetState}`}
+            className={`profileDockTrigger profileDockTrigger-${mobileSheetState}`}
+            aria-label="Höhenprofil öffnen"
             onClick={() => setElevationPanelDisplay("large")}
           >
-            Profil
+            <span>Höhenprofil</span>
+            <small>Öffnen</small>
           </button>
         ) : null}
 

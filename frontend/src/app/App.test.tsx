@@ -458,6 +458,7 @@ describe("App", () => {
   });
 
   it("loads the elevation profile after route computation", async () => {
+    const user = userEvent.setup();
     storeRouteWithTwoWaypoints();
     vi.stubGlobal(
       "fetch",
@@ -471,6 +472,9 @@ describe("App", () => {
 
     render(<App />);
 
+    await user.click(
+      await screen.findByRole("button", { name: "Höhenprofil öffnen" }),
+    );
     await waitFor(() =>
       expect(screen.getByText("Aufstieg 88 m")).toBeInTheDocument(),
     );
@@ -492,7 +496,9 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Profil" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Höhenprofil öffnen" }),
+    );
     const routePanel = screen.getByRole("complementary", {
       name: "Routeninformationen",
     });

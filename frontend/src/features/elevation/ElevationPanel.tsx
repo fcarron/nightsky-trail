@@ -489,14 +489,12 @@ export function ElevationPanel({
     highlightedRange,
   ]);
 
-  const statusLabel =
+  const statusMessage =
     status === "loading"
       ? "Wird berechnet"
       : status === "error"
         ? message
-        : profile
-          ? "Bereit"
-          : "Keine Route";
+        : null;
 
   const panel = (
     <section
@@ -505,7 +503,20 @@ export function ElevationPanel({
     >
       <div className="panelHeader">
         <h2>{panelSize === "large" ? "Routenanalyse" : "Höhenprofil"}</h2>
-        <span aria-live="polite">{statusLabel}</span>
+        <div className="panelHeaderActions">
+          {statusMessage ? (
+            <span aria-live="polite">{statusMessage}</span>
+          ) : null}
+          {panelSize === "large" && onSizeChange ? (
+            <button
+              type="button"
+              className="panelCollapseButton"
+              onClick={() => onSizeChange("compact")}
+            >
+              Einklappen
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {profile ? (
@@ -529,22 +540,6 @@ export function ElevationPanel({
               </div>
             </dl>
           ) : null}
-          <div className="elevationPanelControls" aria-label="Profilgrösse">
-            <button
-              type="button"
-              aria-pressed={panelSize === "compact"}
-              onClick={() => onSizeChange?.("compact")}
-            >
-              Klein
-            </button>
-            <button
-              type="button"
-              aria-pressed={panelSize === "large"}
-              onClick={() => onSizeChange?.("large")}
-            >
-              Gross
-            </button>
-          </div>
           {panelSize === "large" && activePoint ? (
             <div className="elevationScrubReadout" aria-live="polite">
               <strong>{formatDistance(activePoint.distanceMeters)}</strong>
@@ -587,32 +582,6 @@ export function ElevationPanel({
       )}
     </section>
   );
-
-  if (panelSize === "large") {
-    return (
-      <>
-        <section className="elevationPanel elevationPanel-compact elevationPanelDockControl">
-          <div className="panelHeader">
-            <h2>Routenanalyse</h2>
-            <span aria-live="polite">{statusLabel}</span>
-          </div>
-          <div className="elevationPanelControls" aria-label="Profilgrösse">
-            <button
-              type="button"
-              aria-pressed={false}
-              onClick={() => onSizeChange?.("compact")}
-            >
-              Klein
-            </button>
-            <button type="button" aria-pressed={true}>
-              Gross
-            </button>
-          </div>
-        </section>
-        {panel}
-      </>
-    );
-  }
 
   return panel;
 }

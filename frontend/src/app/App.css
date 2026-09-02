@@ -273,7 +273,6 @@ button:disabled {
 .mobileHeaderToggle,
 .mobileSheetHandle,
 .mobileDrawAction,
-.mobileProfileAction,
 .topMenuMobileLabel {
   display: none;
 }
@@ -1811,6 +1810,16 @@ button:disabled {
   max-height: 34px;
 }
 
+.detailDrawer-profileOpen {
+  overflow: visible;
+  border: 0;
+}
+
+.detailDrawer-profileOpen > summary,
+.detailDrawer-profileOpen > :not(.elevationPanel) {
+  display: none;
+}
+
 .elevationPanel {
   margin-top: 6px;
 }
@@ -1825,6 +1834,31 @@ button:disabled {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+}
+
+.panelHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panelCollapseButton {
+  min-height: 26px;
+  border: 1px solid #cbd5df;
+  border-radius: 2px;
+  background: #ffffff;
+  color: var(--color-accent-strong);
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.panelCollapseButton:hover,
+.panelCollapseButton:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  outline: none;
 }
 
 .sectionHeader h2,
@@ -2168,11 +2202,6 @@ button:disabled {
   grid-column: 1;
 }
 
-.elevationPanel-large .elevationPanelControls {
-  grid-column: 1;
-  justify-content: flex-start;
-}
-
 .elevationPanel-large .elevationChart {
   grid-row: 2;
   grid-column: 2;
@@ -2198,8 +2227,6 @@ button:disabled {
 
 .elevationPanel-analysis-splits .panelHeader,
 .elevationPanel-analysis-climbs .panelHeader,
-.elevationPanel-analysis-splits .elevationPanelControls,
-.elevationPanel-analysis-climbs .elevationPanelControls,
 .elevationPanel-analysis-splits .routeAnalysis,
 .elevationPanel-analysis-climbs .routeAnalysis {
   grid-column: 1;
@@ -2320,31 +2347,38 @@ button:disabled {
   font-size: 10px;
 }
 
-.elevationPanelDockControl .elevationPanelControls {
-  justify-content: flex-start;
-}
-
-.elevationPanelControls {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.elevationPanelControls button {
-  min-height: 28px;
+.profileDockTrigger {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 34;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
   border: 1px solid #cbd5df;
-  border-radius: 2px;
-  background: #ffffff;
-  color: #66717d;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #111827;
+  cursor: pointer;
   padding: 0 10px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
   font: inherit;
   font-size: 12px;
+  font-weight: 750;
 }
 
-.elevationPanelControls button[aria-pressed="true"] {
+.profileDockTrigger small {
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.profileDockTrigger:hover,
+.profileDockTrigger:focus-visible {
   border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+  background: #ffffff;
+  outline: none;
 }
 
 .mapSurface {
@@ -3066,10 +3100,6 @@ button:disabled {
     display: none;
   }
 
-  .mobileProfileMode .elevationPanelDockControl {
-    display: none;
-  }
-
   .dockTop {
     display: none;
   }
@@ -3217,12 +3247,18 @@ button:disabled {
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
   }
 
-  .mobileProfileAction.mobileProfileAction-collapsed {
+  .profileDockTrigger {
+    display: none;
+  }
+
+  .profileDockTrigger.profileDockTrigger-collapsed {
     position: absolute;
     bottom: calc(126px + env(safe-area-inset-bottom));
     left: 12px;
     z-index: 34;
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     min-height: 42px;
     border: 1px solid #cbd5df;
     border-radius: 4px;
@@ -3272,7 +3308,6 @@ button:disabled {
 
   .elevationPanel-large .panelHeader,
   .elevationPanel-large .elevationStats,
-  .elevationPanel-large .elevationPanelControls,
   .elevationPanel-large .elevationChart {
     grid-column: 1;
     grid-row: auto;
@@ -3295,19 +3330,6 @@ button:disabled {
   }
 
   .mobileProfileMode .elevationPanel-large .panelHeader {
-    display: none;
-  }
-
-  .mobileProfileMode .elevationPanel-large .elevationPanelControls {
-    grid-row: 1;
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-  }
-
-  .mobileProfileMode
-    .elevationPanel-large
-    .elevationPanelControls
-    button[aria-pressed="true"] {
     display: none;
   }
 
@@ -3472,7 +3494,6 @@ button:disabled {
 
   .publicTourProfile .elevationPanel-large .panelHeader,
   .publicTourProfile .elevationPanel-large .elevationStats,
-  .publicTourProfile .elevationPanel-large .elevationPanelControls,
   .publicTourProfile .elevationPanel-large .elevationChart {
     grid-column: 1;
     grid-row: auto;
