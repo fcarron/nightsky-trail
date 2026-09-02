@@ -45,7 +45,6 @@ from planner.integrations.overpass import (
     OverpassUnavailableError,
 )
 from planner.integrations.swisstopo import (
-    LineStringGeometry,
     SwisstopoClient,
     SwisstopoSearchUnavailableError,
     SwisstopoUnavailableError,
@@ -62,6 +61,7 @@ from planner.services.auth import (
     password_reset_attempt_allowed,
     registration_attempt_allowed,
 )
+from planner.services.elevation import load_elevation_samples
 from planner.services.routing import compute_route
 from planner.services.trails import build_trails_response
 
@@ -551,15 +551,13 @@ class ElevationProfileView(APIView):
 
         geometry = serializer.validated_data["geometry"]
         coordinates = geometry["coordinates"]
-        sample_count = max(2, min(500, round(estimate_sample_count(coordinates))))
-
         try:
-            samples = SwisstopoClient(
-                settings.SWISSTOPO_BASE_URL,
-                timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
-            ).elevation_profile(
-                LineStringGeometry(coordinates=coordinates),
-                sample_count=sample_count,
+            samples = load_elevation_samples(
+                SwisstopoClient(
+                    settings.SWISSTOPO_BASE_URL,
+                    timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
+                ),
+                coordinates,
             )
             profile = build_elevation_profile(samples)
         except SwisstopoUnavailableError as error:
@@ -674,12 +672,6 @@ class TrailsView(APIView):
             )
         except OverpassUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, error.details) from error
-
-
-def estimate_sample_count(coordinates: list[list[float]]) -> int:
-    # The frontend keeps route distance separately; this heuristic keeps requests bounded
-    # until elevation caching and geometry resampling are implemented.
-    return max(50, len(coordinates) * 25)
 
 
 def django_request(request: object) -> object:

@@ -49,7 +49,7 @@ def test_elevation_profile_returns_normalized_profile(monkeypatch: pytest.Monkey
     assert FakeSwisstopoClient.last_geometry == LineStringGeometry(
         coordinates=[[7.4474, 46.948], [7.45, 46.95]]
     )
-    assert FakeSwisstopoClient.last_sample_count == 50
+    assert FakeSwisstopoClient.last_sample_count == 13
 
 
 @pytest.mark.django_db

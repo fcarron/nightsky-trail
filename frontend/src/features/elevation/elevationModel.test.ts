@@ -39,6 +39,20 @@ describe("elevation profile request geometry", () => {
     expect(sampled[0]).toEqual(geometry[0]);
     expect(sampled[sampled.length - 1]).toEqual(geometry[geometry.length - 1]);
   });
+
+  it("keeps approximately 25 metre geometry spacing for long routes", () => {
+    const geometry = Array.from({ length: 2_001 }, (_, index) => ({
+      lon: 7.4 + index * 0.0001,
+      lat: 46.9,
+    }));
+
+    const sampled = resampleGeometryForElevation(geometry);
+
+    expect(sampled.length).toBeGreaterThan(500);
+    expect(sampled.length).toBeLessThanOrEqual(6_000);
+    expect(sampled[0]).toEqual(geometry[0]);
+    expect(sampled[sampled.length - 1]).toEqual(geometry[geometry.length - 1]);
+  });
 });
 
 describe("personal running-time estimate", () => {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
 from statistics import median
 
@@ -113,30 +114,37 @@ def build_elevation_profile(samples: list[ElevationSample]) -> ElevationProfile:
 def smooth_elevations(samples: list[ElevationSample]) -> list[float]:
     sample_spacing = typical_sample_distance(samples)
     radius_meters = max(SMOOTHING_DISTANCE_METERS / 2, sample_spacing * 1.5)
-    smoothed: list[float] = []
-    for sample in samples:
-        window = [
-            candidate.elevation_meters
-            for candidate in samples
-            if abs(candidate.distance_meters - sample.distance_meters) <= radius_meters
-        ]
-        smoothed.append(sum(window) / len(window))
-    return smoothed
+    return moving_average_elevations(samples, radius_meters)
 
 
 def smooth_elevations_for_window(
     samples: list[ElevationSample],
     smoothing_window_meters: float,
 ) -> list[float]:
-    radius_meters = smoothing_window_meters / 2
+    return moving_average_elevations(samples, smoothing_window_meters / 2)
+
+
+def moving_average_elevations(
+    samples: list[ElevationSample],
+    radius_meters: float,
+) -> list[float]:
     smoothed: list[float] = []
+    left = 0
+    right = 0
+    elevation_sum = 0.0
+
     for sample in samples:
-        window = [
-            candidate.elevation_meters
-            for candidate in samples
-            if abs(candidate.distance_meters - sample.distance_meters) <= radius_meters
-        ]
-        smoothed.append(sum(window) / len(window))
+        maximum_distance = sample.distance_meters + radius_meters
+        while right < len(samples) and samples[right].distance_meters <= maximum_distance:
+            elevation_sum += samples[right].elevation_meters
+            right += 1
+
+        minimum_distance = sample.distance_meters - radius_meters
+        while left < right and samples[left].distance_meters < minimum_distance:
+            elevation_sum -= samples[left].elevation_meters
+            left += 1
+
+        smoothed.append(elevation_sum / (right - left))
     return smoothed
 
 
@@ -167,14 +175,15 @@ def calculate_gradients(samples: list[ElevationSample], elevations: list[float])
         MIN_GRADIENT_DISTANCE_METERS,
         typical_sample_distance(samples) * GRADIENT_SAMPLE_MULTIPLIER,
     )
+    sample_distances = [sample.distance_meters for sample in samples]
     gradients: list[float] = []
     for sample in samples:
-        before = find_sample_at_distance(
-            samples,
+        before = find_distance_index(
+            sample_distances,
             sample.distance_meters - gradient_distance / 2,
         )
-        after = find_sample_at_distance(
-            samples,
+        after = find_distance_index(
+            sample_distances,
             sample.distance_meters + gradient_distance / 2,
         )
         distance_delta = samples[after].distance_meters - samples[before].distance_meters
@@ -206,6 +215,7 @@ def calculate_swiss_hiking_time(
     smoothed = smooth_elevations_for_window(monotonic_samples, smoothing_window_meters)
     total_distance = monotonic_samples[-1].distance_meters
     segment_boundaries = fixed_segment_boundaries(total_distance, segment_length_meters)
+    sample_distances = [sample.distance_meters for sample in monotonic_samples]
     total_minutes = 0.0
     segment_count = 0
     for start_distance, end_distance in zip(
@@ -221,11 +231,13 @@ def calculate_swiss_hiking_time(
             monotonic_samples,
             smoothed,
             start_distance,
+            sample_distances,
         )
         end_elevation = interpolate_elevation_at_distance(
             monotonic_samples,
             smoothed,
             end_distance,
+            sample_distances,
         )
         slope_percent = 100 * (end_elevation - start_elevation) / horizontal_distance
         minutes_per_km = swiss_hiking_minutes_per_km(slope_percent)
@@ -286,26 +298,23 @@ def interpolate_elevation_at_distance(
     samples: list[ElevationSample],
     elevations: list[float],
     distance_meters: float,
+    sample_distances: list[float] | None = None,
 ) -> float:
     if distance_meters <= samples[0].distance_meters:
         return elevations[0]
     if distance_meters >= samples[-1].distance_meters:
         return elevations[-1]
 
-    for index in range(1, len(samples)):
-        previous = samples[index - 1]
-        current = samples[index]
-        if current.distance_meters < distance_meters:
-            continue
+    distances = sample_distances or [sample.distance_meters for sample in samples]
+    index = bisect_left(distances, distance_meters)
+    previous = samples[index - 1]
+    current = samples[index]
+    distance_delta = current.distance_meters - previous.distance_meters
+    if distance_delta <= 0:
+        return elevations[index]
 
-        distance_delta = current.distance_meters - previous.distance_meters
-        if distance_delta <= 0:
-            return elevations[index]
-
-        ratio = (distance_meters - previous.distance_meters) / distance_delta
-        return elevations[index - 1] + (elevations[index] - elevations[index - 1]) * ratio
-
-    return elevations[-1]
+    ratio = (distance_meters - previous.distance_meters) / distance_delta
+    return elevations[index - 1] + (elevations[index] - elevations[index - 1]) * ratio
 
 
 def typical_sample_distance(samples: list[ElevationSample]) -> float:
@@ -320,7 +329,18 @@ def typical_sample_distance(samples: list[ElevationSample]) -> float:
 
 
 def find_sample_at_distance(samples: list[ElevationSample], distance_meters: float) -> int:
-    return min(
-        range(len(samples)),
-        key=lambda index: abs(samples[index].distance_meters - distance_meters),
+    return find_distance_index(
+        [sample.distance_meters for sample in samples],
+        distance_meters,
     )
+
+
+def find_distance_index(distances: list[float], distance_meters: float) -> int:
+    index = bisect_left(distances, distance_meters)
+    if index <= 0:
+        return 0
+    if index >= len(distances):
+        return len(distances) - 1
+    if distance_meters - distances[index - 1] <= distances[index] - distance_meters:
+        return index - 1
+    return index

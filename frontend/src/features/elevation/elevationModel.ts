@@ -168,7 +168,7 @@ export function toElevationProfileRequest(
 }
 
 const ELEVATION_GEOMETRY_TARGET_SPACING_METERS = 25;
-const ELEVATION_GEOMETRY_MAX_POINTS = 800;
+const ELEVATION_GEOMETRY_MAX_POINTS = 6_000;
 const EARTH_RADIUS_METERS = 6_371_000;
 
 export function resampleGeometryForElevation(

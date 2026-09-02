@@ -107,6 +107,7 @@ class LineStringGeometrySerializer(serializers.Serializer):
             max_length=2,
         ),
         min_length=2,
+        max_length=6000,
     )
 
     def validate_coordinates(self, value: list[list[float]]) -> list[list[float]]:
