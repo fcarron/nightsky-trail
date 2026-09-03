@@ -74,4 +74,24 @@ describe("GPX route import and export", () => {
       lon: 7.519,
     });
   });
+
+  it("prefers a track over accompanying control waypoints", () => {
+    const plan = importRoutePlanFromGpx(`<?xml version="1.0"?>
+<gpx version="1.1">
+  <wpt lat="46.9480" lon="7.4474" />
+  <wpt lat="46.9492" lon="7.4481" />
+  <wpt lat="46.9500" lon="7.4490" />
+  <trk><trkseg>
+    <trkpt lat="46.9480" lon="7.4474" />
+    <trkpt lat="46.9486" lon="7.4478" />
+    <trkpt lat="46.9500" lon="7.4490" />
+  </trkseg></trk>
+</gpx>`);
+
+    expect(plan.importedGeometry).toEqual([
+      { lat: 46.948, lon: 7.4474 },
+      { lat: 46.9486, lon: 7.4478 },
+      { lat: 46.95, lon: 7.449 },
+    ]);
+  });
 });

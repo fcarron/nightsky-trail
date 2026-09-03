@@ -30,11 +30,18 @@ export function importRoutePlanFromGpx(gpxText: string): RoutePlan {
     throw new Error("GPX konnte nicht gelesen werden.");
   }
 
-  const points = [
-    ...pointsFromElements(document, "trkpt"),
-    ...pointsFromElements(document, "rtept"),
-    ...pointsFromElements(document, "wpt"),
-  ];
+  const trackPoints = pointsFromElements(document, "trkpt");
+  const routePoints = pointsFromElements(document, "rtept");
+  const waypointPoints = pointsFromElements(document, "wpt");
+  // A GPX export may carry control waypoints alongside its full track. The
+  // track is the authoritative geometry; appending the waypoints would create
+  // artificial return legs after its endpoint.
+  const points =
+    trackPoints.length > 0
+      ? trackPoints
+      : routePoints.length > 0
+        ? routePoints
+        : waypointPoints;
   if (points.length < 2) {
     throw new Error("GPX enthält zu wenige Punkte.");
   }

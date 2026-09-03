@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ComputedRoute } from "../route/routeModel";
 import {
+  DEFAULT_RUNNING_UPHILL_CORRECTION,
   FLAT_HIKING_PACE_MIN_PER_KM,
   calculateGradientDistribution,
   calculateKilometreSplits,
@@ -73,7 +74,9 @@ describe("personal running-time estimate", () => {
     expect(estimatePersonalRunningMinutes(uphill, flatRunningPace)).toBe(
       Math.round(
         flatRunningPace +
-          (uphillHikingPace - FLAT_HIKING_PACE_MIN_PER_KM) * scale * 1.2,
+          (uphillHikingPace - FLAT_HIKING_PACE_MIN_PER_KM) *
+            scale *
+            DEFAULT_RUNNING_UPHILL_CORRECTION,
       ),
     );
     expect(estimatePersonalRunningMinutes(downhill, flatRunningPace)).toBe(
