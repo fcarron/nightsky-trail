@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { ComputedRoute } from "../route/routeModel";
 import {
-  DEFAULT_RUNNING_UPHILL_CORRECTION,
   FLAT_HIKING_PACE_MIN_PER_KM,
+  RUNNING_UPHILL_FACTOR_MAX,
+  RUNNING_UPHILL_FACTOR_MIN,
   calculateGradientDistribution,
   calculateKilometreSplits,
   calculateSustainedGradients,
@@ -12,6 +13,7 @@ import {
   estimatePersonalRunningMinutes,
   resampleGeometryForElevation,
   toElevationProfileRequest,
+  uphillFactorForRunningPace,
 } from "./elevationModel";
 import type { ElevationProfile } from "./elevationModel";
 
@@ -63,28 +65,47 @@ describe("personal running-time estimate", () => {
     expect(estimatePersonalRunningMinutes(profile, 6.5)).toBe(7);
   });
 
-  it("adds the uphill correction only on positive slopes", () => {
-    const uphill = buildProfile(samplesForSlope(1_000, 10));
+  it.each([
+    [RUNNING_UPHILL_FACTOR_MIN, 4],
+    [1.61, 5],
+    [RUNNING_UPHILL_FACTOR_MAX, 6.5],
+  ])(
+    "uses uphill factor %s at a %s min/km flat pace",
+    (uphillFactor, flatRunningPace) => {
+      const uphill = buildProfile(samplesForSlope(1_000, 10));
+      const scale = flatRunningPace / FLAT_HIKING_PACE_MIN_PER_KM;
+      const uphillHikingPace = swissHikingMinutesPerKmForTest(10);
+
+      expect(estimatePersonalRunningMinutes(uphill, flatRunningPace)).toBe(
+        Math.round(
+          flatRunningPace +
+            (uphillHikingPace - FLAT_HIKING_PACE_MIN_PER_KM) *
+              scale *
+              uphillFactor,
+        ),
+      );
+    },
+  );
+
+  it("keeps downhill calculation unchanged", () => {
     const downhill = buildProfile(samplesForSlope(1_000, -10));
     const flatRunningPace = 6.5;
     const scale = flatRunningPace / FLAT_HIKING_PACE_MIN_PER_KM;
-    const uphillHikingPace = swissHikingMinutesPerKmForTest(10);
     const downhillHikingPace = swissHikingMinutesPerKmForTest(-10);
 
-    expect(estimatePersonalRunningMinutes(uphill, flatRunningPace)).toBe(
-      Math.round(
-        flatRunningPace +
-          (uphillHikingPace - FLAT_HIKING_PACE_MIN_PER_KM) *
-            scale *
-            DEFAULT_RUNNING_UPHILL_CORRECTION,
-      ),
-    );
     expect(estimatePersonalRunningMinutes(downhill, flatRunningPace)).toBe(
       Math.round(
         flatRunningPace +
           (downhillHikingPace - FLAT_HIKING_PACE_MIN_PER_KM) * scale,
       ),
     );
+  });
+
+  it("saturates the uphill factor at the configured pace bounds", () => {
+    expect(uphillFactorForRunningPace(3.5)).toBe(RUNNING_UPHILL_FACTOR_MIN);
+    expect(uphillFactorForRunningPace(4)).toBe(RUNNING_UPHILL_FACTOR_MIN);
+    expect(uphillFactorForRunningPace(6.5)).toBe(RUNNING_UPHILL_FACTOR_MAX);
+    expect(uphillFactorForRunningPace(8)).toBe(RUNNING_UPHILL_FACTOR_MAX);
   });
 
   it("sums unrounded segment times and includes the final partial segment", () => {

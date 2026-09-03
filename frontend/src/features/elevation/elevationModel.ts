@@ -147,7 +147,8 @@ export const GRADIENT_DISTRIBUTION_BIN_WIDTH_PERCENT = 2.5;
 export const GRADIENT_DISTRIBUTION_LIMIT_PERCENT = 30;
 export const SUSTAINED_GRADIENT_WINDOWS_METERS = [100, 500, 1_000] as const;
 export const FLAT_HIKING_PACE_MIN_PER_KM = 14.271;
-export const DEFAULT_RUNNING_UPHILL_CORRECTION = 1.6;
+export const RUNNING_UPHILL_FACTOR_MIN = 1.55;
+export const RUNNING_UPHILL_FACTOR_MAX = 1.7;
 const SWISS_HIKING_COEFFICIENTS = [
   14.271, 3.6991, 2.5922, -1.4384, 0.32105, 0.81542, -0.090261, -0.20757,
   0.010192, 0.028588, -0.00057466, -0.0021842, 0.000015176, 0.000086894,
@@ -303,7 +304,6 @@ export function gradientGroupForPercent(
 export function estimatePersonalRunningMinutes(
   profile: ElevationProfile,
   flatRunningPaceMinPerKm: number,
-  uphillCorrection = DEFAULT_RUNNING_UPHILL_CORRECTION,
 ): number {
   const monotonicPoints = profile.points.filter(
     (point, index, points) =>
@@ -318,7 +318,6 @@ export function estimatePersonalRunningMinutes(
     monotonicPoints[monotonicPoints.length - 1].distanceMeters,
     segmentLengthMeters,
   );
-  const scale = flatRunningPaceMinPerKm / FLAT_HIKING_PACE_MIN_PER_KM;
   let totalMinutes = 0;
 
   for (let index = 1; index < segmentBoundaries.length; index += 1) {
@@ -339,15 +338,22 @@ export function estimatePersonalRunningMinutes(
     );
     const slopePercent =
       (100 * (endElevation - startElevation)) / horizontalDistance;
-    const hikingPace = swissHikingMinutesPerKm(slopePercent);
-    const slopePenalty = hikingPace - FLAT_HIKING_PACE_MIN_PER_KM;
-    const correction = slopePercent > 0 ? uphillCorrection : 1;
-    const runningPace =
-      flatRunningPaceMinPerKm + slopePenalty * scale * correction;
+    const runningPace = personalRunningPaceForSlope(
+      flatRunningPaceMinPerKm,
+      slopePercent,
+    );
     totalMinutes += (horizontalDistance / 1000) * runningPace;
   }
 
   return Math.round(totalMinutes);
+}
+
+export function uphillFactorForRunningPace(
+  flatRunningPaceMinPerKm: number,
+): number {
+  const paceAdjustment =
+    0.06 * Math.min(2.5, Math.max(0, flatRunningPaceMinPerKm - 4));
+  return RUNNING_UPHILL_FACTOR_MIN + paceAdjustment;
 }
 
 export function calculateKilometreSplits(
@@ -760,7 +766,6 @@ function calculateRangeMinutes(
     profile.hikingTime.segmentLengthMeters,
   ).map((value) => value + start);
   let total = 0;
-  const scale = flatPace / FLAT_HIKING_PACE_MIN_PER_KM;
   for (let index = 1; index < boundaries.length; index += 1) {
     const distance = boundaries[index] - boundaries[index - 1];
     const delta =
@@ -773,16 +778,24 @@ function calculateRangeMinutes(
         boundaries[index - 1],
       );
     const slope = (delta * 100) / distance;
-    const hikingPace = swissHikingMinutesPerKm(slope);
     const pace = running
-      ? flatPace +
-        (hikingPace - FLAT_HIKING_PACE_MIN_PER_KM) *
-          scale *
-          (slope > 0 ? DEFAULT_RUNNING_UPHILL_CORRECTION : 1)
-      : hikingPace;
+      ? personalRunningPaceForSlope(flatPace, slope)
+      : swissHikingMinutesPerKm(slope);
     total += (distance / 1000) * pace;
   }
   return total;
+}
+
+function personalRunningPaceForSlope(
+  flatRunningPaceMinPerKm: number,
+  slopePercent: number,
+): number {
+  const hikingPace = swissHikingMinutesPerKm(slopePercent);
+  const scale = flatRunningPaceMinPerKm / FLAT_HIKING_PACE_MIN_PER_KM;
+  const slopePenalty = hikingPace - FLAT_HIKING_PACE_MIN_PER_KM;
+  const uphillFactor =
+    slopePercent > 0 ? uphillFactorForRunningPace(flatRunningPaceMinPerKm) : 1;
+  return flatRunningPaceMinPerKm + slopePenalty * scale * uphillFactor;
 }
 
 function swissHikingMinutesPerKm(slopePercent: number): number {
