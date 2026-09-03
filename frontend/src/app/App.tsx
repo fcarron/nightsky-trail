@@ -64,6 +64,7 @@ import {
   logoutAccount,
   registerAccount,
   requestPasswordReset,
+  resendVerificationEmail as requestVerificationEmailResend,
   searchLocations,
   updateSavedTour,
   verifyAccountEmail,
@@ -255,6 +256,9 @@ function PlannerApp() {
     tone: "error" | "success";
     message: string;
   } | null>(null);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<
+    string | null
+  >(null);
   const [accountDeletePassword, setAccountDeletePassword] = useState("");
   const [accountDeleting, setAccountDeleting] = useState(false);
   const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
@@ -867,6 +871,7 @@ function PlannerApp() {
   function selectAuthMode(mode: AuthMode) {
     setAuthMode(mode);
     setAuthFeedback(null);
+    setPendingVerificationEmail(null);
     setAuthPassword("");
     setAuthPasswordConfirmation("");
   }
@@ -899,12 +904,34 @@ function PlannerApp() {
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
       setAuthPasswordConfirmation("");
+      setPendingVerificationEmail(authMode === "register" ? email : null);
       setAuthFeedback({
         tone: "success",
         message:
           authMode === "login"
             ? `Angemeldet als ${session.user?.email ?? email}.`
             : "Fast geschafft: Bitte bestätige deine E-Mail über den zugesandten Link.",
+      });
+    } catch (error: unknown) {
+      setAuthFeedback({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
+
+  async function resendVerificationEmail() {
+    if (!pendingVerificationEmail) {
+      return;
+    }
+
+    setAuthFeedback(null);
+    try {
+      setAuthSubmitting(true);
+      await requestVerificationEmailResend(pendingVerificationEmail);
+      setAuthFeedback({
+        tone: "success",
+        message:
+          "Falls ein unbestätigtes Konto zu dieser E-Mail existiert, wurde ein neuer Bestätigungs-Link versendet.",
       });
     } catch (error: unknown) {
       setAuthFeedback({ tone: "error", message: errorMessage(error) });
@@ -1139,7 +1166,9 @@ function PlannerApp() {
       return;
     }
     if (
-      !window.confirm("Konto und alle gespeicherten Touren endgültig löschen?")
+      !window.confirm(
+        "Konto endgültig löschen? Alle gespeicherten Touren und ihre Freigabelinks werden unwiderruflich gelöscht.",
+      )
     ) {
       return;
     }
@@ -1645,6 +1674,11 @@ function PlannerApp() {
                     <details className="accountDelete">
                       <summary>Konto löschen</summary>
                       <form onSubmit={removeAccount}>
+                        <p>
+                          Diese Aktion kann nicht rückgängig gemacht werden.
+                          Alle gespeicherten Touren und ihre Freigabelinks
+                          werden endgültig gelöscht.
+                        </p>
                         <label className="authField">
                           <span>Passwort zur Bestätigung</span>
                           <input
@@ -1683,9 +1717,10 @@ function PlannerApp() {
                       inputMode="email"
                       type="email"
                       value={authEmail}
-                      onChange={(event) =>
-                        setAuthEmail(event.currentTarget.value)
-                      }
+                      onChange={(event) => {
+                        setAuthEmail(event.currentTarget.value);
+                        setPendingVerificationEmail(null);
+                      }}
                     />
                   </label>
                   <button
@@ -1821,6 +1856,16 @@ function PlannerApp() {
                       onClick={() => selectAuthMode("forgot")}
                     >
                       Passwort vergessen?
+                    </button>
+                  ) : null}
+                  {authMode === "register" && pendingVerificationEmail ? (
+                    <button
+                      className="authLinkButton"
+                      type="button"
+                      disabled={authSubmitting}
+                      onClick={resendVerificationEmail}
+                    >
+                      Bestätigungs-E-Mail erneut senden
                     </button>
                   ) : null}
                 </form>

@@ -79,6 +79,16 @@ export async function verifyAccountEmail(
   );
 }
 
+export async function resendVerificationEmail(email: string): Promise<void> {
+  await submitJsonRequest(
+    "/api/v1/auth/verify-email/resend",
+    { email },
+    (payload): payload is { sent: boolean } =>
+      isRecord(payload) && payload.sent === true,
+    "Verification email request failed",
+  );
+}
+
 export async function requestPasswordReset(email: string): Promise<void> {
   await submitJsonRequest(
     "/api/v1/auth/password-reset/request",

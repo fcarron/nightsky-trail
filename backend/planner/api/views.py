@@ -33,6 +33,7 @@ from planner.api.serializers import (
     SearchQuerySerializer,
     SharedTourSerializer,
     TrailsQuerySerializer,
+    VerificationEmailResendSerializer,
 )
 from planner.domain.elevation import ElevationValidationError
 from planner.domain.route import (
@@ -60,6 +61,7 @@ from planner.services.auth import (
     login_attempt_allowed,
     password_reset_attempt_allowed,
     registration_attempt_allowed,
+    verification_email_attempt_allowed,
 )
 from planner.services.elevation import get_elevation_profile
 from planner.services.rate_limit import request_rate_limit_allowed
@@ -242,6 +244,40 @@ class EmailVerificationView(APIView):
                 "user": {"id": user.id, "email": user.email or user.get_username()},
             }
         )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class VerificationEmailResendView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(
+        operation_id="auth_resend_verification_email",
+        request=VerificationEmailResendSerializer,
+        responses={200: dict[str, bool]},
+    )
+    def post(self, request: object) -> Response:
+        serializer = VerificationEmailResendSerializer(data=getattr(request, "data", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_verification_email_request",
+                "Verification email request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        email = (
+            get_user_model().objects.normalize_email(serializer.validated_data["email"]).casefold()
+        )
+        if not verification_email_attempt_allowed(django_request(request), email):
+            raise TooManyRequests()
+
+        user = get_user_model().objects.filter(email__iexact=email, is_active=False).first()
+        if user:
+            try:
+                send_verification_email(user)
+            except AccountEmailUnavailableError:
+                logger.exception("Verification email could not be resent")
+        return Response({"sent": True})
 
 
 @method_decorator(csrf_protect, name="dispatch")

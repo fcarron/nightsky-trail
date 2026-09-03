@@ -35,6 +35,16 @@ def password_reset_attempt_allowed(request: object, identifier: str) -> bool:
     )
 
 
+def verification_email_attempt_allowed(request: object, identifier: str) -> bool:
+    return _attempt_allowed(
+        "verification-email",
+        request,
+        identifier,
+        settings.AUTH_VERIFICATION_EMAIL_RATE_LIMIT,
+        settings.AUTH_VERIFICATION_EMAIL_RATE_WINDOW_SECONDS,
+    )
+
+
 def _attempt_allowed(
     action: str,
     request: object,

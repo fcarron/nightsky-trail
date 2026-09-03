@@ -357,6 +357,50 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("can resend a verification email after registration", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock({
+      authRegisterResponse: new Response(
+        JSON.stringify({ authenticated: false, user: null }),
+        { status: 202, headers: { "Content-Type": "application/json" } },
+      ),
+      verificationEmailResendResponse: new Response(
+        JSON.stringify({ sent: true }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Konto" }));
+    await user.click(screen.getByRole("button", { name: "Registrieren" }));
+    await user.type(screen.getByLabelText("E-Mail"), "runner@example.com");
+    await user.type(screen.getByLabelText("Passwort"), "trail-check-2026");
+    await user.type(
+      screen.getByLabelText("Passwort bestätigen"),
+      "trail-check-2026",
+    );
+    await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Bestätigungs-E-Mail erneut senden",
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        /Falls ein unbestätigtes Konto zu dieser E-Mail existiert/,
+      ),
+    ).toBeInTheDocument();
+    const resendCall = fetchMock.mock.calls.find(([url]) =>
+      url.toString().endsWith("/api/v1/auth/verify-email/resend"),
+    );
+    expect(JSON.parse(resendCall?.[1]?.body?.toString() ?? "{}")).toEqual({
+      email: "runner@example.com",
+    });
+  });
+
   it("requests a password reset without revealing account existence", async () => {
     const user = userEvent.setup();
     const fetchMock = createFetchMock({
@@ -751,6 +795,7 @@ function createFetchMock(
   options: {
     authRegisterResponse?: Promise<Response> | Response;
     passwordResetResponse?: Promise<Response> | Response;
+    verificationEmailResendResponse?: Promise<Response> | Response;
     routeResponses?: Array<Promise<Response> | Response>;
     elevationResponses?: Array<Promise<Response> | Response>;
     sharedTourResponse?: Promise<Response> | Response;
@@ -760,6 +805,8 @@ function createFetchMock(
   const elevationResponses = [...(options.elevationResponses ?? [])];
   const authRegisterResponse = options.authRegisterResponse;
   const passwordResetResponse = options.passwordResetResponse;
+  const verificationEmailResendResponse =
+    options.verificationEmailResendResponse;
   const sharedTourResponse = options.sharedTourResponse;
 
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -807,6 +854,17 @@ function createFetchMock(
       return passwordResetResponse instanceof Response
         ? Promise.resolve(passwordResetResponse)
         : passwordResetResponse;
+    }
+
+    if (url.endsWith("/api/v1/auth/verify-email/resend")) {
+      if (!verificationEmailResendResponse) {
+        return Promise.reject(
+          new Error("Unexpected verification email request"),
+        );
+      }
+      return verificationEmailResendResponse instanceof Response
+        ? Promise.resolve(verificationEmailResendResponse)
+        : verificationEmailResendResponse;
     }
 
     if (url.includes("/api/v1/search?")) {

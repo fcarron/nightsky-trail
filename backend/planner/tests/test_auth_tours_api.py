@@ -8,6 +8,8 @@ from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from planner.models import SavedTour
+
 
 @pytest.fixture(autouse=True)
 def clear_auth_rate_limit_cache() -> None:
@@ -60,6 +62,31 @@ def test_email_verification_activates_and_logs_in_user() -> None:
     assert response.json()["authenticated"] is True
     assert response.json()["user"]["email"] == "runner@example.com"
     assert get_user_model().objects.get(username="runner@example.com").is_active is True
+
+
+@pytest.mark.django_db
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+def test_resend_verification_email_is_neutral_and_only_sends_to_unverified_accounts() -> None:
+    client = APIClient()
+    client.post(
+        reverse("auth-register"),
+        {"email": "runner@example.com", "password": "correct-horse"},
+        format="json",
+    )
+
+    missing_response = client.post(
+        reverse("auth-verify-email-resend"),
+        {"email": "missing@example.com"},
+        format="json",
+    )
+    resend_response = client.post(
+        reverse("auth-verify-email-resend"),
+        {"email": "runner@example.com"},
+        format="json",
+    )
+
+    assert missing_response.json() == resend_response.json() == {"sent": True}
+    assert len(mail.outbox) == 2
 
 
 @pytest.mark.django_db
@@ -311,6 +338,7 @@ def test_account_deletion_requires_password_and_deletes_owned_tours() -> None:
         {"name": "Private", "routeData": {"waypoints": [], "segments": []}},
         format="json",
     )
+    assert SavedTour.objects.count() == 1
 
     failed_response = client.post(
         reverse("auth-account-delete"),
@@ -327,6 +355,7 @@ def test_account_deletion_requires_password_and_deletes_owned_tours() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
+    assert SavedTour.objects.count() == 0
     assert client.get(reverse("tour-list")).status_code == 401
 
 

@@ -630,7 +630,7 @@ export function ElevationPanel({
               </span>
               <span>{formatGradientPercent(activePoint.gradientPercent)}</span>
               <span>
-                Belag: {" "}
+                Belag:{" "}
                 {surfaceSegmentAtDistance(
                   surfaceSegments,
                   activePoint.distanceMeters,

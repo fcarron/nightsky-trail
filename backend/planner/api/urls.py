@@ -19,6 +19,7 @@ from planner.api.views import (
     SearchView,
     SharedTourView,
     TrailsView,
+    VerificationEmailResendView,
 )
 
 urlpatterns = [
@@ -28,6 +29,11 @@ urlpatterns = [
     path("auth/login", AuthLoginView.as_view(), name="auth-login"),
     path("auth/logout", AuthLogoutView.as_view(), name="auth-logout"),
     path("auth/verify-email", EmailVerificationView.as_view(), name="auth-verify-email"),
+    path(
+        "auth/verify-email/resend",
+        VerificationEmailResendView.as_view(),
+        name="auth-verify-email-resend",
+    ),
     path(
         "auth/password-reset/request",
         PasswordResetRequestView.as_view(),
