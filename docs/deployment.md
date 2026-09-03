@@ -194,14 +194,18 @@ placed in front of it, configure Nginx's trusted real-IP handling before relying
 
 ## Updates
 
+The repository includes an update script. It creates an online SQLite backup when the backend is
+running, pulls only fast-forward changes, builds the two application images, applies migrations,
+collects static files, waits for the stack health checks, and runs Django's configuration check.
+
 ```bash
 cd /opt/nightsky-trail
-git pull --ff-only
-sudo docker compose --env-file .env.production -f compose.production.yaml build
-sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py migrate
-sudo docker compose --env-file .env.production -f compose.production.yaml run --rm nightsky_backend python manage.py collectstatic --noinput
-sudo docker compose --env-file .env.production -f compose.production.yaml up -d
+./deploy/update.sh
 ```
+
+Run it as the normal repository user, not with `sudo`. The script itself uses `sudo` for Docker.
+`migrate --noinput` is safe to run on every update: it exits without changing the database when
+there are no pending migrations.
 
 Old images can be removed later with the server's normal Docker maintenance process. Do not
 delete the persistent `data` directory during an update.
