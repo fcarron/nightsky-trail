@@ -3656,7 +3656,7 @@ button:disabled {
   }
 
   .plannerProfileMode .attribution {
-    bottom: calc(min(38dvh, 320px) + 6px);
+    display: none;
   }
 
   .routeStatus {
@@ -3747,6 +3747,32 @@ button:disabled {
   .mobileProfileMode .routeAnalysis {
     grid-row: 3;
     grid-column: 1 / -1;
+  }
+
+  .mobileProfileMode .elevationPanel-analysis-profile .routeAnalysis {
+    grid-row: 3;
+  }
+
+  .mobileProfileMode .elevationPanel-analysis-profile .elevationChart {
+    grid-row: 4;
+  }
+
+  .mobileProfileMode .analysisTabs {
+    gap: 3px;
+    margin-bottom: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .mobileProfileMode .analysisTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobileProfileMode .analysisTabs button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 8px;
   }
 
   .analysisList {
