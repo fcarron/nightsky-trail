@@ -184,6 +184,8 @@ export function ElevationPanel({
       80,
       profile.maxElevationMeters - elevationFloor,
     );
+    const showSurfaceLane =
+      panelSize === "large" && chartData.surfaceBands.length > 0;
     chart.setOption({
       animation: false,
       backgroundColor: "transparent",
@@ -191,8 +193,23 @@ export function ElevationPanel({
         left: 44,
         right: 14,
         top: panelSize === "large" ? 18 : 8,
-        bottom: panelSize === "large" ? 58 : 38,
+        bottom: showSurfaceLane ? 76 : panelSize === "large" ? 58 : 38,
       },
+      graphic: showSurfaceLane
+        ? [
+            {
+              bottom: 25,
+              right: 14,
+              silent: true,
+              style: {
+                fill: "#66717d",
+                font: "600 10px sans-serif",
+                text: "Wegbeschaffenheit",
+              },
+              type: "text",
+            },
+          ]
+        : [],
       tooltip: {
         backgroundColor: "#101923",
         borderColor: "#334657",
@@ -385,7 +402,7 @@ export function ElevationPanel({
               },
             ]
           : []),
-        ...(panelSize === "large" && chartData.surfaceBands.length
+        ...(showSurfaceLane
           ? [
               {
                 data: chartData.surfaceBands,
@@ -399,7 +416,7 @@ export function ElevationPanel({
                   "label",
                 ],
                 encode: { x: 0, y: 3 },
-                name: "Weg",
+                name: "Wegbeschaffenheit",
                 renderItem: (
                   params: CustomRenderParams,
                   api: CustomRenderApi,
@@ -613,10 +630,11 @@ export function ElevationPanel({
               </span>
               <span>{formatGradientPercent(activePoint.gradientPercent)}</span>
               <span>
+                Belag: {" "}
                 {surfaceSegmentAtDistance(
                   surfaceSegments,
                   activePoint.distanceMeters,
-                )?.label ?? "Weg unbekannt"}
+                )?.label ?? "unbekannt"}
               </span>
             </div>
           ) : null}
@@ -802,14 +820,16 @@ function renderSurfaceBand(params: CustomRenderParams, api: CustomRenderApi) {
 
   return {
     shape: {
-      height: 7,
-      width: Math.max(1, endX - startX + 0.75),
+      height: 10,
+      width: Math.max(1, endX - startX + 1),
       x: startX,
-      y: params.coordSys.y + params.coordSys.height + 26,
+      y: params.coordSys.y + params.coordSys.height + 34,
     },
     style: {
       fill: color,
-      opacity: 0.72,
+      opacity: 1,
+      stroke: "rgba(255, 255, 255, 0.72)",
+      lineWidth: 0.5,
     },
     type: "rect",
   };
