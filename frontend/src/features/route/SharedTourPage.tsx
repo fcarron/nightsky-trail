@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useI18n } from "../../app/i18n";
+
 import { ElevationPanel } from "../elevation/ElevationPanel";
 import {
+  calculateKilometreSplits,
+  detectClimbs,
   formatDurationMinutes,
   toElevationProfile,
   toElevationProfileRequest,
   type ElevationProfile,
 } from "../elevation/elevationModel";
+import type { AnalysisTab } from "../elevation/RouteAnalysis";
 import { MapPanel } from "../map/MapPanel";
 import {
   ApiRequestError,
@@ -27,6 +32,7 @@ import { parseRoutePlan } from "./routeStorage";
 type LoadStatus = "loading" | "ready" | "error";
 
 export function SharedTourPage({ shareId }: { shareId: string }) {
+  const { t } = useI18n();
   const [tour, setTour] = useState<SharedTourDto | null>(null);
   const [plan, setPlan] = useState<RoutePlan | null>(null);
   const [route, setRoute] = useState<ComputedRoute | null>(null);
@@ -38,6 +44,11 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
   const [elevationHoverPoint, setElevationHoverPoint] = useState<LonLat | null>(
     null,
   );
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("profile");
+  const [analysisHighlightRange, setAnalysisHighlightRange] = useState<{
+    startDistanceMeters: number;
+    endDistanceMeters: number;
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,6 +128,26 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
   const fitGeometry = effectiveRoute?.geometry ?? plan?.importedGeometry;
   const fitRequestId = fitGeometry?.length ? 1 : 0;
   const routeDistanceMeters = effectiveRoute?.distanceMeters ?? 0;
+  const kilometreSplits = useMemo(
+    () => (profile ? calculateKilometreSplits(profile) : []),
+    [profile],
+  );
+  const climbs = useMemo(
+    () => (profile ? detectClimbs(profile) : []),
+    [profile],
+  );
+  const analysisRangeGeometry = useMemo(() => {
+    if (!analysisHighlightRange || !profile) {
+      return [];
+    }
+    return profile.points
+      .filter(
+        (point) =>
+          point.distanceMeters >= analysisHighlightRange.startDistanceMeters &&
+          point.distanceMeters <= analysisHighlightRange.endDistanceMeters,
+      )
+      .map((point) => ({ lon: point.longitude, lat: point.latitude }));
+  }, [analysisHighlightRange, profile]);
   const effectiveRouteStatus =
     loadStatus === "error" || (plan && plan.waypoints.length < 2)
       ? "error"
@@ -126,9 +157,7 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
   const effectiveElevationStatus =
     effectiveRouteStatus === "error" ? "error" : elevationStatus;
   const effectiveMessage =
-    plan && plan.waypoints.length < 2
-      ? "Diese geteilte Tour enthält keine darstellbare Route."
-      : message;
+    plan && plan.waypoints.length < 2 ? t("routeShareNotDisplayable") : message;
 
   const summary = useMemo(
     () => ({
@@ -145,27 +174,28 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
   return (
     <main className="publicTourShell">
       <header className="publicTourTopBar">
-        <a className="brand" href="/" aria-label="nightsky trail Startseite">
+        <a className="brand" href="/" aria-label="nightsky trail">
           <span className="brandMark" aria-hidden="true">
             N
           </span>
           <span>
             <strong>nightsky trail</strong>
-            <span>Geteilte Tour</span>
+            <span>{t("routeShare")}</span>
           </span>
         </a>
         <a className="publicTourPlanLink" href="/">
-          Eigene Tour planen
+          {t("ownTour")}
         </a>
       </header>
 
-      <section className="publicTourMapArea" aria-label="Geteilte Tour">
+      <section className="publicTourMapArea" aria-label={t("routeShare")}>
         <MapPanel
           waypoints={plan?.waypoints ?? []}
           segments={effectiveRoute ? (plan?.segments ?? []) : []}
           computedSegments={effectiveRoute?.segments ?? null}
           graphhopperDebugVisible={false}
           elevationHoverPoint={elevationHoverPoint}
+          analysisRangeGeometry={analysisRangeGeometry}
           fitGeometry={fitGeometry}
           fitRequestId={fitRequestId}
           searchFocus={null}
@@ -179,27 +209,31 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
           onDeleteWaypoint={() => undefined}
         />
         <aside className="publicTourSummary" aria-live="polite">
-          <span>Geteilte Tour</span>
-          <h1>{tour?.name ?? "Tour wird geladen"}</h1>
-          <dl className="runSummaryGrid" aria-label="Tour Kennzahlen">
+          <span>{t("routeShare")}</span>
+          <h1>{tour?.name ?? t("routeShareLoading")}</h1>
+          <dl className="runSummaryGrid" aria-label={t("routeDetails")}>
             <div>
-              <dt>Distanz</dt>
+              <dt>{t("distance")}</dt>
               <dd>{summary.distance}</dd>
             </div>
             <div>
-              <dt>Aufstieg</dt>
+              <dt>{t("ascent")}</dt>
               <dd>
                 {summary.ascent}
-                {profile ? <small>{summary.descent} Abstieg</small> : null}
+                {profile ? (
+                  <small>
+                    {summary.descent} {t("descent")}
+                  </small>
+                ) : null}
               </dd>
             </div>
             <div className="runSummaryTimeCard">
-              <dt>Wanderzeit</dt>
+              <dt>{t("hikingTime")}</dt>
               <dd>{summary.duration}</dd>
             </div>
           </dl>
           {loadStatus === "loading" || effectiveRouteStatus === "loading" ? (
-            <p>Route wird geladen.</p>
+            <p>{t("tourLoaded")}</p>
           ) : null}
           {effectiveMessage ? (
             <p className="publicTourError">{effectiveMessage}</p>
@@ -207,13 +241,37 @@ export function SharedTourPage({ shareId }: { shareId: string }) {
         </aside>
       </section>
 
-      <section className="publicTourProfile" aria-label="Höhenprofil">
+      <section className="publicTourProfile" aria-label={t("elevationProfile")}>
         <ElevationPanel
           profile={profile}
           status={effectiveElevationStatus}
           message={effectiveMessage}
           onHoverPointChange={setElevationHoverPoint}
           size="large"
+          analysisTab={analysisTab}
+          splits={kilometreSplits}
+          climbs={climbs}
+          onAnalysisTabChange={setAnalysisTab}
+          onAnalysisRangeChange={(range) => {
+            setAnalysisHighlightRange(range);
+            if (!range || !profile) {
+              setElevationHoverPoint(null);
+              return;
+            }
+            const midpoint =
+              (range.startDistanceMeters + range.endDistanceMeters) / 2;
+            const point = profile.points.reduce((nearest, current) =>
+              Math.abs(current.distanceMeters - midpoint) <
+              Math.abs(nearest.distanceMeters - midpoint)
+                ? current
+                : nearest,
+            );
+            setElevationHoverPoint({
+              lon: point.longitude,
+              lat: point.latitude,
+            });
+          }}
+          highlightedRange={analysisHighlightRange}
         />
       </section>
     </main>

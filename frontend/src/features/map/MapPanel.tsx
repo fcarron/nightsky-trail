@@ -20,6 +20,7 @@ import { apply } from "ol-mapbox-style";
 import { useEffect, useRef, useState } from "react";
 
 import { ENABLE_DEV_TOOLS } from "../../app/config";
+import { useI18n } from "../../app/i18n";
 import { getTrailDifficultyWays } from "../../services/api";
 import type { CombinedTrailSegmentDto } from "../../types/api";
 import type {
@@ -115,6 +116,7 @@ export function MapPanel({
   onSelectWaypoint,
   onDeleteWaypoint,
 }: MapPanelProps) {
+  const { t, tx } = useI18n();
   const targetRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const standardLayerRef = useRef<TileLayer<XYZ> | null>(null);
@@ -1221,7 +1223,7 @@ export function MapPanel({
   ]);
 
   return (
-    <section className="mapSurface" aria-label="Karte">
+    <section className="mapSurface" aria-label={tx("Karte")}>
       <div ref={targetRef} className="mapTarget" />
       {activeRouteInsertCandidate && routeInsertCandidatePixel ? (
         <button
@@ -1231,8 +1233,8 @@ export function MapPanel({
             left: routeInsertCandidatePixel[0],
             top: routeInsertCandidatePixel[1],
           }}
-          aria-label="Zwischenpunkt hier einfügen"
-          title="Zwischenpunkt hier einfügen"
+          aria-label={tx("Zwischenpunkt hier einfügen")}
+          title={tx("Zwischenpunkt hier einfügen")}
           onClick={(event) => {
             event.stopPropagation();
             if (suppressRouteCandidateClickRef.current) {
@@ -1316,8 +1318,8 @@ export function MapPanel({
             left: selectedWaypointPixel[0],
             top: selectedWaypointPixel[1],
           }}
-          aria-label={`Wegpunkt ${selectedWaypointIndex + 1} löschen`}
-          title={`Wegpunkt ${selectedWaypointIndex + 1} löschen`}
+          aria-label={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
+          title={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
           onClick={(event) => {
             event.stopPropagation();
             callbacksRef.current.onDeleteWaypoint(selectedWaypoint.id);
@@ -1331,16 +1333,16 @@ export function MapPanel({
       ) : null}
       <details
         className="mapLayerSelector"
-        aria-label="Kartenauswahl"
+        aria-label={tx("Kartenauswahl")}
         open={mapLayerMenuOpen}
         onToggle={(event) => setMapLayerMenuOpen(event.currentTarget.open)}
       >
         <summary>
-          Karte
+          {tx("Karte")}
           <span>{baseLayerLabel(baseLayerId)}</span>
         </summary>
         <div className="mapLayerContent">
-          <label htmlFor="base-layer-select">Basiskarte</label>
+          <label htmlFor="base-layer-select">{tx("Basiskarte")}</label>
           <select
             id="base-layer-select"
             value={baseLayerId}
@@ -1363,7 +1365,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            Offizielle Wanderwege
+            {tx("Offizielle Wanderwege")}
           </label>
           <label className="mapOverlayToggle">
             <input
@@ -1395,7 +1397,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            Sperrungen
+            {tx("Sperrungen")}
           </label>
           <label className="mapOverlayToggle">
             <input
@@ -1423,7 +1425,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            Schwierigkeit
+            {t("difficulty")}
           </label>
           {ENABLE_DEV_TOOLS ? (
             <label className="mapOverlayToggle">
@@ -1460,8 +1462,8 @@ export function MapPanel({
         />
       ) : null}
       {mapError ? <div className="mapNotice">{mapError}</div> : null}
-      <div className="attribution" aria-label="Datenquellen">
-        <span>Datenquellen:</span>
+      <div className="attribution" aria-label={tx("Datenquellen")}>
+        <span>{tx("Datenquellen")}:</span>
         <a
           href="https://www.swisstopo.admin.ch/"
           target="_blank"
@@ -1497,13 +1499,14 @@ function MapFeaturePanel({
   feature: MapFeatureInfo;
   onClose: () => void;
 }) {
+  const { tx } = useI18n();
   return (
     <aside className="mapFeaturePanel" aria-label={`${feature.kind} Details`}>
       <div className="mapFeaturePanelHeader">
         <div>
           <span>
             {feature.kind === "closure"
-              ? "Sperrung"
+              ? tx("Sperrung")
               : feature.kind === "veloland"
                 ? "Veloland"
                 : "Wanderland"}
@@ -1512,7 +1515,7 @@ function MapFeaturePanel({
         </div>
         <button
           type="button"
-          aria-label="Karteninformation schliessen"
+          aria-label={tx("Karteninformation schliessen")}
           onClick={onClose}
         >
           ×
@@ -1522,17 +1525,17 @@ function MapFeaturePanel({
         <dl>
           {feature.details.map(([label, value]) => (
             <div key={`${label}:${value}`}>
-              <dt>{label}</dt>
+              <dt>{tx(label)}</dt>
               <dd>{value}</dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p>Keine weiteren Angaben verfügbar.</p>
+        <p>{tx("Keine weiteren Angaben verfügbar.")}</p>
       )}
       {feature.schweizMobilUrl ? (
         <a href={feature.schweizMobilUrl} target="_blank" rel="noreferrer">
-          Auf SchweizMobil öffnen
+          {tx("Auf SchweizMobil öffnen")}
         </a>
       ) : null}
     </aside>

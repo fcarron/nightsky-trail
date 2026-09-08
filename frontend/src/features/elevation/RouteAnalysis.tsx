@@ -1,5 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 
+import { useI18n, type Locale } from "../../app/i18n";
+
 import type {
   Climb,
   GradientDistributionBin,
@@ -41,6 +43,7 @@ export function RouteAnalysis({
   onRangeChange,
   profileOverview,
 }: RouteAnalysisProps) {
+  const { t } = useI18n();
   const [selectedRange, setSelectedRange] = useState<AnalysisRange | null>(
     null,
   );
@@ -59,12 +62,12 @@ export function RouteAnalysis({
   return (
     <section
       className={`routeAnalysis routeAnalysis-${activeTab}`}
-      aria-label="Routenanalyse"
+      aria-label={t("routeAnalysis")}
     >
       <div
         className="analysisTabs"
         role="tablist"
-        aria-label="Routenanalyse anzeigen"
+        aria-label={t("showRouteAnalysis")}
       >
         {(["profile", "splits", "climbs", "gradient"] as const).map((tab) => (
           <button
@@ -75,12 +78,12 @@ export function RouteAnalysis({
             onClick={() => onTabChange(tab)}
           >
             {tab === "profile"
-              ? "Profil"
+              ? t("profile")
               : tab === "splits"
-                ? "Km splits"
+                ? t("kilometreSplits")
                 : tab === "climbs"
-                  ? "Anstiege"
-                  : "Gradient"}
+                  ? t("climbs")
+                  : t("gradient")}
           </button>
         ))}
       </div>
@@ -111,6 +114,7 @@ function GradientAnalysis({
 }: Pick<RouteAnalysisProps, "sustainedGradients"> & {
   distribution: GradientDistributionBin[];
 } & RangeInteractions) {
+  const { t } = useI18n();
   const [activeBin, setActiveBin] = useState<GradientDistributionBin | null>(
     null,
   );
@@ -146,11 +150,14 @@ function GradientAnalysis({
   };
 
   return (
-    <section className="gradientAnalysis" aria-label="Gradient-Verteilung">
+    <section
+      className="gradientAnalysis"
+      aria-label={t("gradientDistribution")}
+    >
       <div className="gradientHistogramHeader">
-        <span>Gefälle</span>
-        <strong>Streckenanteil</strong>
-        <span>Steigung</span>
+        <span>{t("downhill")}</span>
+        <strong>{t("shareOfRoute")}</strong>
+        <span>{t("uphill")}</span>
       </div>
       <div className="gradientHistogramFrame">
         <div className="gradientHistogramYAxis" aria-hidden="true">
@@ -161,7 +168,7 @@ function GradientAnalysis({
         <div
           className="gradientHistogram"
           role="group"
-          aria-label="Gradientbereiche auswählen"
+          aria-label={t("selectGradientRanges")}
         >
           {distribution.map((bin) => {
             const percentage =
@@ -220,28 +227,29 @@ function GradientAnalysis({
         ))}
       </div>
       <p className="gradientHistogramUnit" aria-hidden="true">
-        Gradient (%)
+        {t("gradientPercent")}
       </p>
       {selectedBins.length > 0 ? (
         <section
           className="gradientSelectionSummary"
-          aria-label="Ausgewählte Gradientbereiche"
+          aria-label={t("selectedGradientAreas")}
         >
           <div className="gradientSelectionHeading">
             <strong>
-              Auswahl · {formatSelectedBinCount(selectedBins.length)}
+              {t("selectedGradientAreas")} ·{" "}
+              {formatSelectedBinCount(selectedBins.length)}
             </strong>
             <button type="button" onClick={() => setSelectedBinLabels([])}>
-              Zurücksetzen
+              {t("reset")}
             </button>
           </div>
           <dl>
             <div>
-              <dt>Distanz</dt>
+              <dt>{t("distance")}</dt>
               <dd>{formatGradientDistance(selectedTotals.distanceMeters)}</dd>
             </div>
             <div>
-              <dt>Streckenanteil</dt>
+              <dt>{t("shareOfRoute")}</dt>
               <dd>
                 {formatSelectionPercentage(
                   selectedTotals.distanceMeters,
@@ -250,7 +258,7 @@ function GradientAnalysis({
               </dd>
             </div>
             <div>
-              <dt>Höhenmeter</dt>
+              <dt>{t("elevationMeters")}</dt>
               <dd>
                 +{Math.round(selectedTotals.ascentMeters)} m · -
                 {Math.round(selectedTotals.descentMeters)} m
@@ -261,13 +269,13 @@ function GradientAnalysis({
       ) : null}
       <div className="sustainedGradientSummary">
         <div className="sustainedGradientTitle">
-          <h3>Steilste Passagen</h3>
-          <small>Durchschnitt über feste Distanz</small>
+          <h3>{t("steepestPassages")}</h3>
+          <small>{t("averageOverDistance")}</small>
         </div>
         <div className="sustainedGradientHeader" aria-hidden="true">
-          <span>Distanz</span>
-          <span>Bergauf</span>
-          <span>Bergab</span>
+          <span>{t("distance")}</span>
+          <span>{t("uphill")}</span>
+          <span>{t("downhill")}</span>
         </div>
         {sustainedGradients.map((gradient) => (
           <div className="sustainedGradientRow" key={gradient.windowMeters}>
@@ -305,6 +313,7 @@ function SustainedGradientValue({
   range: AnalysisRange | null;
   windowMeters: number;
 } & RangeInteractions) {
+  const { locale, t, tx } = useI18n();
   const isAvailable = gradientPercent !== null && range !== null;
   const startKilometer = range
     ? formatRouteKilometer(range.startDistanceMeters)
@@ -317,8 +326,14 @@ function SustainedGradientValue({
       disabled={!isAvailable}
       aria-label={
         isAvailable
-          ? `Steilste ${direction}-Passage über ${formatGradientWindow(windowMeters)}: ${formatSustainedGradient(gradientPercent)}, ab Kilometer ${startKilometer}`
-          : `Keine ${direction}-Passage über ${formatGradientWindow(windowMeters)}`
+          ? formatSustainedGradientAria(
+              locale,
+              tx(direction),
+              formatGradientWindow(windowMeters),
+              formatSustainedGradient(gradientPercent),
+              startKilometer ?? "",
+            )
+          : `${t("noSteepPassage")} ${tx(direction)} ${formatGradientWindow(windowMeters)}`
       }
       aria-pressed={
         range ? rangesEqual(interactions.selectedRange, range) : false
@@ -330,7 +345,11 @@ function SustainedGradientValue({
       onClick={() => range && interactions.onRangeSelect(range)}
     >
       <strong>{formatSustainedGradient(gradientPercent)}</strong>
-      {startKilometer ? <small>ab km {startKilometer}</small> : null}
+      {startKilometer ? (
+        <small>
+          {t("fromKm")} {startKilometer}
+        </small>
+      ) : null}
     </button>
   );
 }
@@ -339,15 +358,16 @@ function SplitList({
   splits,
   ...interactions
 }: Pick<RouteAnalysisProps, "splits"> & RangeInteractions) {
+  const { t } = useI18n();
   return (
     <div className="analysisList splitList">
       <div className="analysisTableHeader" aria-hidden="true">
-        <span>Abschnitt</span>
-        <span>Auf</span>
-        <span>Ab</span>
-        <span>Ø Gradient</span>
-        <span>Max. auf</span>
-        <span>Zeit</span>
+        <span>{t("section")}</span>
+        <span>{t("up")}</span>
+        <span>{t("down")}</span>
+        <span>Ø {t("gradient")}</span>
+        <span>{t("maxUp")}</span>
+        <span>{t("time")}</span>
       </div>
       {splits.map((split) => (
         <button
@@ -381,17 +401,18 @@ function ClimbList({
   climbs,
   ...interactions
 }: Pick<RouteAnalysisProps, "climbs"> & RangeInteractions) {
+  const { t, tx } = useI18n();
   return (
     <div className="analysisList">
       {climbs.length ? (
         <>
           <div className="analysisTableHeader" aria-hidden="true">
-            <span>Anstieg</span>
-            <span>Distanz</span>
-            <span>Auf</span>
-            <span>Ø Gradient</span>
+            <span>{t("climbs")}</span>
+            <span>{t("distance")}</span>
+            <span>{t("up")}</span>
+            <span>Ø {t("gradient")}</span>
             <span>Score</span>
-            <span>Zeit</span>
+            <span>{t("time")}</span>
           </div>
           {climbs.map((climb) => (
             <button
@@ -406,13 +427,12 @@ function ClimbList({
               onClick={() => interactions.onRangeSelect(climb)}
             >
               <span className="climbLabel">
-                <strong
-                  className="climbEffort"
-                  title="Körperlicher Aufwand des Anstiegs, keine technische Schwierigkeit"
-                >
-                  {climb.category}
+                <strong className="climbEffort" title={t("climbEffortHint")}>
+                  {translateEffortCategory(tx, climb.category)}
                 </strong>
-                <span>Anstieg {climb.index}</span>
+                <span>
+                  {t("climbs")} {climb.index}
+                </span>
               </span>
               <span>
                 {(
@@ -425,10 +445,7 @@ function ClimbList({
               <span>
                 Ø {formatGradientPercent(climb.averageGradientPercent)}
               </span>
-              <span
-                className="climbScore"
-                title="Zusätzliche Wanderzeit gegenüber derselben Distanz flach"
-              >
+              <span className="climbScore" title={t("climbEffortHint")}>
                 <strong>{climb.score.toFixed(1)}</strong>
                 <small>+{Math.round(climb.timePenaltyMinutes)} min</small>
               </span>
@@ -441,9 +458,7 @@ function ClimbList({
           ))}
         </>
       ) : (
-        <p className="panelEmpty">
-          Keine markanten Anstiege nach den aktuellen Schwellenwerten.
-        </p>
+        <p className="panelEmpty">{t("noSignificantClimbs")}</p>
       )}
     </div>
   );
@@ -454,6 +469,13 @@ interface RangeInteractions {
   onRangeEnter: (range: AnalysisRange) => void;
   onRangeLeave: () => void;
   onRangeSelect: (range: AnalysisRange) => void;
+}
+
+function translateEffortCategory(
+  tx: (text: string) => string,
+  category: string,
+): string {
+  return tx(category);
 }
 
 function rangesEqual(first: AnalysisRange | null, second: AnalysisRange) {
@@ -515,6 +537,25 @@ function formatRouteKilometer(distanceMeters: number): string {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+}
+
+function formatSustainedGradientAria(
+  locale: Locale,
+  direction: string,
+  window: string,
+  gradient: string,
+  startKilometer: string,
+): string {
+  if (locale === "fr") {
+    return `Passage le plus raide en ${direction.toLowerCase()} sur ${window} : ${gradient}, à partir du km ${startKilometer}`;
+  }
+  if (locale === "it") {
+    return `Tratto più ripido in ${direction.toLowerCase()} su ${window}: ${gradient}, dal km ${startKilometer}`;
+  }
+  if (locale === "en") {
+    return `Steepest ${direction.toLowerCase()} section over ${window}: ${gradient}, from km ${startKilometer}`;
+  }
+  return `Steilste ${direction}-Passage über ${window}: ${gradient}, ab Kilometer ${startKilometer}`;
 }
 
 function histogramAxisMaximum(maximumPercentage: number): number {

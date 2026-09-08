@@ -269,6 +269,22 @@ button:disabled {
   min-width: 0;
 }
 
+.localeSelect select {
+  min-height: 34px;
+  border: 1px solid #d8dee5;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #44515f;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.localeSelect select:hover,
+.localeSelect select:focus-visible {
+  border-color: var(--color-accent);
+  outline: 0;
+}
+
 .mobileSearchToggle,
 .mobileHeaderToggle,
 .mobileSheetHandle,
@@ -1710,6 +1726,121 @@ button:disabled {
   flex: 0 0 auto;
   margin-right: 5px;
   border-radius: 999px;
+}
+
+.trailStatGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.trailStatGroup + .trailStatGroup {
+  border-top: 1px solid #e4e9ef;
+  padding-top: 8px;
+}
+
+.trailStatGroup > strong {
+  color: #4f5c68;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.difficultyBar {
+  display: flex;
+  overflow: hidden;
+  height: 7px;
+  border: 1px solid #d8dee5;
+  border-radius: 999px;
+  background: #edf1f5;
+}
+
+.difficultyBarPart {
+  min-width: 4px;
+}
+
+.difficultyBarPart-below-t1,
+.difficultyBadge-below-t1,
+.difficultyBarPart-t1,
+.difficultyBadge-t1 {
+  background: #aab4bf;
+}
+
+.difficultyBarPart-t2,
+.difficultyBadge-t2 {
+  background: #7f9db9;
+}
+
+.difficultyBarPart-t3,
+.difficultyBadge-t3 {
+  background: #315d96;
+}
+
+.difficultyBarPart-t4,
+.difficultyBadge-t4 {
+  background: #6f5599;
+}
+
+.difficultyBarPart-t5,
+.difficultyBadge-t5 {
+  background: #654073;
+}
+
+.difficultyBarPart-t6,
+.difficultyBadge-t6 {
+  background: #49304f;
+}
+
+.difficultyBarPart-unknown,
+.difficultyBadge-unknown {
+  background: #d4dbe3;
+}
+
+.difficultyList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 10px;
+  margin: 0;
+}
+
+.difficultyList div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.difficultyList dd {
+  margin: 0;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.difficultyBadge {
+  display: inline-flex;
+  min-width: 29px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.difficultyBadge-below-t1,
+.difficultyBadge-t1,
+.difficultyBadge-t2,
+.difficultyBadge-unknown {
+  color: #17212b;
+}
+
+.trailDataHint {
+  color: #75808c;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .contextPanel {
@@ -3296,6 +3427,13 @@ button:disabled {
   .topBarActions {
     flex: 0 0 auto;
     gap: 4px;
+  }
+
+  .localeSelect select {
+    min-height: 34px;
+    max-width: 76px;
+    padding: 0 3px;
+    font-size: 11px;
   }
 
   .topBarActions > .status {

@@ -1,4 +1,5 @@
 import { SUPPLEMENT_LEGEND } from "./trailDifficulty";
+import { useI18n } from "../../app/i18n";
 
 interface TrailLegendProps {
   difficultyVisible: boolean;
@@ -11,28 +12,29 @@ export function TrailLegend({
   hikingTrailsVisible,
   trailMatchDebugEnabled,
 }: TrailLegendProps) {
+  const { t } = useI18n();
   return (
-    <div className="trailLegend" aria-label="Weg- und Zusatzlegende">
+    <div className="trailLegend" aria-label={t("routeDetails")}>
       {hikingTrailsVisible ? (
         <section>
-          <strong>swisstopo offiziell</strong>
+          <strong>{t("officialSwissTopo")}</strong>
           <div>
             <span className="officialLine officialLineHiking" />
-            Wanderweg
+            {t("hikingTrail")}
           </div>
           <div>
             <span className="officialLine officialLineMountain" />
-            Bergwanderweg
+            {t("mountainHikingTrail")}
           </div>
           <div>
             <span className="officialLine officialLineAlpine" />
-            Alpinwanderweg
+            {t("alpineHikingTrail")}
           </div>
         </section>
       ) : null}
       {difficultyVisible ? (
         <section>
-          <strong>Schwierigkeit</strong>
+          <strong>{t("difficulty")}</strong>
           {SUPPLEMENT_LEGEND.map((item) => (
             <div key={item.label}>
               <span

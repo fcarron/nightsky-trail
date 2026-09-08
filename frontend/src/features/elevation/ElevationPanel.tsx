@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useI18n } from "../../app/i18n";
+
 import { CustomChart, LineChart } from "echarts/charts";
 import {
   DataZoomComponent,
@@ -122,6 +124,7 @@ export function ElevationPanel({
   onAnalysisRangeChange,
   highlightedRange = null,
 }: ElevationPanelProps) {
+  const { t } = useI18n();
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [activePoint, setActivePoint] = useState<
     ElevationProfile["points"][number] | null
@@ -563,7 +566,7 @@ export function ElevationPanel({
 
   const statusMessage =
     status === "loading"
-      ? "Wird berechnet"
+      ? t("calculating")
       : status === "error"
         ? message
         : null;
@@ -571,10 +574,12 @@ export function ElevationPanel({
   const panel = (
     <section
       className={`elevationPanel elevationPanel-${panelSize} elevationPanel-analysis-${analysisTab}`}
-      aria-label="Routenanalyse"
+      aria-label={t("routeAnalysis")}
     >
       <div className="panelHeader">
-        <h2>{panelSize === "large" ? "Routenanalyse" : "Höhenprofil"}</h2>
+        <h2>
+          {panelSize === "large" ? t("routeAnalysis") : t("elevationProfile")}
+        </h2>
         <div className="panelHeaderActions">
           {statusMessage ? (
             <span aria-live="polite">{statusMessage}</span>
@@ -585,17 +590,17 @@ export function ElevationPanel({
               className="panelCollapseButton"
               onClick={() => onSizeChange("compact")}
             >
-              Einklappen
+              {t("collapse")}
             </button>
           ) : null}
           {panelSize === "compact" && profile && onSizeChange ? (
             <button
               type="button"
               className="panelCollapseButton"
-              aria-label="Routenanalyse anzeigen"
+              aria-label={t("showRouteAnalysis")}
               onClick={() => onSizeChange("large")}
             >
-              Anzeigen
+              {t("show")}
             </button>
           ) : null}
         </div>
@@ -606,18 +611,18 @@ export function ElevationPanel({
           {panelSize === "large" && analysisTab === "profile" ? (
             <dl className="elevationStats">
               <div>
-                <dt>Abstieg</dt>
+                <dt>{t("descent")}</dt>
                 <dd>{formatElevationMeters(profile.descentMeters)}</dd>
               </div>
               <div>
-                <dt>Höhe</dt>
+                <dt>{t("elevation")}</dt>
                 <dd>
                   {formatElevationMeters(profile.minElevationMeters)}-
                   {formatElevationMeters(profile.maxElevationMeters)}
                 </dd>
               </div>
               <div>
-                <dt>Max. Gradient</dt>
+                <dt>{t("maxGradient")}</dt>
                 <dd>{formatGradientPercent(profile.maxAbsGradientPercent)}</dd>
               </div>
             </dl>
@@ -630,11 +635,11 @@ export function ElevationPanel({
               </span>
               <span>{formatGradientPercent(activePoint.gradientPercent)}</span>
               <span>
-                Belag:{" "}
+                {t("flatSurface")}:{" "}
                 {surfaceSegmentAtDistance(
                   surfaceSegments,
                   activePoint.distanceMeters,
-                )?.label ?? "unbekannt"}
+                )?.label ?? t("unknown")}
               </span>
             </div>
           ) : null}
@@ -660,10 +665,7 @@ export function ElevationPanel({
           ) : null}
         </>
       ) : (
-        <p className="panelEmpty">
-          Zeichne mindestens zwei Wegpunkte, um Distanz, Höhe und Gradient zu
-          berechnen.
-        </p>
+        <p className="panelEmpty">{t("noRouteAnalysis")}</p>
       )}
     </section>
   );

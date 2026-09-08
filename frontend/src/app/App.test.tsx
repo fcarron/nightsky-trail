@@ -22,12 +22,16 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
     message,
     onSizeChange,
     size,
+    analysisTab,
+    onAnalysisTabChange,
   }: {
     profile: { ascentMeters: number; descentMeters: number } | null;
     status: string;
     message: string | null;
-    onSizeChange: (size: "compact" | "large") => void;
+    onSizeChange?: (size: "compact" | "large") => void;
     size: "compact" | "large";
+    analysisTab?: string;
+    onAnalysisTabChange?: (tab: "gradient") => void;
   }) => (
     <section aria-label="Höhenprofil">
       <span>{status === "error" ? message : status}</span>
@@ -35,7 +39,7 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
         <>
           <span>Aufstieg {profile.ascentMeters} m</span>
           <span>Abstieg {profile.descentMeters} m</span>
-          {size === "compact" ? (
+          {size === "compact" && onSizeChange ? (
             <button
               type="button"
               aria-label="Routenanalyse anzeigen"
@@ -43,6 +47,17 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
             >
               Anzeigen
             </button>
+          ) : null}
+          {onAnalysisTabChange ? (
+            <>
+              <span data-testid="analysis-tab">{analysisTab}</span>
+              <button
+                type="button"
+                onClick={() => onAnalysisTabChange("gradient")}
+              >
+                Gradient
+              </button>
+            </>
           ) : null}
         </>
       ) : null}
@@ -81,6 +96,7 @@ describe("App", () => {
   });
 
   it("shows a shared tour as a read-only public route", async () => {
+    const user = userEvent.setup();
     window.history.replaceState({}, "", "/t/8fK3mPq2vW7xY4zA1bC6dE9f");
     const fetchMock = createFetchMock({
       sharedTourResponse: sharedTourResponse(),
@@ -100,6 +116,9 @@ describe("App", () => {
       expect(screen.getByText("1.23 km")).toBeInTheDocument(),
     );
     await waitFor(() => expect(screen.getByText("18 min")).toBeInTheDocument());
+    expect(screen.getByTestId("analysis-tab")).toHaveTextContent("profile");
+    await user.click(screen.getByRole("button", { name: "Gradient" }));
+    expect(screen.getByTestId("analysis-tab")).toHaveTextContent("gradient");
     expect(
       fetchMock.mock.calls.some(([url]) =>
         url
@@ -147,6 +166,42 @@ describe("App", () => {
     expect(
       screen.getByRole("link", { name: "Projekt auf GitHub" }),
     ).toHaveAttribute("href", "https://github.com/fcarron/nightsky-trail");
+  });
+
+  it("translates route actions and the complete information panel", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.selectOptions(screen.getByLabelText("Sprache"), "en");
+    expect(
+      screen.getByRole("button", { name: "New route" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Info" }));
+    expect(screen.getByText("Planning note")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Difficulty, closures and trail conditions/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tracker-free & ad-free")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Project on GitHub" }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Language"), "fr");
+    expect(
+      screen.getByRole("button", { name: "Nouvel itinéraire" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Info" }));
+    expect(screen.getByText("Conseil de planification")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Langue"), "it");
+    expect(
+      screen.getByRole("button", { name: "Nuovo percorso" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Info" }));
+    expect(screen.getByText("Nota di pianificazione")).toBeInTheDocument();
   });
 
   it("starts in exploration mode and enables route tools explicitly", async () => {
@@ -516,6 +571,32 @@ describe("App", () => {
     expect(screen.getByLabelText("Wegbeschaffenheit")).toHaveTextContent(
       "Trail/Natur",
     );
+  });
+
+  it("summarizes route difficulty without treating missing data as T1", async () => {
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        routeResponses: [
+          routeResponse({
+            distanceMeters: 1234,
+            mode: "routed",
+            hikeRatingDetails: [
+              [0, 1, "hiking"],
+              [1, 2, "demanding_mountain_hiking"],
+            ],
+          }),
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    const trailStatistics = await screen.findByLabelText("Wegbeschaffenheit");
+    expect(trailStatistics).toHaveTextContent("T1");
+    expect(trailStatistics).toHaveTextContent("T3");
+    expect(trailStatistics).toHaveTextContent("Fehlende Schwierigkeit");
   });
 
   it("loads the elevation profile after route computation", async () => {
@@ -985,10 +1066,12 @@ function routeResponse({
   distanceMeters,
   mode = "straight",
   surfaceDetails,
+  hikeRatingDetails,
 }: {
   distanceMeters: number;
   mode?: "straight" | "routed";
   surfaceDetails?: Array<[number, number, string]>;
+  hikeRatingDetails?: Array<[number, number, string]>;
 }) {
   return new Response(
     JSON.stringify({
@@ -1009,7 +1092,7 @@ function routeResponse({
           mode,
           distanceMeters,
           details: {
-            hike_rating: [[0, 1, 0]],
+            hike_rating: hikeRatingDetails ?? [[0, 1, 0]],
             ...(surfaceDetails ? { surface: surfaceDetails } : {}),
           },
           geometry: {

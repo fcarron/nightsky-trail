@@ -76,6 +76,7 @@ import type {
 } from "../types/api";
 import "./App.css";
 import { ENABLE_DEV_TOOLS } from "./config";
+import { I18nProvider, SUPPORTED_LOCALES, localeName, useI18n } from "./i18n";
 
 type HealthState = "checking" | "ok" | "unavailable";
 type RouteComputeStatus = "idle" | "loading" | "ready" | "error";
@@ -83,6 +84,7 @@ type RouteStatusKind = "idle" | "loading" | "ready" | "error" | "imported";
 type ElevationStatus = "idle" | "loading" | "ready" | "error";
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 type SurfaceCategory = "paved" | "gravel" | "natural" | "unknown";
+type DifficultyCategory = "<T1" | "T1" | "T2" | "T3" | "T4" | "T5" | "T6" | "?";
 type MapInteractionMode = "explore" | "draw";
 type MobileSheetState = "collapsed" | "half" | "full";
 type AuthMode = "forgot" | "login" | "register" | "reset";
@@ -102,6 +104,11 @@ interface SurfaceSummaryItem {
   distanceMeters: number;
 }
 
+interface DifficultySummaryItem {
+  category: DifficultyCategory;
+  distanceMeters: number;
+}
+
 interface RouteSurfaceSegment {
   category: SurfaceCategory;
   startDistanceMeters: number;
@@ -112,7 +119,7 @@ interface RouteSurfaceSegment {
 interface DetailRange {
   from: number;
   to: number;
-  value: string | null;
+  value: string | number | null;
 }
 
 interface RouteComputeState {
@@ -172,6 +179,16 @@ const SURFACE_CATEGORY_COLORS: Record<SurfaceCategory, string> = {
   paved: "#8fa1ad",
   unknown: "#d8dee5",
 };
+const DIFFICULTY_CATEGORY_ORDER: DifficultyCategory[] = [
+  "<T1",
+  "T1",
+  "T2",
+  "T3",
+  "T4",
+  "T5",
+  "T6",
+  "?",
+];
 const PAVED_SURFACES = new Set([
   "asphalt",
   "chipseal",
@@ -221,6 +238,14 @@ const NATURAL_SURFACES = new Set([
 ]);
 
 export function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+}
+
+function AppContent() {
   const sharedTourId = sharedTourIdFromPath(window.location.pathname);
   if (sharedTourId) {
     return <SharedTourPage shareId={sharedTourId} />;
@@ -230,6 +255,7 @@ export function App() {
 }
 
 function PlannerApp() {
+  const { locale, setLocale, t, tx } = useI18n();
   const authLinkRef = useRef<AuthLink | null>(readAuthLink());
   const [health, setHealth] = useState<HealthState>("checking");
   const [authState, setAuthState] = useState<AuthState>({
@@ -413,9 +439,17 @@ function PlannerApp() {
     () => summarizeSurface(effectiveComputedRoute),
     [effectiveComputedRoute],
   );
-  const elevationSurfaceSegments = useMemo(
-    () => surfaceSegmentsForElevation(effectiveComputedRoute),
+  const difficultySummary = useMemo(
+    () => summarizeDifficulty(effectiveComputedRoute),
     [effectiveComputedRoute],
+  );
+  const elevationSurfaceSegments = useMemo(
+    () =>
+      surfaceSegmentsForElevation(effectiveComputedRoute).map((segment) => ({
+        ...segment,
+        label: tx(segment.label),
+      })),
+    [effectiveComputedRoute, tx],
   );
   const kilometreSplits = useMemo(
     () =>
@@ -459,11 +493,13 @@ function PlannerApp() {
     effectiveRouteComputeStatus,
     importedGpxActive,
   );
-  const routeStatusText = routeStatusLabel(
-    effectiveRouteComputeStatus,
-    importedGpxActive,
-    routeComputeState.message,
-    effectiveComputedRoute !== null,
+  const routeStatusText = tx(
+    routeStatusLabel(
+      effectiveRouteComputeStatus,
+      importedGpxActive,
+      routeComputeState.message,
+      effectiveComputedRoute !== null,
+    ),
   );
 
   useEffect(() => {
@@ -745,12 +781,13 @@ function PlannerApp() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedWaypointId]);
 
-  const healthLabel =
+  const healthLabel = tx(
     health === "ok"
       ? "API bereit"
       : health === "checking"
         ? "API wird geprüft"
-        : "API nicht erreichbar";
+        : "API nicht erreichbar",
+  );
 
   function setElevationPanelDisplay(size: ElevationPanelSize) {
     setElevationPanelSize(size);
@@ -1386,23 +1423,23 @@ function PlannerApp() {
             setOpenTopMenu((menu) => (menu === "tours" ? null : "tours"))
           }
         >
-          <span className="visuallyHidden">Meine Touren</span>
+          <span className="visuallyHidden">{tx("Meine Touren")}</span>
           <span className="topMenuDesktopLabel" aria-hidden="true">
-            Meine Touren
+            {tx("Meine Touren")}
           </span>
           <span className="topMenuMobileLabel" aria-hidden="true">
-            Touren
+            {tx("Touren")}
           </span>
         </button>
         {openTopMenu === "tours" ? (
-          <div className="managePanel" aria-label="Meine Touren">
+          <div className="managePanel" aria-label={tx("Meine Touren")}>
             {authState.authenticated ? (
               <>
                 <div className="tourSaveForm">
                   <label className="authField">
-                    <span>Tourname</span>
+                    <span>{tx("Tourname")}</span>
                     <input
-                      aria-label="Tourname"
+                      aria-label={tx("Tourname")}
                       value={tourName}
                       onChange={(event) =>
                         setTourName(event.currentTarget.value)
@@ -1417,12 +1454,17 @@ function PlannerApp() {
                     }
                     onClick={saveTour}
                   >
-                    {activeTourId ? "Änderungen speichern" : "Tour speichern"}
+                    {activeTourId
+                      ? tx("Änderungen speichern")
+                      : tx("Tour speichern")}
                   </button>
                 </div>
-                <div className="savedTourList" aria-label="Gespeicherte Touren">
+                <div
+                  className="savedTourList"
+                  aria-label={tx("Gespeicherte Touren")}
+                >
                   <div className="savedTourListHeader">
-                    <strong>Gespeicherte Touren</strong>
+                    <strong>{tx("Gespeicherte Touren")}</strong>
                     <span>{savedTours.length}</span>
                   </div>
                   {savedTours.length ? (
@@ -1444,7 +1486,7 @@ function PlannerApp() {
                               }
                             />
                             <button type="submit" disabled={tourActionPending}>
-                              Speichern
+                              {tx("Speichern")}
                             </button>
                             <button
                               type="button"
@@ -1454,7 +1496,7 @@ function PlannerApp() {
                                 setEditingTourName("");
                               }}
                             >
-                              Abbrechen
+                              {tx("Abbrechen")}
                             </button>
                           </form>
                         ) : (
@@ -1476,7 +1518,7 @@ function PlannerApp() {
                                   setEditingTourName(tour.name);
                                 }}
                               >
-                                Umbenennen
+                                {tx("Umbenennen")}
                               </button>
                               <button
                                 type="button"
@@ -1486,8 +1528,8 @@ function PlannerApp() {
                                 }
                               >
                                 {tour.shareEnabled
-                                  ? "Freigabe beenden"
-                                  : "Freigeben"}
+                                  ? tx("Freigabe beenden")
+                                  : tx("Freigeben")}
                               </button>
                               {tour.shareEnabled && tour.shareId ? (
                                 <>
@@ -1497,14 +1539,14 @@ function PlannerApp() {
                                     target="_blank"
                                     rel="noreferrer"
                                   >
-                                    Öffnen
+                                    {tx("Öffnen")}
                                   </a>
                                   <button
                                     type="button"
                                     disabled={tourActionPending}
                                     onClick={() => void copyTourShareLink(tour)}
                                   >
-                                    Link kopieren
+                                    {tx("Link kopieren")}
                                   </button>
                                 </>
                               ) : null}
@@ -1514,7 +1556,7 @@ function PlannerApp() {
                                 disabled={tourActionPending}
                                 onClick={() => void removeTour(tour)}
                               >
-                                Löschen
+                                {tx("Löschen")}
                               </button>
                             </div>
                           </>
@@ -1523,20 +1565,20 @@ function PlannerApp() {
                     ))
                   ) : (
                     <p className="savedTourEmpty">
-                      Noch keine Tour gespeichert.
+                      {tx("Noch keine Tour gespeichert.")}
                     </p>
                   )}
                 </div>
               </>
             ) : (
               <div className="menuEmptyState">
-                <strong>Touren speichern</strong>
+                <strong>{tx("Touren speichern")}</strong>
                 <span>
                   Mit einem Konto bleiben deine Touren auf diesem Gerät
                   verfügbar.
                 </span>
                 <button type="button" onClick={() => setOpenTopMenu("account")}>
-                  Anmelden
+                  {tx("Anmelden")}
                 </button>
               </div>
             )}
@@ -1552,10 +1594,13 @@ function PlannerApp() {
             setOpenTopMenu((menu) => (menu === "files" ? null : "files"))
           }
         >
-          Datei
+          {tx("Datei")}
         </button>
         {openTopMenu === "files" ? (
-          <div className="managePanel filePanel" aria-label="Dateiaktionen">
+          <div
+            className="managePanel filePanel"
+            aria-label={tx("Dateiaktionen")}
+          >
             <button
               type="button"
               onClick={() => {
@@ -1563,14 +1608,14 @@ function PlannerApp() {
                 gpxInputRef.current?.click();
               }}
             >
-              GPX importieren
+              {tx("GPX importieren")}
             </button>
             <button
               type="button"
               disabled={history.present.waypoints.length < 2}
               onClick={exportGpx}
             >
-              GPX exportieren
+              {tx("GPX exportieren")}
             </button>
           </div>
         ) : null}
@@ -1584,64 +1629,65 @@ function PlannerApp() {
             setOpenTopMenu((menu) => (menu === "about" ? null : "about"))
           }
         >
-          Info
+          {tx("Info")}
         </button>
         {openTopMenu === "about" ? (
           <div
             className="managePanel aboutPanel"
-            aria-label="Über nightsky trail"
+            aria-label={tx("Über nightsky trail")}
           >
             <strong>nightsky trail</strong>
             <p>
-              Plane deine nächste Runde einfach und ohne Umwege. Kostenlos und
-              ohne Konto kannst du am PC oder Handy Wege zeichnen, automatisch
-              routen lassen und das Höhenprofil übersichtlich prüfen.
+              {tx(
+                "Plane deine nächste Runde einfach und ohne Umwege. Kostenlos und ohne Konto kannst du am PC oder Handy Wege zeichnen, automatisch routen lassen und das Höhenprofil übersichtlich prüfen.",
+              )}
             </p>
             <p>
-              Hochwertige Schweizer Karten und Höhenprofile auf Basis von
-              swisstopo-Daten unterstützen dich bei der Planung. Zusätzlich
-              zeigen wir vorhandene T3-Hinweise auf offiziellen Bergwanderwegen
-              und T5-Hinweise auf offiziellen Alpinwanderwegen aus
-              OpenStreetMap.
+              {tx(
+                "Hochwertige Schweizer Karten und Höhenprofile auf Basis von swisstopo-Daten unterstützen dich bei der Planung. Zusätzlich zeigen wir vorhandene T3-Hinweise auf offiziellen Bergwanderwegen und T5-Hinweise auf offiziellen Alpinwanderwegen aus OpenStreetMap.",
+              )}
             </p>
             <div className="aboutNotice">
-              <strong>Planungshinweis</strong>
+              <strong>{tx("Planungshinweis")}</strong>
               <span>
-                Schwierigkeit, Sperrungen und Wegzustand können fehlen, veraltet
-                oder falsch sein. Prüfe die Route und aktuelle Bedingungen vor
-                Ort und plane passend zu deiner Erfahrung.
+                {tx(
+                  "Schwierigkeit, Sperrungen und Wegzustand können fehlen, veraltet oder falsch sein. Prüfe die Route und aktuelle Bedingungen vor Ort und plane passend zu deiner Erfahrung.",
+                )}
               </span>
             </div>
             <div className="aboutInstall">
-              <strong>Auf dem Handy nutzen</strong>
+              <strong>{tx("Auf dem Handy nutzen")}</strong>
               <span>
-                Für eine bessere Nutzung kannst du nightsky trail zum
-                Startbildschirm hinzufügen.
+                {tx(
+                  "Für eine bessere Nutzung kannst du nightsky trail zum Startbildschirm hinzufügen.",
+                )}
               </span>
               <span>
-                Android: Browser-Menü öffnen und „App installieren“ oder „Zum
-                Startbildschirm hinzufügen“ wählen.
+                {tx(
+                  "Android: Browser-Menü öffnen und „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.",
+                )}
               </span>
               <span>
-                iPhone: in Safari auf „Teilen“ und danach „Zum Home-Bildschirm“
-                tippen.
+                {tx(
+                  "iPhone: in Safari auf „Teilen“ und danach „Zum Home-Bildschirm“ tippen.",
+                )}
               </span>
             </div>
             <div className="aboutPrivacy">
-              <strong>Tracker-frei &amp; werbefrei</strong>
+              <strong>{tx("Tracker-frei & werbefrei")}</strong>
               <span>
-                Keine Webanalyse · keine Werbe-Tracker · keine Werbung
+                {tx("Keine Webanalyse · keine Werbe-Tracker · keine Werbung")}
               </span>
             </div>
             <div className="aboutOpenSource">
-              <strong>Open Source</strong>
-              <span>Veröffentlicht unter der MIT License.</span>
+              <strong>{tx("Open Source")}</strong>
+              <span>{tx("Veröffentlicht unter der MIT License.")}</span>
               <a
                 href="https://github.com/fcarron/nightsky-trail"
                 target="_blank"
                 rel="noreferrer"
               >
-                Projekt auf GitHub
+                {tx("Projekt auf GitHub")}
               </a>
             </div>
           </div>
@@ -1656,15 +1702,15 @@ function PlannerApp() {
             setOpenTopMenu((menu) => (menu === "account" ? null : "account"))
           }
         >
-          Konto
+          {tx("Konto")}
         </button>
         {openTopMenu === "account" ? (
-          <div className="managePanel" aria-label="Konto">
+          <div className="managePanel" aria-label={tx("Konto")}>
             <section className="accountPanel">
               {authState.authenticated ? (
                 <>
                   <div className="accountIdentity">
-                    <span>Angemeldet</span>
+                    <span>{tx("Angemeldet")}</span>
                     <strong>{authState.user?.email}</strong>
                   </div>
                   <div className="accountActions">
@@ -1672,15 +1718,15 @@ function PlannerApp() {
                       Logout
                     </button>
                     <details className="accountDelete">
-                      <summary>Konto löschen</summary>
+                      <summary>{tx("Konto löschen")}</summary>
                       <form onSubmit={removeAccount}>
                         <p>
-                          Diese Aktion kann nicht rückgängig gemacht werden.
-                          Alle gespeicherten Touren und ihre Freigabelinks
-                          werden endgültig gelöscht.
+                          {tx(
+                            "Diese Aktion kann nicht rückgängig gemacht werden. Alle gespeicherten Touren und ihre Freigabelinks werden endgültig gelöscht.",
+                          )}
                         </p>
                         <label className="authField">
-                          <span>Passwort zur Bestätigung</span>
+                          <span>{tx("Passwort zur Bestätigung")}</span>
                           <input
                             autoComplete="current-password"
                             type="password"
@@ -1694,8 +1740,8 @@ function PlannerApp() {
                         </label>
                         <button type="submit" disabled={accountDeleting}>
                           {accountDeleting
-                            ? "Bitte warten"
-                            : "Konto endgültig löschen"}
+                            ? tx("Bitte warten")
+                            : tx("Konto endgültig löschen")}
                         </button>
                       </form>
                     </details>
@@ -1706,12 +1752,12 @@ function PlannerApp() {
                   className="authForm"
                   onSubmit={submitPasswordResetRequest}
                 >
-                  <strong>Passwort zurücksetzen</strong>
+                  <strong>{tx("Passwort zurücksetzen")}</strong>
                   <p className="authHint">
-                    Wir senden dir einen zeitlich begrenzten Reset-Link.
+                    {tx("Wir senden dir einen zeitlich begrenzten Reset-Link.")}
                   </p>
                   <label className="authField">
-                    <span>E-Mail</span>
+                    <span>{tx("E-Mail")}</span>
                     <input
                       autoComplete="email"
                       inputMode="email"
@@ -1728,21 +1774,23 @@ function PlannerApp() {
                     type="submit"
                     disabled={authSubmitting}
                   >
-                    {authSubmitting ? "Bitte warten" : "Reset-Link senden"}
+                    {authSubmitting
+                      ? tx("Bitte warten")
+                      : tx("Reset-Link senden")}
                   </button>
                   <button
                     className="authLinkButton"
                     type="button"
                     onClick={() => selectAuthMode("login")}
                   >
-                    Zurück zum Login
+                    {tx("Zurück zum Login")}
                   </button>
                 </form>
               ) : authMode === "reset" ? (
                 <form className="authForm" onSubmit={submitPasswordReset}>
-                  <strong>Neues Passwort setzen</strong>
+                  <strong>{tx("Neues Passwort setzen")}</strong>
                   <label className="authField">
-                    <span>Neues Passwort</span>
+                    <span>{tx("Neues Passwort")}</span>
                     <input
                       autoComplete="new-password"
                       type="password"
@@ -1753,7 +1801,7 @@ function PlannerApp() {
                     />
                   </label>
                   <label className="authField">
-                    <span>Passwort bestätigen</span>
+                    <span>{tx("Passwort bestätigen")}</span>
                     <input
                       autoComplete="new-password"
                       type="password"
@@ -1768,7 +1816,9 @@ function PlannerApp() {
                     type="submit"
                     disabled={authSubmitting}
                   >
-                    {authSubmitting ? "Bitte warten" : "Passwort ändern"}
+                    {authSubmitting
+                      ? tx("Bitte warten")
+                      : tx("Passwort ändern")}
                   </button>
                 </form>
               ) : (
@@ -1776,7 +1826,7 @@ function PlannerApp() {
                   <div
                     className="authModeToggle"
                     role="group"
-                    aria-label="Kontoaktion"
+                    aria-label={tx("Kontoaktion")}
                   >
                     <button
                       type="button"
@@ -1790,11 +1840,11 @@ function PlannerApp() {
                       aria-pressed={authMode === "register"}
                       onClick={() => selectAuthMode("register")}
                     >
-                      Registrieren
+                      {tx("Registrieren")}
                     </button>
                   </div>
                   <label className="authField">
-                    <span>E-Mail</span>
+                    <span>{tx("E-Mail")}</span>
                     <input
                       autoComplete={authMode === "login" ? "username" : "email"}
                       inputMode="email"
@@ -1806,7 +1856,7 @@ function PlannerApp() {
                     />
                   </label>
                   <label className="authField">
-                    <span>Passwort</span>
+                    <span>{tx("Passwort")}</span>
                     <input
                       autoComplete={
                         authMode === "login"
@@ -1822,7 +1872,7 @@ function PlannerApp() {
                   </label>
                   {authMode === "register" ? (
                     <label className="authField">
-                      <span>Passwort bestätigen</span>
+                      <span>{tx("Passwort bestätigen")}</span>
                       <input
                         autoComplete="new-password"
                         type="password"
@@ -1835,8 +1885,10 @@ function PlannerApp() {
                   ) : null}
                   <p className="authHint">
                     {authMode === "register"
-                      ? "Kostenlos. Deine E-Mail wird nur für Anmeldung und Kontosicherheit verwendet."
-                      : "Mit E-Mail und Passwort anmelden."}
+                      ? tx(
+                          "Kostenlos. Deine E-Mail wird nur für Anmeldung und Kontosicherheit verwendet.",
+                        )
+                      : tx("Mit E-Mail und Passwort anmelden.")}
                   </p>
                   <button
                     className="authSubmit"
@@ -1844,10 +1896,10 @@ function PlannerApp() {
                     disabled={authSubmitting}
                   >
                     {authSubmitting
-                      ? "Bitte warten"
+                      ? tx("Bitte warten")
                       : authMode === "login"
-                        ? "Anmelden"
-                        : "Konto erstellen"}
+                        ? tx("Anmelden")
+                        : tx("Konto erstellen")}
                   </button>
                   {authMode === "login" ? (
                     <button
@@ -1895,7 +1947,7 @@ function PlannerApp() {
           className="mobileHeaderToggle"
           aria-expanded={mobileHeaderOpen}
           aria-label={
-            mobileHeaderOpen ? "Navigation schließen" : "Navigation öffnen"
+            mobileHeaderOpen ? t("closeNavigation") : t("openNavigation")
           }
           onClick={() => {
             setMobileHeaderOpen((open) => {
@@ -1915,7 +1967,7 @@ function PlannerApp() {
           </span>
           <div>
             <strong>nightsky trail</strong>
-            <span>Routenplaner Schweiz</span>
+            <span>{t("appTagline")}</span>
           </div>
         </div>
         <form
@@ -1932,15 +1984,15 @@ function PlannerApp() {
         >
           <div className="topSearchField">
             <input
-              aria-label="Ort, Adresse oder Route suchen"
+              aria-label={t("searchLabel")}
               aria-controls="search-results"
               aria-expanded={searchResults.length > 0}
-              placeholder="Ort, Adresse, Gipfel suchen"
+              placeholder={t("searchPlaceholder")}
               value={searchQuery}
               onChange={(event) => scheduleSearch(event.currentTarget.value)}
             />
             <button type="submit" disabled={searchStatus === "loading"}>
-              {searchStatus === "loading" ? "Sucht" : "Suchen"}
+              {searchStatus === "loading" ? t("searching") : t("search")}
             </button>
           </div>
           {searchResults.length || searchMessage ? (
@@ -1960,6 +2012,22 @@ function PlannerApp() {
           ) : null}
         </form>
         <div className="topBarActions">
+          <label className="localeSelect">
+            <span className="visuallyHidden">{t("language")}</span>
+            <select
+              aria-label={t("language")}
+              value={locale}
+              onChange={(event) =>
+                setLocale(event.currentTarget.value as typeof locale)
+              }
+            >
+              {SUPPORTED_LOCALES.map((supportedLocale) => (
+                <option key={supportedLocale} value={supportedLocale}>
+                  {localeName(supportedLocale)}
+                </option>
+              ))}
+            </select>
+          </label>
           {health === "unavailable" ? (
             <span className="status" aria-live="polite">
               {healthLabel}
@@ -1968,7 +2036,7 @@ function PlannerApp() {
           <button
             type="button"
             className="mobileSearchToggle"
-            aria-label={mobileSearchOpen ? "Suche schliessen" : "Suche öffnen"}
+            aria-label={mobileSearchOpen ? t("closeSearch") : t("openSearch")}
             aria-expanded={mobileSearchOpen}
             onClick={() => {
               setOpenTopMenu(null);
@@ -1983,11 +2051,11 @@ function PlannerApp() {
 
       <section
         className={`plannerLayout ${elevationPanelSize === "large" ? "plannerProfileMode" : ""}`}
-        aria-label="Routenplaner"
+        aria-label={tx("Routenplaner")}
       >
         <aside
           id="route-panel"
-          aria-label="Routeninformationen"
+          aria-label={tx("Routeninformationen")}
           className={`sidebar routeDock mobileSheet-${mobileSheetState} ${elevationPanelSize === "large" ? "mobileProfileMode" : ""}`}
         >
           <button
@@ -1995,9 +2063,11 @@ function PlannerApp() {
             className="mobileSheetHandle"
             aria-controls="route-panel"
             aria-expanded={mobileSheetState !== "collapsed"}
-            aria-label={mobileSheetActionLabel(
-              mobileSheetState,
-              elevationPanelSize === "large",
+            aria-label={tx(
+              mobileSheetActionLabel(
+                mobileSheetState,
+                elevationPanelSize === "large",
+              ),
             )}
             onPointerDown={(event) => {
               mobileSheetPointerRef.current = {
@@ -2050,12 +2120,12 @@ function PlannerApp() {
             <span className="mobileSheetGrip" aria-hidden="true" />
             <strong>
               {elevationPanelSize === "large"
-                ? "Höhenprofil"
+                ? t("elevationProfile")
                 : selectedWaypoint
-                  ? `Punkt ${selectedWaypointIndex + 1}`
+                  ? `${tx("Punkt")} ${selectedWaypointIndex + 1}`
                   : hasRoute
-                    ? "Tour"
-                    : "Route planen"}
+                    ? tx("Tour")
+                    : tx("Route planen")}
             </strong>
             <span className="mobileSheetChevron" aria-hidden="true" />
           </button>
@@ -2063,18 +2133,20 @@ function PlannerApp() {
             <div className="sidebarHeader">
               <h1>
                 {selectedWaypoint
-                  ? `Punkt ${selectedWaypointIndex + 1}`
+                  ? `${tx("Punkt")} ${selectedWaypointIndex + 1}`
                   : hasWaypoints
-                    ? "Tour bearbeiten"
-                    : "Tour zeichnen"}
+                    ? tx("Tour bearbeiten")
+                    : tx("Tour zeichnen")}
               </h1>
               <p>
                 {selectedWaypoint
-                  ? "Punkt-Aktionen ohne Dialog"
+                  ? tx("Punkt-Aktionen ohne Dialog")
                   : (activeTour?.name ??
                     (mapInteractionMode === "draw"
-                      ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
-                      : "Klick auf Kartenobjekte zeigt Details."))}
+                      ? tx(
+                          "Klick setzt Punkte. Linie ziehen verfeinert die Runde.",
+                        )
+                      : tx("Klick auf Kartenobjekte zeigt Details.")))}
               </p>
             </div>
           </div>
@@ -2089,7 +2161,7 @@ function PlannerApp() {
             className="hiddenFileInput"
             type="file"
             accept=".gpx,application/gpx+xml,application/xml,text/xml"
-            aria-label="GPX importieren"
+            aria-label={tx("GPX importieren")}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0] ?? null;
               event.currentTarget.value = "";
@@ -2099,47 +2171,49 @@ function PlannerApp() {
             }}
           />
 
-          <section className="drawModePanel" aria-label="Zeichnen">
+          <section className="drawModePanel" aria-label={tx("Zeichnen")}>
             <div className="drawModeHeader">
               <div>
                 <strong>
                   {mapInteractionMode === "draw"
-                    ? "Zeichnen"
-                    : "Karte erkunden"}
+                    ? tx("Zeichnen")
+                    : tx("Karte erkunden")}
                 </strong>
                 <span>
                   {mapInteractionMode === "draw"
-                    ? "Klick setzt Punkte. Linie ziehen verfeinert die Runde."
-                    : "Klick auf Kartenobjekte zeigt Details."}
+                    ? tx(
+                        "Klick setzt Punkte. Linie ziehen verfeinert die Runde.",
+                      )
+                    : tx("Klick auf Kartenobjekte zeigt Details.")}
                 </span>
               </div>
               <div
                 className="mapInteractionButtons"
                 role="group"
-                aria-label="Kartenwerkzeug"
+                aria-label={tx("Kartenwerkzeug")}
               >
                 <button
                   type="button"
                   aria-pressed={mapInteractionMode === "explore"}
                   onClick={() => setMapInteractionMode("explore")}
                 >
-                  Erkunden
+                  {tx("Erkunden")}
                 </button>
                 <button
                   type="button"
                   aria-pressed={mapInteractionMode === "draw"}
                   onClick={() => setMapInteractionMode("draw")}
                 >
-                  Zeichnen
+                  {tx("Zeichnen")}
                 </button>
               </div>
             </div>
             {mapInteractionMode === "draw" ? (
               <div className="drawToolSettings">
                 <label className="routeProfileSelect">
-                  <span>Routing</span>
+                  <span>{tx("Routing")}</span>
                   <select
-                    aria-label="Routing-Profil"
+                    aria-label={tx("Routing-Profil")}
                     value={history.present.routingProfile}
                     onChange={(event) => {
                       const profile = event.currentTarget.value;
@@ -2153,45 +2227,50 @@ function PlannerApp() {
                     }}
                   >
                     <option value="hike">Trail</option>
-                    <option value="foot">Strasse</option>
+                    <option value="foot">{tx("Strasse")}</option>
                     <option value="bike">Velo</option>
                   </select>
                 </label>
                 <div className="segmentModeControl">
-                  <span>Neue Abschnitte</span>
-                  <div role="group" aria-label="Neue Abschnitte zeichnen">
+                  <span>{tx("Neue Abschnitte")}</span>
+                  <div role="group" aria-label={tx("Neue Abschnitte zeichnen")}>
                     <button
                       type="button"
                       aria-pressed={drawingMode === "routed"}
                       onClick={() => setDrawingMode("routed")}
                     >
-                      Wegen folgen
+                      {tx("Wegen folgen")}
                     </button>
                     <button
                       type="button"
                       aria-pressed={drawingMode === "straight"}
                       onClick={() => setDrawingMode("straight")}
                     >
-                      Gerade
+                      {tx("Gerade")}
                     </button>
                   </div>
                 </div>
                 <small className="routingProfileEffect">
                   {hasRoute
-                    ? "Profilwechsel berechnet bestehende Abschnitte mit Wegen folgen neu."
-                    : "Das Profil gilt für die gesamte Route."}
+                    ? tx(
+                        "Profilwechsel berechnet bestehende Abschnitte mit Wegen folgen neu.",
+                      )
+                    : tx("Das Profil gilt für die gesamte Route.")}
                 </small>
               </div>
             ) : null}
           </section>
 
-          <dl className="runSummaryGrid" aria-label="Trailrunning Kennzahlen">
+          <dl
+            className="runSummaryGrid"
+            aria-label={tx("Trailrunning Kennzahlen")}
+          >
             <div>
-              <dt>Distanz</dt>
+              <dt>{t("distance")}</dt>
               <dd>{formatDistance(routeSummary.distanceMeters)}</dd>
             </div>
             <div className="runSummaryTimeCard">
-              <dt>Zeit</dt>
+              <dt>{t("time")}</dt>
               <dd>
                 <span>
                   {displayedDurationMinutes !== null
@@ -2199,32 +2278,37 @@ function PlannerApp() {
                     : "-"}
                 </span>
                 <details className="summaryPaceSettings">
-                  <summary aria-label="Zeit-Schätzung einstellen">Pace</summary>
-                  <div className="paceCalibration" aria-label="Zeit-Schätzung">
+                  <summary aria-label={tx("Zeit-Schätzung einstellen")}>
+                    Pace
+                  </summary>
+                  <div
+                    className="paceCalibration"
+                    aria-label={tx("Zeit-Schätzung")}
+                  >
                     <div
                       className="paceModeToggle"
                       role="group"
-                      aria-label="Zeitberechnung"
+                      aria-label={tx("Zeitberechnung")}
                     >
                       <button
                         type="button"
                         aria-pressed={!calibratedTimeEnabled}
                         onClick={() => setCalibratedTimeEnabled(false)}
                       >
-                        Wandern
+                        {tx("Wandern")}
                       </button>
                       <button
                         type="button"
                         aria-pressed={calibratedTimeEnabled}
                         onClick={() => setCalibratedTimeEnabled(true)}
                       >
-                        Meine Pace
+                        {tx("Meine Pace")}
                       </button>
                     </div>
                     <label htmlFor="base-pace-input">Pace</label>
                     <button
                       type="button"
-                      aria-label="Basispace 10 Sekunden schneller"
+                      aria-label={tx("Basispace 10 Sekunden schneller")}
                       onClick={() => stepBasePace(-10)}
                     >
                       -10s
@@ -2243,7 +2327,7 @@ function PlannerApp() {
                     />
                     <button
                       type="button"
-                      aria-label="Basispace 10 Sekunden langsamer"
+                      aria-label={tx("Basispace 10 Sekunden langsamer")}
                       onClick={() => stepBasePace(10)}
                     >
                       +10s
@@ -2251,11 +2335,13 @@ function PlannerApp() {
                     <span>min/km</span>
                     <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
                     <details className="paceInfo">
-                      <summary aria-label="Zeitberechnung erklären">i</summary>
+                      <summary aria-label={tx("Zeitberechnung erklären")}>
+                        i
+                      </summary>
                       <p>
-                        Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace
-                        behält deine flache Grundpace bei und passt die Zeit pro
-                        Höhenprofil-Abschnitt an.
+                        {tx(
+                          "Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein. Das Höhenprofil passt die Zeit abschnittsweise an.",
+                        )}
                       </p>
                     </details>
                   </div>
@@ -2263,11 +2349,13 @@ function PlannerApp() {
               </dd>
             </div>
             <div>
-              <dt>Aufstieg</dt>
+              <dt>{t("ascent")}</dt>
               <dd>
                 {ascentMeters !== null ? formatMeters(ascentMeters) : "-"}
                 {descentMeters !== null ? (
-                  <small>{formatMeters(descentMeters)} Abstieg</small>
+                  <small>
+                    {formatMeters(descentMeters)} {t("descent")}
+                  </small>
                 ) : null}
               </dd>
             </div>
@@ -2278,15 +2366,16 @@ function PlannerApp() {
                   type="button"
                   className="metricInfo"
                   aria-expanded={effortInfoOpen}
-                  aria-label="Effort km erklären"
+                  aria-label={tx("Effort km erklären")}
                   onClick={() => setEffortInfoOpen((open) => !open)}
                 >
                   i
                 </button>
                 {effortInfoOpen ? (
                   <span className="metricInfoPopover" role="tooltip">
-                    Distanz in km plus Aufstieg in m geteilt durch 100. Ein
-                    Vergleichswert für die körperliche Belastung.
+                    {tx(
+                      "Distanz in km plus Aufstieg in m geteilt durch 100. Ein Vergleichswert für die körperliche Belastung.",
+                    )}
                   </span>
                 ) : null}
               </dt>
@@ -2311,9 +2400,12 @@ function PlannerApp() {
             {routeStatusText}
           </div>
 
-          <div className="quickToolbar" aria-label="Schnelle Routenaktionen">
+          <div
+            className="quickToolbar"
+            aria-label={tx("Schnelle Routenaktionen")}
+          >
             <button type="button" onClick={startNewRoute}>
-              Neue Route
+              {tx("Neue Route")}
             </button>
             <button
               type="button"
@@ -2321,14 +2413,14 @@ function PlannerApp() {
               disabled={history.past.length === 0}
               onClick={() => dispatch({ type: "undo" })}
             >
-              Rückgängig
+              {tx("Rückgängig")}
             </button>
             <button
               type="button"
               disabled={!hasRoute}
               onClick={() => dispatch({ type: "reverse" })}
             >
-              Umkehren
+              {tx("Umkehren")}
             </button>
             <button
               type="button"
@@ -2336,23 +2428,23 @@ function PlannerApp() {
               disabled={!selectedWaypointId}
               onClick={deleteSelectedWaypoint}
             >
-              Punkt löschen
+              {tx("Punkt löschen")}
             </button>
             <button
               type="button"
               disabled={!hasWaypoints}
               onClick={deleteLastWaypoint}
             >
-              Letzten löschen
+              {tx("Letzten löschen")}
             </button>
             <details className="routeActionMenu">
-              <summary>Weitere Aktionen</summary>
+              <summary>{tx("Weitere Aktionen")}</summary>
               <button
                 type="button"
                 disabled={history.future.length === 0}
                 onClick={() => dispatch({ type: "redo" })}
               >
-                Wiederholen
+                {tx("Wiederholen")}
               </button>
               <button
                 type="button"
@@ -2360,7 +2452,7 @@ function PlannerApp() {
                 disabled={!hasWaypoints}
                 onClick={clearRoute}
               >
-                Route leeren
+                {tx("Route leeren")}
               </button>
             </details>
           </div>
@@ -2368,7 +2460,7 @@ function PlannerApp() {
           {selectedWaypoint ? (
             <section
               className="contextPanel"
-              aria-label="Ausgewählter Wegpunkt"
+              aria-label={tx("Ausgewählter Wegpunkt")}
             >
               <div className="contextActions">
                 {previousSelectedSegment ? (
@@ -2378,7 +2470,8 @@ function PlannerApp() {
                       toggleSegmentMode(previousSelectedSegment.id)
                     }
                   >
-                    Vorher: {segmentModeLabel(previousSelectedSegment.mode)}
+                    {tx("Vorher")}:{" "}
+                    {tx(segmentModeLabel(previousSelectedSegment.mode))}
                   </button>
                 ) : null}
                 {nextSelectedSegment ? (
@@ -2386,7 +2479,8 @@ function PlannerApp() {
                     type="button"
                     onClick={() => toggleSegmentMode(nextSelectedSegment.id)}
                   >
-                    Nachher: {segmentModeLabel(nextSelectedSegment.mode)}
+                    {tx("Nachher")}:{" "}
+                    {tx(segmentModeLabel(nextSelectedSegment.mode))}
                   </button>
                 ) : null}
                 {previousSelectedSegment ? (
@@ -2396,7 +2490,7 @@ function PlannerApp() {
                       setSegmentMode(previousSelectedSegment.id, "routed")
                     }
                   >
-                    Vorher neu routen
+                    {tx("Vorher neu routen")}
                   </button>
                 ) : null}
                 {nextSelectedSegment ? (
@@ -2406,7 +2500,7 @@ function PlannerApp() {
                       setSegmentMode(nextSelectedSegment.id, "routed")
                     }
                   >
-                    Nachher neu routen
+                    {tx("Nachher neu routen")}
                   </button>
                 ) : null}
               </div>
@@ -2414,14 +2508,15 @@ function PlannerApp() {
           ) : !hasWaypoints ? (
             <section
               className="contextPanel emptyRoutePanel"
-              aria-label="Route starten"
+              aria-label={tx("Route starten")}
             >
               <div>
-                <span>Bereit</span>
-                <strong>Startpunkt auf der Karte setzen</strong>
+                <span>{t("routeReady")}</span>
+                <strong>{tx("Startpunkt auf der Karte setzen")}</strong>
                 <small>
-                  Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist
-                  im Datei-Menü.
+                  {tx(
+                    "Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist im Datei-Menü.",
+                  )}
                 </small>
               </div>
             </section>
@@ -2432,8 +2527,10 @@ function PlannerApp() {
             open={elevationPanelSize === "large" ? true : undefined}
           >
             <summary>
-              <span>Routendetails</span>
-              <small>Runde · Weg · Wegpunkte</small>
+              <span>{tx("Routendetails")}</span>
+              <small>
+                {tx("Runde")} · {tx("Weg")} · {tx("Wegpunkte")}
+              </small>
             </summary>
 
             <ElevationPanel
@@ -2473,27 +2570,27 @@ function PlannerApp() {
 
             <details className="compactDetails">
               <summary>
-                <span>Runde</span>
+                <span>{tx("Runde")}</span>
                 <small>
-                  {isClosedLoop ? "geschlossen" : "offen"} ·{" "}
+                  {isClosedLoop ? tx("geschlossen") : tx("offen")} ·{" "}
                   {loopGapMeters !== null
                     ? formatDistance(loopGapMeters)
-                    : "Start setzen"}
+                    : tx("Start setzen")}
                 </small>
               </summary>
-              <div className="loopCard" aria-label="Rundenstatus">
+              <div className="loopCard" aria-label={tx("Rundenstatus")}>
                 <div>
                   <span
                     className={
                       isClosedLoop ? "loopStateClosed" : "loopStateOpen"
                     }
                   >
-                    {isClosedLoop ? "Runde geschlossen" : "Runde offen"}
+                    {isClosedLoop ? tx("Runde geschlossen") : tx("Runde offen")}
                   </span>
                   <strong>
                     {loopGapMeters !== null
                       ? formatDistance(loopGapMeters)
-                      : "Start setzen"}
+                      : tx("Start setzen")}
                   </strong>
                 </div>
                 <button
@@ -2505,70 +2602,127 @@ function PlannerApp() {
                   }
                   onClick={closeLoop}
                 >
-                  Schliessen
+                  {tx("Schliessen")}
                 </button>
               </div>
             </details>
             {effectiveComputedRoute?.warnings.length ? (
-              <ul className="routeWarnings" aria-label="Routenwarnungen">
+              <ul className="routeWarnings" aria-label={tx("Routenwarnungen")}>
                 {effectiveComputedRoute.warnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
             ) : null}
 
-            {surfaceSummary.length ? (
+            {surfaceSummary.length || difficultySummary.length ? (
               <details
                 className="surfacePanel compactDetails"
-                aria-label="Wegbeschaffenheit"
+                aria-label={t("surface")}
               >
                 <summary>
-                  <span>Weg</span>
-                  <small>{formatSurfaceSummary(surfaceSummary)}</small>
+                  <span>{tx("Weg")}</span>
+                  <small>
+                    {formatTrailSummary(surfaceSummary, difficultySummary, tx)}
+                  </small>
                 </summary>
-                <div className="surfaceBar" aria-hidden="true">
-                  {surfaceSummary.map((item) => (
-                    <span
-                      key={item.category}
-                      className={`surfaceBarPart surfaceBarPart-${item.category}`}
-                      style={{
-                        flexGrow: Math.max(1, Math.round(item.distanceMeters)),
-                      }}
-                    />
-                  ))}
-                </div>
-                <dl className="surfaceList">
-                  {surfaceSummary.map((item) => (
-                    <div key={item.category}>
-                      <dt>
+                {surfaceSummary.length ? (
+                  <section className="trailStatGroup">
+                    <strong>{t("surface")}</strong>
+                    <div className="surfaceBar" aria-hidden="true">
+                      {surfaceSummary.map((item) => (
                         <span
-                          className={`surfaceDot surfaceDot-${item.category}`}
-                          aria-hidden="true"
+                          key={item.category}
+                          className={`surfaceBarPart surfaceBarPart-${item.category}`}
+                          style={{
+                            flexGrow: Math.max(
+                              1,
+                              Math.round(item.distanceMeters),
+                            ),
+                          }}
                         />
-                        {item.label}
-                      </dt>
-                      <dd>{formatDistance(item.distanceMeters)}</dd>
+                      ))}
                     </div>
-                  ))}
-                </dl>
+                    <dl className="surfaceList">
+                      {surfaceSummary.map((item) => (
+                        <div key={item.category}>
+                          <dt>
+                            <span
+                              className={`surfaceDot surfaceDot-${item.category}`}
+                              aria-hidden="true"
+                            />
+                            {tx(item.label)}
+                          </dt>
+                          <dd>{formatDistance(item.distanceMeters)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ) : null}
+                {difficultySummary.length ? (
+                  <section className="trailStatGroup">
+                    <strong>{t("difficulty")}</strong>
+                    <div className="difficultyBar" aria-hidden="true">
+                      {difficultySummary.map((item) => (
+                        <span
+                          key={item.category}
+                          className={`difficultyBarPart difficultyBarPart-${difficultyClassSuffix(item.category)}`}
+                          style={{
+                            flexGrow: Math.max(
+                              1,
+                              Math.round(item.distanceMeters),
+                            ),
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <dl className="difficultyList">
+                      {difficultySummary.map((item) => (
+                        <div key={item.category}>
+                          <dt>
+                            <span
+                              className={`difficultyBadge difficultyBadge-${difficultyClassSuffix(item.category)}`}
+                            >
+                              {item.category}
+                            </span>
+                          </dt>
+                          <dd>
+                            {formatDistance(item.distanceMeters)} ·{" "}
+                            {formatRouteShare(
+                              item.distanceMeters,
+                              routeSummary.distanceMeters,
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <small className="trailDataHint">
+                      {tx(
+                        "Fehlende Schwierigkeit wird als unbekannt angezeigt.",
+                      )}
+                    </small>
+                  </section>
+                ) : null}
               </details>
             ) : null}
 
             <details
               className="waypointPanel routeEditorPanel compactDetails"
-              aria-label="Wegpunkte"
+              aria-label={tx("Wegpunkte")}
             >
               <summary>
-                <span>Wegpunkte</span>
+                <span>{tx("Wegpunkte")}</span>
                 <small>
-                  {routeSummary.waypointCount} Punkte ·{" "}
-                  {routeSummary.segmentCount} Abschnitte
+                  {routeSummary.waypointCount} {tx("Punkte")} ·{" "}
+                  {routeSummary.segmentCount} {tx("Abschnitte")}
                 </small>
               </summary>
 
               {firstWaypoint ? (
                 <>
-                  <ol className="waypointDots" aria-label="Wegpunkte auswählen">
+                  <ol
+                    className="waypointDots"
+                    aria-label={tx("Wegpunkte auswählen")}
+                  >
                     {history.present.waypoints.map((waypoint, index) => (
                       <li key={waypoint.id}>
                         <button
@@ -2590,22 +2744,22 @@ function PlannerApp() {
                   </ol>
 
                   <details className="waypointDetails">
-                    <summary>Koordinaten anzeigen</summary>
+                    <summary>{tx("Koordinaten anzeigen")}</summary>
                     <dl className="waypointEndpoints">
                       <div>
-                        <dt>Start</dt>
+                        <dt>{tx("Start")}</dt>
                         <dd>{formatCoordinate(firstWaypoint.position)}</dd>
                       </div>
                       <div>
-                        <dt>Via</dt>
+                        <dt>{tx("Via")}</dt>
                         <dd>{intermediateWaypointCount}</dd>
                       </div>
                       <div>
-                        <dt>Ziel</dt>
+                        <dt>{tx("Ziel")}</dt>
                         <dd>
                           {lastWaypoint
                             ? formatCoordinate(lastWaypoint.position)
-                            : "offen"}
+                            : tx("offen")}
                         </dd>
                       </div>
                     </dl>
@@ -2613,7 +2767,7 @@ function PlannerApp() {
                 </>
               ) : (
                 <p className="emptyState">
-                  Klick auf die Karte setzt den Start.
+                  {tx("Klick auf die Karte setzt den Start.")}
                 </p>
               )}
             </details>
@@ -2621,7 +2775,7 @@ function PlannerApp() {
             {history.present.segments.length ? (
               <details className="segmentPanel editorDetails">
                 <summary>
-                  <span>Abschnitte</span>
+                  <span>{tx("Abschnitte")}</span>
                   <small>{history.present.segments.length}</small>
                 </summary>
                 <div className="editorDetailsContent">
@@ -2671,7 +2825,7 @@ function PlannerApp() {
                           type="button"
                           onClick={() => toggleSegmentMode(segment.id)}
                         >
-                          {segmentModeLabel(segment.mode)}
+                          {tx(segmentModeLabel(segment.mode))}
                         </button>
                       </li>
                     ))}
@@ -2680,17 +2834,17 @@ function PlannerApp() {
               </details>
             ) : null}
 
-            <div className="routeLegend" aria-label="Legende">
+            <div className="routeLegend" aria-label={tx("Legende")}>
               <span
                 className="legendLine legendLineStraight"
                 aria-hidden="true"
               />
-              <span>Gerade</span>
+              <span>{tx("Gerade")}</span>
               <span
                 className="legendLine legendLineRouted"
                 aria-hidden="true"
               />
-              <span>Wegen folgen</span>
+              <span>{tx("Wegen folgen")}</span>
             </div>
           </details>
         </aside>
@@ -2699,16 +2853,16 @@ function PlannerApp() {
           <button
             type="button"
             className={`profileDockTrigger profileDockTrigger-${mobileSheetState}`}
-            aria-label="Höhenprofil öffnen"
+            aria-label={tx("Höhenprofil öffnen")}
             onClick={() => setElevationPanelDisplay("large")}
           >
-            <span>Höhenprofil</span>
+            <span>{t("elevationProfile")}</span>
             <small>
               {elevationState.status === "loading"
-                ? "Wird berechnet"
+                ? t("calculating")
                 : elevationState.status === "error"
-                  ? "Fehler anzeigen"
-                  : "Anzeigen"}
+                  ? tx("Fehler anzeigen")
+                  : t("show")}
             </small>
           </button>
         ) : null}
@@ -2716,14 +2870,14 @@ function PlannerApp() {
         <button
           type="button"
           className={`mobileDrawAction mobileDrawAction-${mobileSheetState}`}
-          aria-label="Route zeichnen und Routenpanel öffnen"
+          aria-label={tx("Route zeichnen und Routenpanel öffnen")}
           aria-pressed={mapInteractionMode === "draw"}
           onClick={() => {
             setMapInteractionMode("draw");
             setMobileSheetState("half");
           }}
         >
-          Route zeichnen
+          {tx("Route zeichnen")}
         </button>
 
         <MapPanel
@@ -2798,23 +2952,84 @@ function countDetailEntries(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
-function formatSurfaceSummary(items: SurfaceSummaryItem[]): string {
-  const totalMeters = items.reduce(
-    (total, item) => total + item.distanceMeters,
-    0,
-  );
-  if (totalMeters <= 0) {
-    return "Keine Angaben";
+function formatTrailSummary(
+  surfaces: SurfaceSummaryItem[],
+  difficulties: DifficultySummaryItem[],
+  translate: (text: string) => string,
+): string {
+  const dominantSurface = [...surfaces]
+    .filter((item) => item.category !== "unknown")
+    .sort((first, second) => second.distanceMeters - first.distanceMeters)[0];
+  const highestDifficulty = [...difficulties]
+    .filter((item) => item.category !== "?")
+    .sort(
+      (first, second) =>
+        DIFFICULTY_CATEGORY_ORDER.indexOf(second.category) -
+        DIFFICULTY_CATEGORY_ORDER.indexOf(first.category),
+    )[0];
+
+  return [
+    dominantSurface ? translate(dominantSurface.label) : null,
+    highestDifficulty
+      ? `${translate("max.")} ${highestDifficulty.category}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function summarizeDifficulty(
+  route: ComputedRoute | null,
+): DifficultySummaryItem[] {
+  if (!route) {
+    return [];
   }
 
-  return items
-    .filter((item) => item.category !== "unknown")
-    .slice(0, 3)
-    .map((item) => {
-      const percent = Math.round((item.distanceMeters / totalMeters) * 100);
-      return `${percent}% ${item.label}`;
-    })
-    .join(" · ");
+  const distances = new Map<DifficultyCategory, number>();
+  for (const segment of route.segments) {
+    if (segment.mode !== "routed") {
+      addDifficultyDistance(distances, "?", segment.distanceMeters);
+      continue;
+    }
+
+    const details = readDetailRanges(segment.details.hike_rating);
+    if (!details.length) {
+      addDifficultyDistance(distances, "?", segment.distanceMeters);
+      continue;
+    }
+
+    const geometryDistanceMeters = detailDistanceFromStart(
+      segment.geometry,
+      segment.geometry.length - 1,
+    );
+    const distanceScale =
+      geometryDistanceMeters > 0
+        ? segment.distanceMeters / geometryDistanceMeters
+        : 0;
+    let classifiedDistanceMeters = 0;
+    for (const detail of details) {
+      const distanceMeters =
+        detailDistanceMeters(segment.geometry, detail.from, detail.to) *
+        distanceScale;
+      classifiedDistanceMeters += distanceMeters;
+      addDifficultyDistance(
+        distances,
+        difficultyCategoryFor(detail.value),
+        distanceMeters,
+      );
+    }
+    addDifficultyDistance(
+      distances,
+      "?",
+      Math.max(0, segment.distanceMeters - classifiedDistanceMeters),
+    );
+  }
+
+  const summary = DIFFICULTY_CATEGORY_ORDER.map((category) => ({
+    category,
+    distanceMeters: distances.get(category) ?? 0,
+  })).filter((item) => item.distanceMeters > 1);
+  return summary.some((item) => item.category !== "?") ? summary : [];
 }
 
 function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
@@ -2984,7 +3199,10 @@ function readDetailRanges(value: unknown): DetailRange[] {
         {
           from: Math.max(0, Number(entry[0])),
           to: Math.max(0, Number(entry[1])),
-          value: typeof entry[2] === "string" ? entry[2] : null,
+          value:
+            typeof entry[2] === "string" || typeof entry[2] === "number"
+              ? entry[2]
+              : null,
         },
       ];
     }
@@ -3047,8 +3265,50 @@ function addSurfaceDistance(
   distances.set(category, (distances.get(category) ?? 0) + distanceMeters);
 }
 
-function surfaceCategoryFor(value: string | null): SurfaceCategory {
-  if (!value) {
+function addDifficultyDistance(
+  distances: Map<DifficultyCategory, number>,
+  category: DifficultyCategory,
+  distanceMeters: number,
+) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    return;
+  }
+  distances.set(category, (distances.get(category) ?? 0) + distanceMeters);
+}
+
+function difficultyCategoryFor(
+  value: string | number | null,
+): DifficultyCategory {
+  if (typeof value !== "string") {
+    return "?";
+  }
+  const categories: Record<string, DifficultyCategory> = {
+    strolling: "<T1",
+    hiking: "T1",
+    mountain_hiking: "T2",
+    demanding_mountain_hiking: "T3",
+    alpine_hiking: "T4",
+    demanding_alpine_hiking: "T5",
+    difficult_alpine_hiking: "T6",
+  };
+  return categories[value.toLowerCase()] ?? "?";
+}
+
+function difficultyClassSuffix(category: DifficultyCategory): string {
+  return category === "?"
+    ? "unknown"
+    : category.toLowerCase().replace("<", "below-");
+}
+
+function formatRouteShare(distanceMeters: number, totalDistanceMeters: number) {
+  if (totalDistanceMeters <= 0) {
+    return "0%";
+  }
+  return `${Math.round((distanceMeters / totalDistanceMeters) * 100)}%`;
+}
+
+function surfaceCategoryFor(value: string | number | null): SurfaceCategory {
+  if (typeof value !== "string" || !value) {
     return "unknown";
   }
 
