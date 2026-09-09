@@ -35,3 +35,19 @@ def test_bridge_ranges_ignore_nearby_non_bridge_ways() -> None:
         )
         == []
     )
+
+
+def test_repeated_bridge_crossings_remain_separate() -> None:
+    ranges = bridge_ranges_for_geometry(
+        [[7.4, 46.9], [7.401, 46.9], [7.5, 46.9], [7.401, 46.9], [7.6, 46.9]],
+        [
+            OsmWay(
+                id=1,
+                coordinates=[[7.4008, 46.9], [7.4012, 46.9]],
+                tags={"bridge": "yes"},
+            )
+        ],
+    )
+
+    assert len(ranges) == 2
+    assert ranges[1][0] - ranges[0][1] > 5_000
