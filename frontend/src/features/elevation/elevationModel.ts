@@ -169,6 +169,9 @@ export function toElevationProfileRequest(
   const bridgeRanges = bridgeRangesForRoute(route);
   return {
     ...(bridgeRanges.length > 0 ? { bridgeRanges } : {}),
+    ...(route.segments.some((segment) => segment.details.importedGpx === true)
+      ? { detectBridgeRanges: true }
+      : {}),
     geometry: {
       type: "LineString",
       coordinates: resampleGeometryForElevation(route.geometry).map(

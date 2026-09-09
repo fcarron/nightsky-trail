@@ -13,7 +13,7 @@ from planner.integrations.overpass import OVERPASS_TAGS, OsmWay
 
 TRAIL_HIGHWAYS = {"path", "footway", "track", "steps", "pedestrian", "bridleway"}
 TRAIL_ROUTES = {"hiking", "foot"}
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_TRAIL_RESULTS = 5000
 
 _INDEX_LOCK = threading.Lock()
@@ -213,6 +213,7 @@ def is_relevant_tags(tags: dict[str, str]) -> bool:
         tags.get("highway") in TRAIL_HIGHWAYS
         or tags.get("route") in TRAIL_ROUTES
         or "sac_scale" in tags
+        or tags.get("bridge") not in (None, "no")
     )
 
 

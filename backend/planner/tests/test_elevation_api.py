@@ -86,6 +86,36 @@ def test_elevation_profile_returns_422_for_upstream_failure(
 
 
 @pytest.mark.django_db
+def test_elevation_profile_detects_bridges_for_imported_gpx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = APIClient()
+    detected_coordinates: list[list[list[float]]] = []
+    monkeypatch.setattr("planner.api.views.SwisstopoClient", FakeSwisstopoClient)
+
+    def detected_ranges(coordinates: list[list[float]]) -> list[tuple[float, float]]:
+        detected_coordinates.append(coordinates)
+        return [(40, 60)]
+
+    monkeypatch.setattr("planner.api.views.imported_gpx_bridge_ranges", detected_ranges)
+
+    response = client.post(
+        reverse("elevation-profile"),
+        {
+            "detectBridgeRanges": True,
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[7.4474, 46.948], [7.45, 46.95]],
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert detected_coordinates == [[[7.4474, 46.948], [7.45, 46.95]]]
+
+
+@pytest.mark.django_db
 def test_elevation_profile_returns_422_for_outside_switzerland() -> None:
     client = APIClient()
 

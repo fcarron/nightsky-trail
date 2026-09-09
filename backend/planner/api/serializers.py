@@ -137,6 +137,7 @@ class ElevationBridgeRangeSerializer(serializers.Serializer):
 class ElevationProfileRequestSerializer(serializers.Serializer):
     geometry = LineStringGeometrySerializer()
     bridgeRanges = ElevationBridgeRangeSerializer(many=True, required=False, max_length=100)
+    detectBridgeRanges = serializers.BooleanField(required=False, default=False)
 
 
 class TrailsQuerySerializer(serializers.Serializer):

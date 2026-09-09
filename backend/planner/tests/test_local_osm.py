@@ -8,6 +8,7 @@ def test_is_relevant_tags_accepts_trails_and_difficulty() -> None:
     assert is_relevant_tags({"highway": "footway"})
     assert is_relevant_tags({"route": "hiking"})
     assert is_relevant_tags({"sac_scale": "mountain_hiking"})
+    assert is_relevant_tags({"highway": "residential", "bridge": "yes"})
 
 
 def test_is_relevant_tags_rejects_unrelated_ways() -> None:

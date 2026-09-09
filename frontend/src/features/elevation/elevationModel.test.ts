@@ -87,6 +87,16 @@ describe("elevation profile request geometry", () => {
     expect(bridgeRanges?.[0].startDistanceMeters).toBeCloseTo(76, 0);
     expect(bridgeRanges?.[0].endDistanceMeters).toBeCloseTo(228, 0);
   });
+
+  it("requests OSM bridge detection for an imported GPX track", () => {
+    const route = buildRoute([
+      { lon: 7.4, lat: 46.9 },
+      { lon: 7.401, lat: 46.9 },
+    ]);
+    route.segments[0].details = { importedGpx: true };
+
+    expect(toElevationProfileRequest(route).detectBridgeRanges).toBe(true);
+  });
 });
 
 describe("personal running-time estimate", () => {

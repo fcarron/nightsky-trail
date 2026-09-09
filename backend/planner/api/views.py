@@ -42,6 +42,11 @@ from planner.domain.route import (
     Waypoint,
 )
 from planner.integrations.graphhopper import GraphHopperClient
+from planner.integrations.local_osm import (
+    LocalOsmTrailIndex,
+    LocalOsmUnavailableError,
+    index_is_current,
+)
 from planner.integrations.overpass import (
     OverpassUnavailableError,
 )
@@ -63,6 +68,7 @@ from planner.services.auth import (
     registration_attempt_allowed,
     verification_email_attempt_allowed,
 )
+from planner.services.bridges import bridge_ranges_for_geometry
 from planner.services.elevation import get_elevation_profile
 from planner.services.rate_limit import request_rate_limit_allowed
 from planner.services.routing import compute_route
@@ -605,6 +611,11 @@ class ElevationProfileView(APIView):
             (bridge_range["startDistanceMeters"], bridge_range["endDistanceMeters"])
             for bridge_range in serializer.validated_data.get("bridgeRanges", [])
         ]
+        if serializer.validated_data["detectBridgeRanges"]:
+            try:
+                bridge_ranges.extend(imported_gpx_bridge_ranges(coordinates))
+            except LocalOsmUnavailableError:
+                logger.info("Bridge lookup unavailable for imported GPX elevation profile")
         try:
             profile = get_elevation_profile(
                 SwisstopoClient(
@@ -647,6 +658,21 @@ class ElevationProfileView(APIView):
                 ],
             }
         )
+
+
+def imported_gpx_bridge_ranges(coordinates: list[list[float]]) -> list[tuple[float, float]]:
+    # Index construction parses the complete PBF and must never delay the
+    # interactive elevation request. The trail overlay (or an operator job)
+    # builds it separately; use it here only once it is current.
+    if not index_is_current(settings.OSM_PBF_PATH, settings.OSM_TRAIL_INDEX_PATH):
+        return []
+    longitudes = [coordinate[0] for coordinate in coordinates]
+    latitudes = [coordinate[1] for coordinate in coordinates]
+    ways = LocalOsmTrailIndex(
+        settings.OSM_PBF_PATH,
+        settings.OSM_TRAIL_INDEX_PATH,
+    ).trails((min(longitudes), min(latitudes), max(longitudes), max(latitudes)))
+    return bridge_ranges_for_geometry(coordinates, ways)
 
 
 class SearchView(APIView):
