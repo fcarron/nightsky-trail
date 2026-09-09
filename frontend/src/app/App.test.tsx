@@ -345,10 +345,37 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "GPX importieren" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "PDF exportieren" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Konto" }));
     expect(screen.getByLabelText("Konto")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Login" })).toBeInTheDocument();
+  });
+
+  it("asks how to export a PDF without offering public sharing for an unsaved tour", async () => {
+    const user = userEvent.setup();
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("1.23 km")).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Datei" }));
+    await user.click(screen.getByRole("button", { name: "PDF exportieren" }));
+
+    expect(
+      screen.getByRole("button", { name: "Ohne QR-Code exportieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Teilen + QR-Code" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Für einen QR-Code zuerst anmelden/),
+    ).toBeInTheDocument();
   });
 
   it("checks the password confirmation before registering", async () => {
@@ -622,6 +649,45 @@ describe("App", () => {
     );
     expect(screen.getByText("Abstieg 22 m")).toBeInTheDocument();
     expect(screen.getByText("71 Hm+/km · bergig")).toBeInTheDocument();
+  });
+
+  it("keeps Swiss as the default and persists the selected running-time model", async () => {
+    const user = userEvent.setup();
+    storeRouteWithTwoWaypoints();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    await user.click(await screen.findByLabelText("Zeit-Schätzung einstellen"));
+    await user.click(screen.getByRole("button", { name: "Meine Pace" }));
+
+    const modelSelector = screen.getByRole("group", {
+      name: "Laufzeitmodell",
+    });
+    expect(
+      within(modelSelector).getByRole("button", { name: "Swiss" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(
+      within(modelSelector).getByRole("button", { name: "GAP" }),
+    );
+    expect(
+      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
+    ).toBe("gap");
+
+    await user.click(
+      within(modelSelector).getByRole("button", { name: "GAP Strava" }),
+    );
+    expect(
+      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
+    ).toBe("gap_strava");
+
+    await user.click(
+      within(modelSelector).getByRole("button", { name: "GAP Hybrid" }),
+    );
+    expect(
+      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
+    ).toBe("gap_hybrid");
   });
 
   it("offers route analysis from the compact elevation profile", async () => {

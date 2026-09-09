@@ -84,6 +84,32 @@ describe("route planner reducer", () => {
     ]);
   });
 
+  it("allows an existing position to be appended as a new waypoint", () => {
+    const firstPosition = { lon: 7.4, lat: 46.9 };
+    let history = routePlannerReducer(initialPlannerHistory, {
+      type: "add-waypoint",
+      waypoint: { id: "a", position: firstPosition },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "b", position: { lon: 7.5, lat: 47.0 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "c", position: firstPosition },
+    });
+
+    expect(history.present.waypoints).toHaveLength(3);
+    expect(history.present.waypoints[2]).toEqual({
+      id: "c",
+      position: firstPosition,
+    });
+    expect(history.present.segments[1]).toMatchObject({
+      fromWaypointId: "b",
+      toWaypointId: "c",
+    });
+  });
+
   it("starts a new route without retaining the previous undo history", () => {
     let history = routePlannerReducer(initialPlannerHistory, {
       type: "add-waypoint",

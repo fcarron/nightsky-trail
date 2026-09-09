@@ -12,6 +12,7 @@ import Modify from "ol/interaction/Modify.js";
 import Select from "ol/interaction/Select.js";
 import TileLayer from "ol/layer/Tile.js";
 import VectorLayer from "ol/layer/Vector.js";
+import VectorImageLayer from "ol/layer/VectorImage.js";
 import { fromLonLat, toLonLat, transformExtent } from "ol/proj.js";
 import XYZ from "ol/source/XYZ.js";
 import TileWMS from "ol/source/TileWMS.js";
@@ -22,7 +23,10 @@ import { useEffect, useRef, useState } from "react";
 import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { useI18n } from "../../app/i18n";
 import { getTrailDifficultyWays } from "../../services/api";
-import type { CombinedTrailSegmentDto } from "../../types/api";
+import type {
+  CombinedTrailSegmentDto,
+  OfficialTrailSegmentDto,
+} from "../../types/api";
 import type {
   ComputedRouteSegment,
   LonLat,
@@ -47,11 +51,13 @@ import {
   analysisRangeStyle,
   elevationHoverStyle,
   graphhopperDebugStyle,
+  routeCategoryStyle,
   routeStyle,
   waypointStyle,
 } from "./mapStyles";
 import { TrailLegend } from "./TrailOverlayInfo";
 import { parseClosureFeatureInfo, type MapFeatureInfo } from "./mapFeatureInfo";
+import { updateRouteCategoryFeatures } from "./routeCategory";
 
 const DIFFICULTY_MIN_ZOOM = HIKING_TRAIL_OVERLAY_MIN_ZOOM;
 // Permit the first viewport in which the official swisstopo trail layer is
@@ -133,11 +139,13 @@ export function MapPanel({
   const doubleClickZoomInteractionRef = useRef<DoubleClickZoom | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
   const routeSourceRef = useRef<VectorSource>(new VectorSource());
+  const routeCategorySourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
   const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
   const analysisRangeSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultyRequestIdRef = useRef(0);
+  const officialTrailSegmentsRef = useRef<OfficialTrailSegmentDto[]>([]);
   const difficultyRequestInFlightRef = useRef(false);
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
@@ -202,6 +210,10 @@ export function MapPanel({
   );
   const selectedWaypoint =
     selectedWaypointIndex >= 0 ? waypoints[selectedWaypointIndex] : null;
+  const canContinueFromSelectedWaypoint =
+    interactionMode === "draw" &&
+    selectedWaypoint !== null &&
+    selectedWaypoint.id !== waypoints.at(-1)?.id;
   const activeRouteInsertCandidate =
     interactionMode === "draw" &&
     routeInsertCandidate &&
@@ -424,6 +436,15 @@ export function MapPanel({
       zIndex: 20,
     });
     routeLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const routeCategoryLayer = new VectorImageLayer({
+      imageRatio: 1.2,
+      source: routeCategorySourceRef.current,
+      style: routeCategoryStyle,
+      minZoom: HIKING_TRAIL_OVERLAY_MIN_ZOOM,
+      visible: true,
+      zIndex: 19,
+    });
+    routeCategoryLayer.set("layerRole", "overlay" satisfies LayerRole);
     const graphhopperDebugLayer = new VectorLayer({
       source: graphhopperDebugSourceRef.current,
       style: graphhopperDebugStyle,
@@ -496,6 +517,7 @@ export function MapPanel({
     map.addLayer(cyclingRoutesLayer);
     map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
+    map.addLayer(routeCategoryLayer);
     map.addLayer(routeLayer);
     map.addLayer(analysisRangeLayer);
     map.addLayer(elevationHoverLayer);
@@ -821,9 +843,11 @@ export function MapPanel({
   useEffect(() => {
     const pointSource = pointSourceRef.current;
     const routeSource = routeSourceRef.current;
+    const routeCategorySource = routeCategorySourceRef.current;
     const graphhopperDebugSource = graphhopperDebugSourceRef.current;
     pointSource.clear();
     routeSource.clear();
+    routeCategorySource.clear();
     graphhopperDebugSource.clear();
 
     const waypointById = new globalThis.Map(
@@ -880,6 +904,13 @@ export function MapPanel({
       }
     });
 
+    updateRouteCategoryFeatures(
+      routeCategorySource,
+      routeSource,
+      officialTrailSegmentsRef.current,
+      hikingTrailsVisible,
+    );
+
     waypoints.forEach((waypoint, index) => {
       const feature = new Feature(
         new Point(fromLonLat([waypoint.position.lon, waypoint.position.lat])),
@@ -888,7 +919,7 @@ export function MapPanel({
       feature.set("waypointIndex", index);
       pointSource.addFeature(feature);
     });
-  }, [waypoints, segments, computedSegments]);
+  }, [waypoints, segments, computedSegments, hikingTrailsVisible]);
 
   useEffect(() => {
     pointSourceRef.current.changed();
@@ -1067,15 +1098,13 @@ export function MapPanel({
       difficultyRequestInFlightRef.current = false;
       difficultyQueuedLoadRef.current = false;
       difficultySourceRef.current.clear();
+      officialTrailSegmentsRef.current = [];
+      routeCategorySourceRef.current.clear();
       return;
     }
 
     if (!difficultyVisible && !trailMatchDebugEnabled) {
-      difficultyRequestIdRef.current += 1;
-      difficultyRequestInFlightRef.current = false;
-      difficultyQueuedLoadRef.current = false;
       difficultySourceRef.current.clear();
-      return;
     }
 
     const map = mapRef.current;
@@ -1106,6 +1135,8 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
+        officialTrailSegmentsRef.current = [];
+        routeCategorySourceRef.current.clear();
         return;
       }
 
@@ -1131,6 +1162,8 @@ export function MapPanel({
         difficultyRequestIdRef.current += 1;
         difficultyRequestInFlightRef.current = false;
         difficultyQueuedLoadRef.current = false;
+        officialTrailSegmentsRef.current = [];
+        routeCategorySourceRef.current.clear();
         return;
       }
 
@@ -1143,7 +1176,13 @@ export function MapPanel({
       difficultyRequestIdRef.current = requestId;
       difficultyRequestInFlightRef.current = true;
       difficultyQueuedLoadRef.current = false;
-      getTrailDifficultyWays(bbox, zoom, true, true, trailMatchDebugEnabled)
+      getTrailDifficultyWays(
+        bbox,
+        zoom,
+        difficultyVisible || trailMatchDebugEnabled,
+        true,
+        trailMatchDebugEnabled,
+      )
         .then((response) => {
           if (difficultyRequestIdRef.current !== requestId) {
             return;
@@ -1154,6 +1193,13 @@ export function MapPanel({
 
           const source = difficultySourceRef.current;
           source.clear();
+          officialTrailSegmentsRef.current = response.officialSegments;
+          updateRouteCategoryFeatures(
+            routeCategorySourceRef.current,
+            routeSourceRef.current,
+            response.officialSegments,
+            hikingTrailsVisible,
+          );
           response.combinedSegments
             .filter(
               (segment) => segment.warningOverlay || trailMatchDebugEnabled,
@@ -1311,25 +1357,45 @@ export function MapPanel({
         </button>
       ) : null}
       {selectedWaypoint && selectedWaypointPixel ? (
-        <button
-          type="button"
-          className="mapWaypointDelete"
+        <div
+          className="mapWaypointActions"
           style={{
             left: selectedWaypointPixel[0],
             top: selectedWaypointPixel[1],
-          }}
-          aria-label={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
-          title={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            callbacksRef.current.onDeleteWaypoint(selectedWaypoint.id);
           }}
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
         >
-          <span className="mapWaypointDeleteIcon" aria-hidden="true" />
-        </button>
+          {canContinueFromSelectedWaypoint ? (
+            <button
+              type="button"
+              className="mapWaypointAction mapWaypointContinue"
+              aria-label={`${tx("Route hier fortsetzen")} · ${tx("Punkt")} ${selectedWaypointIndex + 1}`}
+              title={tx("Route hier fortsetzen")}
+              onClick={(event) => {
+                event.stopPropagation();
+                callbacksRef.current.onAddWaypoint({
+                  ...selectedWaypoint.position,
+                });
+              }}
+            >
+              <span className="mapWaypointContinueIcon" aria-hidden="true" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="mapWaypointAction mapWaypointDelete"
+            aria-label={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
+            title={`${tx("Wegpunkt löschen")} ${selectedWaypointIndex + 1}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              callbacksRef.current.onDeleteWaypoint(selectedWaypoint.id);
+            }}
+          >
+            <span className="mapWaypointDeleteIcon" aria-hidden="true" />
+          </button>
+        </div>
       ) : null}
       <details
         className="mapLayerSelector"

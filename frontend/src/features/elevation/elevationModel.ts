@@ -3,6 +3,14 @@ import type {
   ElevationProfileResponse,
 } from "../../types/api";
 import type { ComputedRoute } from "../route/routeModel";
+import { reverseGapPaceMinutesPerKilometre } from "./gapModel";
+import { hybridGapPaceMinutesPerKilometre } from "./hybridGapModel";
+import { stravaGapPaceMinutesPerKilometre } from "./stravaGapModel";
+
+export type PersonalRunningTimeModel =
+  "swiss" | "gap" | "gap_strava" | "gap_hybrid";
+export const DEFAULT_PERSONAL_RUNNING_TIME_MODEL: PersonalRunningTimeModel =
+  "swiss";
 
 export interface ElevationProfile {
   distanceMeters: number;
@@ -158,7 +166,9 @@ const SWISS_HIKING_COEFFICIENTS = [
 export function toElevationProfileRequest(
   route: ComputedRoute,
 ): ElevationProfileRequest {
+  const bridgeRanges = bridgeRangesForRoute(route);
   return {
+    ...(bridgeRanges.length > 0 ? { bridgeRanges } : {}),
     geometry: {
       type: "LineString",
       coordinates: resampleGeometryForElevation(route.geometry).map(
@@ -166,6 +176,78 @@ export function toElevationProfileRequest(
       ),
     },
   };
+}
+
+export function bridgeRangesForRoute(
+  route: ComputedRoute,
+): NonNullable<ElevationProfileRequest["bridgeRanges"]> {
+  const ranges: NonNullable<ElevationProfileRequest["bridgeRanges"]> = [];
+  let routeDistanceOffset = 0;
+
+  route.segments.forEach((segment) => {
+    const distances = cumulativeDistances(segment.geometry);
+    const segmentDistance = distances.at(-1) ?? 0;
+    const details = segment.details.road_environment;
+    if (Array.isArray(details)) {
+      details.forEach((detail) => {
+        if (!isBridgePathDetail(detail, segment.geometry.length)) {
+          return;
+        }
+        const startDistanceMeters = routeDistanceOffset + distances[detail[0]];
+        const endDistanceMeters = routeDistanceOffset + distances[detail[1]];
+        if (endDistanceMeters > startDistanceMeters) {
+          ranges.push({ endDistanceMeters, startDistanceMeters });
+        }
+      });
+    }
+    routeDistanceOffset += segmentDistance;
+  });
+
+  return mergeDistanceRanges(ranges);
+}
+
+function isBridgePathDetail(
+  value: unknown,
+  coordinateCount: number,
+): value is [number, number, string] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 3 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number" &&
+    Number.isInteger(value[0]) &&
+    Number.isInteger(value[1]) &&
+    value[0] >= 0 &&
+    value[1] > value[0] &&
+    value[1] < coordinateCount &&
+    typeof value[2] === "string" &&
+    value[2].toUpperCase() === "BRIDGE"
+  );
+}
+
+function mergeDistanceRanges(
+  ranges: NonNullable<ElevationProfileRequest["bridgeRanges"]>,
+): NonNullable<ElevationProfileRequest["bridgeRanges"]> {
+  const merged: NonNullable<ElevationProfileRequest["bridgeRanges"]> = [];
+  [...ranges]
+    .sort(
+      (first, second) => first.startDistanceMeters - second.startDistanceMeters,
+    )
+    .forEach((range) => {
+      const previous = merged.at(-1);
+      if (
+        previous &&
+        range.startDistanceMeters <= previous.endDistanceMeters + 1
+      ) {
+        previous.endDistanceMeters = Math.max(
+          previous.endDistanceMeters,
+          range.endDistanceMeters,
+        );
+      } else {
+        merged.push({ ...range });
+      }
+    });
+  return merged;
 }
 
 const ELEVATION_GEOMETRY_TARGET_SPACING_METERS = 25;
@@ -304,6 +386,7 @@ export function gradientGroupForPercent(
 export function estimatePersonalRunningMinutes(
   profile: ElevationProfile,
   flatRunningPaceMinPerKm: number,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): number {
   const monotonicPoints = profile.points.filter(
     (point, index, points) =>
@@ -341,6 +424,7 @@ export function estimatePersonalRunningMinutes(
     const runningPace = personalRunningPaceForSlope(
       flatRunningPaceMinPerKm,
       slopePercent,
+      model,
     );
     totalMinutes += (horizontalDistance / 1000) * runningPace;
   }
@@ -359,6 +443,7 @@ export function uphillFactorForRunningPace(
 export function calculateKilometreSplits(
   profile: ElevationProfile,
   flatRunningPaceMinPerKm?: number,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): KilometreSplit[] {
   const result: KilometreSplit[] = [];
   for (
@@ -368,7 +453,7 @@ export function calculateKilometreSplits(
   ) {
     const end = Math.min(profile.distanceMeters, start + 1000);
     result.push({
-      ...rangeStatistics(profile, start, end, flatRunningPaceMinPerKm),
+      ...rangeStatistics(profile, start, end, flatRunningPaceMinPerKm, model),
       index,
     });
   }
@@ -475,6 +560,7 @@ export function detectClimbs(
   profile: ElevationProfile,
   flatRunningPaceMinPerKm?: number,
   config = DEFAULT_CLIMB_DETECTION,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): Climb[] {
   const points = profile.points;
   const climbs: Climb[] = [];
@@ -497,6 +583,7 @@ export function detectClimbs(
         start.distanceMeters,
         end.distanceMeters,
         flatRunningPaceMinPerKm,
+        model,
       );
       const climbTimeMinutes = calculateHikingMinutesForRange(
         profile,
@@ -618,6 +705,7 @@ function rangeStatistics(
   startDistanceMeters: number,
   endDistanceMeters: number,
   flatRunningPaceMinPerKm?: number,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): Omit<KilometreSplit, "index"> {
   const points = pointsInRange(
     profile.points,
@@ -668,6 +756,7 @@ function rangeStatistics(
             startDistanceMeters,
             endDistanceMeters,
             flatRunningPaceMinPerKm,
+            model,
           ),
   };
 }
@@ -725,8 +814,9 @@ function estimateRunningMinutesForRange(
   start: number,
   end: number,
   flatPace: number,
+  model: PersonalRunningTimeModel,
 ): number {
-  return estimateRangeMinutes(profile, start, end, flatPace, true);
+  return estimateRangeMinutes(profile, start, end, flatPace, true, model);
 }
 
 function estimateRangeMinutes(
@@ -735,9 +825,10 @@ function estimateRangeMinutes(
   end: number,
   flatPace: number,
   running = false,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): number {
   return Math.round(
-    calculateRangeMinutes(profile, start, end, flatPace, running),
+    calculateRangeMinutes(profile, start, end, flatPace, running, model),
   );
 }
 
@@ -760,6 +851,7 @@ function calculateRangeMinutes(
   end: number,
   flatPace: number,
   running = false,
+  model: PersonalRunningTimeModel = DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
 ): number {
   const boundaries = fixedSegmentBoundaries(
     end - start,
@@ -779,7 +871,7 @@ function calculateRangeMinutes(
       );
     const slope = (delta * 100) / distance;
     const pace = running
-      ? personalRunningPaceForSlope(flatPace, slope)
+      ? personalRunningPaceForSlope(flatPace, slope, model)
       : swissHikingMinutesPerKm(slope);
     total += (distance / 1000) * pace;
   }
@@ -789,7 +881,26 @@ function calculateRangeMinutes(
 function personalRunningPaceForSlope(
   flatRunningPaceMinPerKm: number,
   slopePercent: number,
+  model: PersonalRunningTimeModel,
 ): number {
+  if (model === "gap") {
+    return reverseGapPaceMinutesPerKilometre(
+      flatRunningPaceMinPerKm,
+      slopePercent,
+    );
+  }
+  if (model === "gap_strava") {
+    return stravaGapPaceMinutesPerKilometre(
+      flatRunningPaceMinPerKm,
+      slopePercent,
+    );
+  }
+  if (model === "gap_hybrid") {
+    return hybridGapPaceMinutesPerKilometre(
+      flatRunningPaceMinPerKm,
+      slopePercent,
+    );
+  }
   const hikingPace = swissHikingMinutesPerKm(slopePercent);
   const scale = flatRunningPaceMinPerKm / FLAT_HIKING_PACE_MIN_PER_KM;
   const slopePenalty = hikingPace - FLAT_HIKING_PACE_MIN_PER_KM;

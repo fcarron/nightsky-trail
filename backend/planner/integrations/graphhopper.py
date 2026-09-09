@@ -14,6 +14,7 @@ ROUTE_DETAILS = [
     "hike_rating",
     "foot_network",
     "road_class",
+    "road_environment",
 ]
 SUPPORTED_PROFILES = {"hike", "foot", "bike"}
 GRAPHHOPPER_PROFILE_NAMES = {"foot": "street", "bike": "racingbike"}

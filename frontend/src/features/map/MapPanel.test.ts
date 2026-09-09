@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import Feature from "ol/Feature.js";
+import { LineString } from "ol/geom.js";
+import { fromLonLat } from "ol/proj.js";
+import VectorSource from "ol/source/Vector.js";
 
 import { parseClosureFeatureInfo } from "./mapFeatureInfo";
+import { updateRouteCategoryFeatures } from "./routeCategory";
 
 describe("parseClosureFeatureInfo", () => {
   it("normalizes the German fields returned by the swisstopo closure layer", () => {
@@ -34,5 +39,127 @@ Layer 'ch.astra.wanderland-sperrungen_umleitungen_line'
         "GetFeatureInfo results:\n\n  Search returned no results.",
       ),
     ).toBeNull();
+  });
+});
+
+describe("active route hiking categories", () => {
+  it("keeps only official trail geometry close to the active route", () => {
+    const routeSource = new VectorSource();
+    routeSource.addFeature(
+      new Feature(
+        new LineString([fromLonLat([7.4, 46.9]), fromLonLat([7.41, 46.9])]),
+      ),
+    );
+    const categorySource = new VectorSource();
+
+    updateRouteCategoryFeatures(
+      categorySource,
+      routeSource,
+      [
+        {
+          id: "near",
+          officialCategory: "mountain_hiking_trail",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [7.4, 46.9],
+              [7.41, 46.9],
+            ],
+          },
+        },
+        {
+          id: "far",
+          officialCategory: "alpine_hiking_trail",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [7.4, 47],
+              [7.41, 47],
+            ],
+          },
+        },
+      ],
+      true,
+    );
+
+    expect(categorySource.getFeatures()).toHaveLength(1);
+    expect(categorySource.getFeatures()[0].get("officialCategory")).toBe(
+      "mountain_hiking_trail",
+    );
+  });
+
+  it("hides category geometry with the official trail layer", () => {
+    const routeSource = new VectorSource();
+    routeSource.addFeature(
+      new Feature(
+        new LineString([fromLonLat([7.4, 46.9]), fromLonLat([7.41, 46.9])]),
+      ),
+    );
+    const categorySource = new VectorSource();
+
+    updateRouteCategoryFeatures(
+      categorySource,
+      routeSource,
+      [
+        {
+          id: "near",
+          officialCategory: "hiking_trail",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [7.4, 46.9],
+              [7.41, 46.9],
+            ],
+          },
+        },
+      ],
+      false,
+    );
+
+    expect(categorySource.getFeatures()).toHaveLength(0);
+  });
+
+  it("groups disconnected parts of the same category into one feature", () => {
+    const routeSource = new VectorSource();
+    routeSource.addFeature(
+      new Feature(
+        new LineString([fromLonLat([7.4, 46.9]), fromLonLat([7.43, 46.9])]),
+      ),
+    );
+    const categorySource = new VectorSource();
+
+    updateRouteCategoryFeatures(
+      categorySource,
+      routeSource,
+      [
+        {
+          id: "first",
+          officialCategory: "mountain_hiking_trail",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [7.4, 46.9],
+              [7.41, 46.9],
+            ],
+          },
+        },
+        {
+          id: "second",
+          officialCategory: "mountain_hiking_trail",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [7.42, 46.9],
+              [7.43, 46.9],
+            ],
+          },
+        },
+      ],
+      true,
+    );
+
+    const features = categorySource.getFeatures();
+    expect(features).toHaveLength(1);
+    expect(features[0].getGeometry()?.getType()).toBe("MultiLineString");
   });
 });

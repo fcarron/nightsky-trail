@@ -56,6 +56,37 @@ describe("elevation profile request geometry", () => {
     expect(sampled[0]).toEqual(geometry[0]);
     expect(sampled[sampled.length - 1]).toEqual(geometry[geometry.length - 1]);
   });
+
+  it("converts GraphHopper bridge details into elevation distance ranges", () => {
+    const geometry = [
+      { lon: 7.4, lat: 46.9 },
+      { lon: 7.401, lat: 46.9 },
+      { lon: 7.402, lat: 46.9 },
+      { lon: 7.403, lat: 46.9 },
+    ];
+    const route: ComputedRoute = {
+      distanceMeters: 228,
+      geometry,
+      segments: [
+        {
+          details: { road_environment: [[1, 3, "BRIDGE"]] },
+          distanceMeters: 228,
+          fromWaypointId: "a",
+          geometry,
+          id: "a-b",
+          mode: "routed",
+          toWaypointId: "b",
+        },
+      ],
+      warnings: [],
+    };
+
+    const bridgeRanges = toElevationProfileRequest(route).bridgeRanges;
+
+    expect(bridgeRanges).toHaveLength(1);
+    expect(bridgeRanges?.[0].startDistanceMeters).toBeCloseTo(76, 0);
+    expect(bridgeRanges?.[0].endDistanceMeters).toBeCloseTo(228, 0);
+  });
 });
 
 describe("personal running-time estimate", () => {
@@ -63,6 +94,28 @@ describe("personal running-time estimate", () => {
     const profile = buildProfile(samplesForSlope(1_000, 0));
 
     expect(estimatePersonalRunningMinutes(profile, 6.5)).toBe(7);
+  });
+
+  it("can use reverse GAP without changing the default Swiss model", () => {
+    const profile = buildProfile(samplesForSlope(1_000, 10));
+    const swissMinutes = estimatePersonalRunningMinutes(profile, 5);
+    const gapMinutes = estimatePersonalRunningMinutes(profile, 5, "gap");
+
+    expect(estimatePersonalRunningMinutes(profile, 5)).toBe(swissMinutes);
+    expect(gapMinutes).toBe(9);
+    expect(gapMinutes).not.toBe(swissMinutes);
+  });
+
+  it("can integrate the approximated Strava GAP model", () => {
+    const profile = buildProfile(samplesForSlope(1_000, 10));
+
+    expect(estimatePersonalRunningMinutes(profile, 5, "gap_strava")).toBe(7);
+  });
+
+  it("can integrate the hybrid GAP model", () => {
+    const profile = buildProfile(samplesForSlope(1_000, -10));
+
+    expect(estimatePersonalRunningMinutes(profile, 5, "gap_hybrid")).toBe(4);
   });
 
   it.each([

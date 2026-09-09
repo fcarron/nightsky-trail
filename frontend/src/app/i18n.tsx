@@ -404,6 +404,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Zeit-Schätzung einstellen": "Set time estimate",
     "Zeit-Schätzung": "Time estimate",
     Zeitberechnung: "Time calculation",
+    Laufzeitmodell: "Running-time model",
     "Zeitberechnung erklären": "Explain time calculation",
     "Basispace 10 Sekunden schneller": "Base pace 10 seconds faster",
     "Basispace 10 Sekunden langsamer": "Base pace 10 seconds slower",
@@ -412,6 +413,14 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "Distance in kilometres plus ascent in metres divided by 100. A simple measure of physical effort.",
     "Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein. Das Höhenprofil passt die Zeit abschnittsweise an.":
       "Hiking time uses distance and elevation. My pace should be a sustainable flat pace for a route of similar duration. The elevation profile adjusts the estimate segment by segment.",
+    "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.":
+      "The Swiss model derives its grade adjustment from the Swiss hiking-time curve. My pace should be a sustainable flat pace for a route of similar duration.",
+    "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP holds the effort of your flat pace constant using Minetti grade costs and the speed-dependent running economy from Black et al. Fatigue, altitude and surface are not included.",
+    "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP Strava uses a published approximation of the Strava GAP curve. It is not an official Strava formula. Fatigue, altitude and surface are not included.",
+    "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
+      "GAP Hybrid uses RunningWritings GAP uphill and the slower pace from RunningWritings and the Strava approximation downhill. No further corrections are applied.",
     "Schnelle Routenaktionen": "Quick route actions",
     "Weitere Aktionen": "More actions",
     "Ausgewählter Wegpunkt": "Selected waypoint",
@@ -443,6 +452,29 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Erkunden: "Explore",
     "GPX importieren": "Import GPX",
     "GPX exportieren": "Export GPX",
+    "PDF exportieren": "Export PDF",
+    "Mit QR-Code exportieren": "Export with QR code",
+    "Ohne QR-Code exportieren": "Export without QR code",
+    "Teilen + QR-Code": "Share + QR code",
+    "Tour online öffnen": "Open tour online",
+    "Der QR-Code öffnet die bereits freigegebene Tour.":
+      "The QR code opens the already shared tour.",
+    "Mit QR-Code wird ein öffentlicher, schreibgeschützter Link erstellt. Du kannst die Freigabe jederzeit beenden.":
+      "Including a QR code creates a public read-only link. You can stop sharing at any time.",
+    "Für einen QR-Code zuerst anmelden, die Tour speichern und aktuelle Änderungen sichern.":
+      "To include a QR code, sign in, save the tour and save any current changes first.",
+    Zurück: "Back",
+    "Erstellt mit nightsky trail": "Created with nightsky trail",
+    "Karte: © swisstopo · Routing: © OpenStreetMap contributors":
+      "Map: © swisstopo · Routing: © OpenStreetMap contributors",
+    "Routenblatt mit Kilometerpunkten und Höhenprofil":
+      "Route sheet with kilometre markers and elevation profile",
+    Terrain: "Terrain",
+    flach: "flat",
+    "leicht hügelig": "gently rolling",
+    hügelig: "rolling",
+    bergig: "mountainous",
+    "sehr bergig": "very mountainous",
     Anmelden: "Sign in",
     Speichern: "Save",
     Abbrechen: "Cancel",
@@ -554,6 +586,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Punkt: "Point",
     "Punkt-Aktionen ohne Dialog": "Point actions without a dialog",
     "Wegpunkt löschen": "Delete waypoint",
+    "Route hier fortsetzen": "Continue route here",
     "Fehler anzeigen": "Show error",
     Start: "Start",
     "Klick auf die Karte setzt den Start.": "Click the map to set the start.",
@@ -585,6 +618,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Zeit-Schätzung einstellen": "Régler l'estimation du temps",
     "Zeit-Schätzung": "Estimation du temps",
     Zeitberechnung: "Calcul du temps",
+    Laufzeitmodell: "Modèle de temps de course",
     "Zeitberechnung erklären": "Expliquer le calcul du temps",
     "Basispace 10 Sekunden schneller": "Allure de base 10 secondes plus rapide",
     "Basispace 10 Sekunden langsamer": "Allure de base 10 secondes plus lente",
@@ -593,6 +627,14 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "Distance en kilomètres plus dénivelé positif en mètres divisé par 100. Un repère simple de l'effort physique.",
     "Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein. Das Höhenprofil passt die Zeit abschnittsweise an.":
       "Le temps de randonnée utilise la distance et l'altitude. Mon allure doit correspondre à une allure durable sur le plat pour une sortie de durée similaire. Le profil adapte l'estimation par section.",
+    "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.":
+      "Le modèle suisse adapte la pente à partir de la courbe suisse du temps de marche. Mon allure doit être une allure durable sur le plat pour une sortie de durée similaire.",
+    "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP maintient l'effort de votre allure sur le plat à l'aide des coûts de pente de Minetti et de l'économie de course dépendant de la vitesse selon Black et al. La fatigue, l'altitude et le revêtement ne sont pas pris en compte.",
+    "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP Strava utilise une approximation publiée de la courbe GAP de Strava. Il ne s'agit pas d'une formule officielle de Strava. La fatigue, l'altitude et le revêtement ne sont pas pris en compte.",
+    "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
+      "GAP Hybrid utilise le GAP de RunningWritings en montée et l'allure la plus lente entre RunningWritings et l'approximation Strava en descente. Aucune autre correction n'est appliquée.",
     Zeichnen: "Dessiner",
     Routing: "Itinéraire",
     "Neue Abschnitte": "Nouvelles sections",
@@ -630,6 +672,29 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Erkunden: "Explorer",
     "GPX importieren": "Importer un GPX",
     "GPX exportieren": "Exporter un GPX",
+    "PDF exportieren": "Exporter en PDF",
+    "Mit QR-Code exportieren": "Exporter avec un code QR",
+    "Ohne QR-Code exportieren": "Exporter sans code QR",
+    "Teilen + QR-Code": "Partager + code QR",
+    "Tour online öffnen": "Ouvrir l'itinéraire en ligne",
+    "Der QR-Code öffnet die bereits freigegebene Tour.":
+      "Le code QR ouvre l'itinéraire déjà partagé.",
+    "Mit QR-Code wird ein öffentlicher, schreibgeschützter Link erstellt. Du kannst die Freigabe jederzeit beenden.":
+      "L'ajout d'un code QR crée un lien public en lecture seule. Vous pouvez arrêter le partage à tout moment.",
+    "Für einen QR-Code zuerst anmelden, die Tour speichern und aktuelle Änderungen sichern.":
+      "Pour ajouter un code QR, connectez-vous, enregistrez l'itinéraire et sauvegardez d'abord les modifications actuelles.",
+    Zurück: "Retour",
+    "Erstellt mit nightsky trail": "Créé avec nightsky trail",
+    "Karte: © swisstopo · Routing: © OpenStreetMap contributors":
+      "Carte : © swisstopo · Routage : © contributeurs OpenStreetMap",
+    "Routenblatt mit Kilometerpunkten und Höhenprofil":
+      "Fiche d'itinéraire avec repères kilométriques et profil d'altitude",
+    Terrain: "Terrain",
+    flach: "plat",
+    "leicht hügelig": "légèrement vallonné",
+    hügelig: "vallonné",
+    bergig: "montagneux",
+    "sehr bergig": "très montagneux",
     Anmelden: "Se connecter",
     Speichern: "Enregistrer",
     Abbrechen: "Annuler",
@@ -743,6 +808,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Punkt: "Point",
     "Punkt-Aktionen ohne Dialog": "Actions du point sans fenêtre",
     "Wegpunkt löschen": "Supprimer le point de passage",
+    "Route hier fortsetzen": "Continuer l'itinéraire ici",
     "Fehler anzeigen": "Afficher l'erreur",
     Start: "Départ",
     "Klick auf die Karte setzt den Start.":
@@ -775,6 +841,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Zeit-Schätzung einstellen": "Imposta la stima del tempo",
     "Zeit-Schätzung": "Stima del tempo",
     Zeitberechnung: "Calcolo del tempo",
+    Laufzeitmodell: "Modello del tempo di corsa",
     "Zeitberechnung erklären": "Spiega il calcolo del tempo",
     "Basispace 10 Sekunden schneller": "Ritmo base 10 secondi più veloce",
     "Basispace 10 Sekunden langsamer": "Ritmo base 10 secondi più lento",
@@ -783,6 +850,14 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "Distanza in chilometri più salita in metri divisa per 100. Un semplice indicatore dello sforzo fisico.",
     "Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein. Das Höhenprofil passt die Zeit abschnittsweise an.":
       "Il tempo di escursione usa distanza e altitudine. Il mio ritmo dovrebbe essere un ritmo sostenibile in piano per un percorso di durata simile. Il profilo adatta la stima tratto per tratto.",
+    "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.":
+      "Il modello svizzero ricava l'adattamento alla pendenza dalla curva svizzera dei tempi di marcia. Il mio ritmo dovrebbe essere sostenibile in piano per un percorso di durata simile.",
+    "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP mantiene costante lo sforzo del ritmo in piano usando i costi di pendenza di Minetti e l'economia di corsa dipendente dalla velocità di Black et al. Fatica, quota e fondo non sono inclusi.",
+    "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt.":
+      "GAP Strava usa un'approssimazione pubblicata della curva GAP di Strava. Non è una formula ufficiale di Strava. Fatica, quota e fondo non sono inclusi.",
+    "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
+      "GAP Hybrid usa il GAP di RunningWritings in salita e il ritmo più lento tra RunningWritings e l'approssimazione Strava in discesa. Non vengono applicate altre correzioni.",
     Zeichnen: "Disegna",
     Routing: "Percorso",
     "Neue Abschnitte": "Nuovi tratti",
@@ -820,6 +895,29 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Erkunden: "Esplora",
     "GPX importieren": "Importa GPX",
     "GPX exportieren": "Esporta GPX",
+    "PDF exportieren": "Esporta PDF",
+    "Mit QR-Code exportieren": "Esporta con codice QR",
+    "Ohne QR-Code exportieren": "Esporta senza codice QR",
+    "Teilen + QR-Code": "Condividi + codice QR",
+    "Tour online öffnen": "Apri il percorso online",
+    "Der QR-Code öffnet die bereits freigegebene Tour.":
+      "Il codice QR apre il percorso già condiviso.",
+    "Mit QR-Code wird ein öffentlicher, schreibgeschützter Link erstellt. Du kannst die Freigabe jederzeit beenden.":
+      "L'aggiunta di un codice QR crea un link pubblico in sola lettura. Puoi interrompere la condivisione in qualsiasi momento.",
+    "Für einen QR-Code zuerst anmelden, die Tour speichern und aktuelle Änderungen sichern.":
+      "Per aggiungere un codice QR, accedi, salva il percorso e registra prima le modifiche correnti.",
+    Zurück: "Indietro",
+    "Erstellt mit nightsky trail": "Creato con nightsky trail",
+    "Karte: © swisstopo · Routing: © OpenStreetMap contributors":
+      "Mappa: © swisstopo · Routing: © contributori OpenStreetMap",
+    "Routenblatt mit Kilometerpunkten und Höhenprofil":
+      "Scheda del percorso con indicatori chilometrici e profilo altimetrico",
+    Terrain: "Terreno",
+    flach: "pianeggiante",
+    "leicht hügelig": "leggermente ondulato",
+    hügelig: "ondulato",
+    bergig: "montuoso",
+    "sehr bergig": "molto montuoso",
     Anmelden: "Accedi",
     Speichern: "Salva",
     Abbrechen: "Annulla",
@@ -933,6 +1031,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Punkt: "Punto",
     "Punkt-Aktionen ohne Dialog": "Azioni del punto senza finestra",
     "Wegpunkt löschen": "Elimina punto di passaggio",
+    "Route hier fortsetzen": "Continua il percorso qui",
     "Fehler anzeigen": "Mostra errore",
     Start: "Partenza",
     "Klick auf die Karte setzt den Start.":

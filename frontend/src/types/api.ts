@@ -81,6 +81,12 @@ export interface RouteComputeResponse {
 
 export interface ElevationProfileRequest {
   geometry: LineStringGeometryDto;
+  bridgeRanges?: ElevationBridgeRangeDto[];
+}
+
+export interface ElevationBridgeRangeDto {
+  startDistanceMeters: number;
+  endDistanceMeters: number;
 }
 
 export interface ElevationProfileResponse {

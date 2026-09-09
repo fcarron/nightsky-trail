@@ -101,6 +101,8 @@ POST https://api3.geo.admin.ch/rest/services/profile.json
 
 The frontend sends public GeoJSON `LineString` geometry in EPSG:4326. The backend validates the coordinates, converts the LineString to EPSG:2056, calls swisstopo, validates the response, and returns normalized distance/elevation/gradient data plus Swiss hiking-time metadata.
 
+For routes calculated by GraphHopper, `road_environment=BRIDGE` path details identify bridge ranges. Elevation samples within those ranges are interpolated between the surrounding terrain samples before smoothing, gradient, ascent/descent, and time calculations. This avoids treating the terrain or water below a mapped bridge as the route elevation. Straight segments and imported GPX tracks have no such metadata and therefore retain the uncorrected swisstopo profile.
+
 Swiss hiking time is derived only from the swisstopo elevation profile and route distance. The calculation smooths elevation, resamples into 50-metre segments, calculates segment slope, and applies the official polynomial pace model within +/-40% slope with linear steep-section handling outside that range. It does not correct for trail difficulty, surface, trail visibility, weather, or user fitness.
 
 ## GraphHopper Routing
@@ -131,10 +133,10 @@ backend/planner/integrations/graphhopper_models/hiking.json
 
 It is intentionally permissive for the MVP. It prefers mapped foot/hiking networks, path-like road classes, and ways with known `hike_rating`, but it does not exclude high T-levels or unknown difficulty. Difficulty restrictions will be added as explicit route options later, because missing OSM difficulty is unknown and must not be treated as T1.
 
-For route debugging the backend currently requests:
+For route analysis and debugging the backend currently requests:
 
 ```text
-hike_rating, foot_network, road_class
+hike_rating, foot_network, road_class, road_environment
 ```
 
 Raw GraphHopper responses and credentials must not be exposed to clients.

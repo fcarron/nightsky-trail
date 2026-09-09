@@ -39,6 +39,33 @@ const straightRouteStyle = [
   }),
 ];
 
+const routeCategoryStyles: Record<string, Style> = {
+  hiking_trail: new Style({
+    stroke: new Stroke({
+      color: "rgba(238, 190, 0, 0.95)",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 11,
+    }),
+  }),
+  mountain_hiking_trail: new Style({
+    stroke: new Stroke({
+      color: "rgba(210, 47, 47, 0.95)",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 11,
+    }),
+  }),
+  alpine_hiking_trail: new Style({
+    stroke: new Stroke({
+      color: "rgba(0, 78, 156, 0.95)",
+      lineCap: "round",
+      lineJoin: "round",
+      width: 11,
+    }),
+  }),
+};
+
 const graphhopperDebugLineStyle = new Style({
   stroke: new Stroke({
     color: "#ff4fd8",
@@ -160,6 +187,13 @@ const warningOverlayLineStyle = new Style({
 
 export function routeStyle(mode: "straight" | "routed"): Style[] {
   return mode === "routed" ? routedRouteStyle : straightRouteStyle;
+}
+
+export function routeCategoryStyle(feature: FeatureLike): Style | undefined {
+  const category = feature.get("officialCategory");
+  return typeof category === "string"
+    ? routeCategoryStyles[category]
+    : undefined;
 }
 
 export function waypointStyle(selected: boolean): Style {

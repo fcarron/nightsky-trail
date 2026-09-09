@@ -499,6 +499,39 @@ button:disabled {
   padding: 4px;
 }
 
+.filePanel.pdfExportPanel {
+  width: min(310px, calc(100vw - 32px));
+}
+
+.pdfExportPrompt {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  color: #66717d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pdfExportPrompt strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.filePanel .pdfShareAction {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.filePanel .pdfShareAction:hover:not(:disabled),
+.filePanel .pdfShareAction:focus-visible {
+  background: var(--color-accent-strong);
+  color: #ffffff;
+}
+
+.filePanel .pdfExportBack {
+  color: #66717d;
+}
+
 .aboutPanel {
   width: min(300px, calc(100vw - 32px));
   gap: 6px;
@@ -1169,6 +1202,28 @@ button:disabled {
   border-radius: 2px;
   background: #f7f9fb;
   padding: 2px;
+}
+
+.paceModelToggle {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.paceModelToggle button {
+  min-height: 23px;
+  border: 1px solid #cbd5df;
+  background: #ffffff;
+  color: #66717d;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.paceModelToggle button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .paceModeToggle button {
@@ -2930,24 +2985,19 @@ button:disabled {
   outline-offset: 2px;
 }
 
-.mapWaypointDelete {
+.mapWaypointActions {
   position: absolute;
   z-index: 36;
   transform: translate(-50%, calc(-100% - 18px));
-  display: grid;
-  place-items: center;
-  width: 42px;
+  display: flex;
   height: 42px;
   border: 1px solid rgba(var(--color-accent-rgb), 0.28);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.96);
-  color: var(--color-accent);
-  cursor: pointer;
-  padding: 0;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
-.mapWaypointDelete::after {
+.mapWaypointActions::after {
   position: absolute;
   left: 50%;
   bottom: -6px;
@@ -2960,10 +3010,72 @@ button:disabled {
   content: "";
 }
 
+.mapWaypointAction {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 42px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 0;
+}
+
+.mapWaypointAction + .mapWaypointAction {
+  border-left: 1px solid #dfe5eb;
+}
+
+.mapWaypointAction:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.mapWaypointAction:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.mapWaypointAction:only-child {
+  border-radius: 3px;
+}
+
+.mapWaypointContinue {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.mapWaypointContinue:hover,
+.mapWaypointContinue:focus-visible {
+  background: var(--color-accent-strong);
+}
+
 .mapWaypointDelete:hover,
 .mapWaypointDelete:focus-visible {
   background: var(--color-accent-soft);
-  border-color: var(--color-accent);
+}
+
+.mapWaypointContinueIcon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.mapWaypointContinueIcon::before,
+.mapWaypointContinueIcon::after {
+  position: absolute;
+  top: 7px;
+  left: 2px;
+  width: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+
+.mapWaypointContinueIcon::after {
+  transform: rotate(90deg);
 }
 
 .mapWaypointDeleteIcon {

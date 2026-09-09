@@ -601,6 +601,10 @@ class ElevationProfileView(APIView):
 
         geometry = serializer.validated_data["geometry"]
         coordinates = geometry["coordinates"]
+        bridge_ranges = [
+            (bridge_range["startDistanceMeters"], bridge_range["endDistanceMeters"])
+            for bridge_range in serializer.validated_data.get("bridgeRanges", [])
+        ]
         try:
             profile = get_elevation_profile(
                 SwisstopoClient(
@@ -608,6 +612,7 @@ class ElevationProfileView(APIView):
                     timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
                 ),
                 coordinates,
+                bridge_ranges=bridge_ranges,
                 cache_timeout_seconds=settings.ELEVATION_CACHE_TIMEOUT_SECONDS,
             )
         except SwisstopoUnavailableError as error:

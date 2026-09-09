@@ -3,6 +3,7 @@ import type { FormEvent, MutableRefObject } from "react";
 
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
+  DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
   estimatePersonalRunningMinutes,
   calculateKilometreSplits,
   detectClimbs,
@@ -11,7 +12,10 @@ import {
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
 import type { AnalysisTab } from "../features/elevation/RouteAnalysis";
-import type { ElevationProfile } from "../features/elevation/elevationModel";
+import type {
+  ElevationProfile,
+  PersonalRunningTimeModel,
+} from "../features/elevation/elevationModel";
 import type {
   ElevationPanelSize,
   ElevationSurfaceSegment,
@@ -31,6 +35,12 @@ import {
   exportPointsToGpx,
   importRoutePlanFromGpx,
 } from "../features/route/gpx";
+import {
+  createRoutePdfPrintWindow,
+  createRouteQrCodeSvg,
+  renderRoutePdfPrintView,
+} from "../features/route/routePdf";
+import type { RoutePdfReport } from "../features/route/routePdf";
 import { SharedTourPage } from "../features/route/SharedTourPage";
 import {
   createPlannerHistory,
@@ -161,6 +171,8 @@ const SEARCH_DEBOUNCE_MS = 250;
 const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
 const CALIBRATED_TIME_STORAGE_KEY =
   "swiss-route-planner.calibrated-time-enabled.v1";
+const RUNNING_TIME_MODEL_STORAGE_KEY =
+  "swiss-route-planner.running-time-model.v1";
 const SURFACE_CATEGORY_ORDER: SurfaceCategory[] = [
   "paved",
   "gravel",
@@ -292,6 +304,8 @@ function PlannerApp() {
   const [savedRoutePlan, setSavedRoutePlan] = useState<RoutePlan | null>(null);
   const [tourName, setTourName] = useState(defaultTourName);
   const [tourActionPending, setTourActionPending] = useState(false);
+  const [pdfExportOptionsOpen, setPdfExportOptionsOpen] = useState(false);
+  const [pdfExportPending, setPdfExportPending] = useState(false);
   const [editingTourId, setEditingTourId] = useState<string | null>(null);
   const [editingTourName, setEditingTourName] = useState("");
   const [routeFitRequestId, setRouteFitRequestId] = useState(0);
@@ -337,6 +351,8 @@ function PlannerApp() {
   const [calibratedTimeEnabled, setCalibratedTimeEnabled] = useState(
     loadCalibratedTimeEnabled,
   );
+  const [runningTimeModel, setRunningTimeModel] =
+    useState<PersonalRunningTimeModel>(loadRunningTimeModel);
   const [effortInfoOpen, setEffortInfoOpen] = useState(false);
   const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
   const [mapInteractionMode, setMapInteractionMode] =
@@ -424,7 +440,11 @@ function PlannerApp() {
       ? routeSummary.distanceMeters / 1000 + ascentMeters / 100
       : null;
   const estimatedEffortMinutes = elevationState.profile
-    ? estimatePersonalRunningMinutes(elevationState.profile, basePaceMinPerKm)
+    ? estimatePersonalRunningMinutes(
+        elevationState.profile,
+        basePaceMinPerKm,
+        runningTimeModel,
+      )
     : null;
   const displayedDurationMinutes = elevationState.profile
     ? calibratedTimeEnabled
@@ -457,9 +477,15 @@ function PlannerApp() {
         ? calculateKilometreSplits(
             elevationState.profile,
             calibratedTimeEnabled ? basePaceMinPerKm : undefined,
+            runningTimeModel,
           )
         : [],
-    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
+    [
+      basePaceMinPerKm,
+      calibratedTimeEnabled,
+      elevationState.profile,
+      runningTimeModel,
+    ],
   );
   const climbs = useMemo(
     () =>
@@ -467,9 +493,16 @@ function PlannerApp() {
         ? detectClimbs(
             elevationState.profile,
             calibratedTimeEnabled ? basePaceMinPerKm : undefined,
+            undefined,
+            runningTimeModel,
           )
         : [],
-    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
+    [
+      basePaceMinPerKm,
+      calibratedTimeEnabled,
+      elevationState.profile,
+      runningTimeModel,
+    ],
   );
   const analysisRangeGeometry = useMemo(() => {
     if (!analysisHighlightRange || !elevationState.profile) {
@@ -613,6 +646,13 @@ function PlannerApp() {
       calibratedTimeEnabled ? "true" : "false",
     );
   }, [calibratedTimeEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      RUNNING_TIME_MODEL_STORAGE_KEY,
+      runningTimeModel,
+    );
+  }, [runningTimeModel]);
 
   useEffect(
     () => () => {
@@ -1251,6 +1291,129 @@ function PlannerApp() {
     setOpenTopMenu(null);
   }
 
+  function buildPdfReport(
+    profile: ElevationProfile,
+    share?: RoutePdfReport["share"],
+  ): RoutePdfReport {
+    const title = (activeTour?.name ?? tourName.trim()) || defaultTourName();
+    const dateLocale = {
+      de: "de-CH",
+      en: "en-GB",
+      fr: "fr-CH",
+      it: "it-CH",
+    }[locale];
+    const generatedDate = new Intl.DateTimeFormat(dateLocale, {
+      dateStyle: "medium",
+    }).format(new Date());
+
+    return {
+      generatedLabel: `${tx("Erstellt mit nightsky trail")} · ${generatedDate}`,
+      gradientLabel: t("gradient"),
+      language: locale,
+      profile,
+      share,
+      sourceLabel: tx(
+        "Karte: © swisstopo · Routing: © OpenStreetMap contributors",
+      ),
+      statistics: [
+        { label: t("distance"), value: formatDistance(profile.distanceMeters) },
+        { label: t("ascent"), value: formatMeters(profile.ascentMeters) },
+        { label: t("descent"), value: formatMeters(profile.descentMeters) },
+        {
+          label: calibratedTimeEnabled
+            ? `${tx("Meine Pace")} · ${runningTimeModelLabel(runningTimeModel)}`
+            : t("hikingTime"),
+          value:
+            displayedDurationMinutes === null
+              ? "-"
+              : calibratedTimeEnabled
+                ? `${formatDurationMinutes(displayedDurationMinutes)} · ${formatPaceInput(basePaceMinPerKm)} min/km`
+                : formatDurationMinutes(displayedDurationMinutes),
+        },
+        {
+          label: "Effort km",
+          value:
+            effortKilometers === null
+              ? "-"
+              : `${formatKilometers(effortKilometers)} km`,
+        },
+        {
+          label: tx("Terrain"),
+          value:
+            climbMetersPerKilometer === null
+              ? "-"
+              : `${Math.round(climbMetersPerKilometer)} Hm+/km · ${tx(routeTerrainLabel(climbMetersPerKilometer))}`,
+        },
+      ],
+      subtitle: tx("Routenblatt mit Kilometerpunkten und Höhenprofil"),
+      title,
+    };
+  }
+
+  async function exportPdf(includeShareQr: boolean) {
+    const profile = elevationState.profile;
+    if (!profile || profile.points.length < 2) {
+      setTourMessage(
+        "Für PDF Export muss das Höhenprofil der Route bereit sein.",
+      );
+      return;
+    }
+
+    const printWindow = createRoutePdfPrintWindow();
+    if (!printWindow) {
+      setTourMessage("PDF-Druckansicht wurde vom Browser blockiert.");
+      return;
+    }
+
+    setPdfExportPending(true);
+    try {
+      let share: RoutePdfReport["share"];
+      if (includeShareQr) {
+        if (!activeTour || hasUnsavedRouteChanges) {
+          throw new Error("Tour muss vor dem Teilen gespeichert werden.");
+        }
+
+        let sharedTour = activeTour;
+        if (!sharedTour.shareEnabled || !sharedTour.shareId) {
+          const response = await updateSavedTour(sharedTour.id, {
+            shareEnabled: true,
+          });
+          const updatedTour = response.tour;
+          sharedTour = updatedTour;
+          setSavedTours((tours) =>
+            tours.map((tour) =>
+              tour.id === updatedTour.id ? updatedTour : tour,
+            ),
+          );
+        }
+        if (!sharedTour.shareId) {
+          throw new Error("Freigabe-Link konnte nicht erstellt werden.");
+        }
+
+        const url = sharedTourUrl(sharedTour.shareId);
+        share = {
+          label: tx("Tour online öffnen"),
+          qrCodeSvg: await createRouteQrCodeSvg(url),
+          url,
+        };
+      }
+
+      renderRoutePdfPrintView(printWindow, buildPdfReport(profile, share));
+      setTourMessage(
+        includeShareQr
+          ? "PDF mit öffentlichem Freigabe-QR geöffnet."
+          : "PDF-Druckansicht geöffnet. Im Druckdialog als PDF speichern.",
+      );
+      setPdfExportOptionsOpen(false);
+      setOpenTopMenu(null);
+    } catch (error: unknown) {
+      printWindow.close();
+      setTourMessage(errorMessage(error));
+    } finally {
+      setPdfExportPending(false);
+    }
+  }
+
   async function importGpxFile(file: File) {
     if (
       !confirmDiscardUnsavedRoute("GPX importieren und Änderungen verwerfen?")
@@ -1590,33 +1753,93 @@ function PlannerApp() {
         <button
           type="button"
           aria-expanded={openTopMenu === "files"}
-          onClick={() =>
-            setOpenTopMenu((menu) => (menu === "files" ? null : "files"))
-          }
+          onClick={() => {
+            setPdfExportOptionsOpen(false);
+            setOpenTopMenu((menu) => (menu === "files" ? null : "files"));
+          }}
         >
           {tx("Datei")}
         </button>
         {openTopMenu === "files" ? (
           <div
-            className="managePanel filePanel"
+            className={`managePanel filePanel${pdfExportOptionsOpen ? " pdfExportPanel" : ""}`}
             aria-label={tx("Dateiaktionen")}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setOpenTopMenu(null);
-                gpxInputRef.current?.click();
-              }}
-            >
-              {tx("GPX importieren")}
-            </button>
-            <button
-              type="button"
-              disabled={history.present.waypoints.length < 2}
-              onClick={exportGpx}
-            >
-              {tx("GPX exportieren")}
-            </button>
+            {pdfExportOptionsOpen ? (
+              <>
+                <div className="pdfExportPrompt">
+                  <strong>{tx("PDF exportieren")}</strong>
+                  <span>
+                    {activeTour && !hasUnsavedRouteChanges
+                      ? activeTour.shareEnabled
+                        ? tx(
+                            "Der QR-Code öffnet die bereits freigegebene Tour.",
+                          )
+                        : tx(
+                            "Mit QR-Code wird ein öffentlicher, schreibgeschützter Link erstellt. Du kannst die Freigabe jederzeit beenden.",
+                          )
+                      : tx(
+                          "Für einen QR-Code zuerst anmelden, die Tour speichern und aktuelle Änderungen sichern.",
+                        )}
+                  </span>
+                </div>
+                {authState.authenticated &&
+                activeTour &&
+                !hasUnsavedRouteChanges ? (
+                  <button
+                    className="pdfShareAction"
+                    type="button"
+                    disabled={pdfExportPending}
+                    onClick={() => void exportPdf(true)}
+                  >
+                    {activeTour.shareEnabled
+                      ? tx("Mit QR-Code exportieren")
+                      : tx("Teilen + QR-Code")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={pdfExportPending}
+                  onClick={() => void exportPdf(false)}
+                >
+                  {tx("Ohne QR-Code exportieren")}
+                </button>
+                <button
+                  className="pdfExportBack"
+                  type="button"
+                  disabled={pdfExportPending}
+                  onClick={() => setPdfExportOptionsOpen(false)}
+                >
+                  {tx("Zurück")}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenTopMenu(null);
+                    gpxInputRef.current?.click();
+                  }}
+                >
+                  {tx("GPX importieren")}
+                </button>
+                <button
+                  type="button"
+                  disabled={history.present.waypoints.length < 2}
+                  onClick={exportGpx}
+                >
+                  {tx("GPX exportieren")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!elevationState.profile}
+                  onClick={() => setPdfExportOptionsOpen(true)}
+                >
+                  {tx("PDF exportieren")}
+                </button>
+              </>
+            )}
           </div>
         ) : null}
       </div>
@@ -2305,6 +2528,42 @@ function PlannerApp() {
                         {tx("Meine Pace")}
                       </button>
                     </div>
+                    {calibratedTimeEnabled ? (
+                      <div
+                        className="paceModelToggle"
+                        role="group"
+                        aria-label={tx("Laufzeitmodell")}
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={runningTimeModel === "swiss"}
+                          onClick={() => setRunningTimeModel("swiss")}
+                        >
+                          Swiss
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={runningTimeModel === "gap"}
+                          onClick={() => setRunningTimeModel("gap")}
+                        >
+                          GAP
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={runningTimeModel === "gap_strava"}
+                          onClick={() => setRunningTimeModel("gap_strava")}
+                        >
+                          GAP Strava
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={runningTimeModel === "gap_hybrid"}
+                          onClick={() => setRunningTimeModel("gap_hybrid")}
+                        >
+                          GAP Hybrid
+                        </button>
+                      </div>
+                    ) : null}
                     <label htmlFor="base-pace-input">Pace</label>
                     <button
                       type="button"
@@ -2340,7 +2599,13 @@ function PlannerApp() {
                       </summary>
                       <p>
                         {tx(
-                          "Wanderzeit nutzt Distanz und Höhenprofil. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein. Das Höhenprofil passt die Zeit abschnittsweise an.",
+                          runningTimeModel === "gap"
+                            ? "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
+                            : runningTimeModel === "gap_strava"
+                              ? "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
+                              : runningTimeModel === "gap_hybrid"
+                                ? "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet."
+                                : "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.",
                         )}
                       </p>
                     </details>
@@ -3385,6 +3650,17 @@ function loadCalibratedTimeEnabled(): boolean {
   return window.localStorage.getItem(CALIBRATED_TIME_STORAGE_KEY) === "true";
 }
 
+function loadRunningTimeModel(): PersonalRunningTimeModel {
+  const storedValue = window.localStorage.getItem(
+    RUNNING_TIME_MODEL_STORAGE_KEY,
+  );
+  return storedValue === "gap" ||
+    storedValue === "gap_strava" ||
+    storedValue === "gap_hybrid"
+    ? storedValue
+    : DEFAULT_PERSONAL_RUNNING_TIME_MODEL;
+}
+
 function clampPaceMinutes(value: number): number {
   return Math.min(20, Math.max(2, roundToNearestTenSeconds(value)));
 }
@@ -3415,6 +3691,16 @@ function formatPaceInput(minPerKm: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function runningTimeModelLabel(model: PersonalRunningTimeModel): string {
+  const labels: Record<PersonalRunningTimeModel, string> = {
+    gap: "GAP",
+    gap_hybrid: "GAP Hybrid",
+    gap_strava: "GAP Strava",
+    swiss: "Swiss",
+  };
+  return labels[model];
 }
 
 function formatSpeedKmh(minPerKm: number): string {

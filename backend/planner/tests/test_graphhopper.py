@@ -114,6 +114,7 @@ def test_graphhopper_client_posts_expected_payload(monkeypatch: pytest.MonkeyPat
         "details": ROUTE_DETAILS,
         "custom_model": load_hiking_custom_model(),
     }
+    assert "road_environment" in ROUTE_DETAILS
 
 
 def test_graphhopper_client_defaults_to_hike_profile(monkeypatch: pytest.MonkeyPatch) -> None:

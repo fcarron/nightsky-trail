@@ -16,7 +16,7 @@ ELEVATION_SAMPLE_SPACING_METERS = 25.0
 ELEVATION_CHUNK_LENGTH_METERS = 10_000.0
 SWISSTOPO_MAX_PROFILE_SAMPLES = 500
 DISTANCE_ROUNDING_TOLERANCE_METERS = 0.001
-ELEVATION_CACHE_VERSION = "v1"
+ELEVATION_CACHE_VERSION = "v2"
 
 
 class ElevationClient(Protocol):
@@ -38,29 +38,94 @@ def get_elevation_profile(
     client: ElevationClient,
     coordinates: list[list[float]],
     *,
+    bridge_ranges: list[tuple[float, float]] | None = None,
     cache_timeout_seconds: int,
 ) -> ElevationProfile:
-    cache_key = elevation_cache_key(coordinates)
+    normalized_bridge_ranges = sorted(bridge_ranges or [])
+    cache_key = elevation_cache_key(coordinates, normalized_bridge_ranges)
     if cache_timeout_seconds > 0:
         cached_profile = cache.get(cache_key)
         if isinstance(cached_profile, ElevationProfile):
             return cached_profile
 
-    profile = build_elevation_profile(load_elevation_samples(client, coordinates))
+    samples = load_elevation_samples(client, coordinates)
+    profile = build_elevation_profile(
+        interpolate_bridge_elevations(samples, normalized_bridge_ranges)
+    )
     if cache_timeout_seconds > 0:
         cache.set(cache_key, profile, timeout=cache_timeout_seconds)
     return profile
 
 
-def elevation_cache_key(coordinates: list[list[float]]) -> str:
+def elevation_cache_key(
+    coordinates: list[list[float]],
+    bridge_ranges: list[tuple[float, float]] | None = None,
+) -> str:
     normalized_geometry = [
         [round(float(longitude), 7), round(float(latitude), 7)]
         for longitude, latitude in coordinates
     ]
+    normalized_bridge_ranges = [
+        [round(float(start), 3), round(float(end), 3)] for start, end in (bridge_ranges or [])
+    ]
     digest = sha256(
-        json.dumps(normalized_geometry, separators=(",", ":")).encode("utf-8")
+        json.dumps(
+            {
+                "geometry": normalized_geometry,
+                "bridge_ranges": normalized_bridge_ranges,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
     ).hexdigest()
     return f"elevation-profile:{ELEVATION_CACHE_VERSION}:{digest}"
+
+
+def interpolate_bridge_elevations(
+    samples: list[ElevationSample],
+    bridge_ranges: list[tuple[float, float]],
+) -> list[ElevationSample]:
+    corrected = list(samples)
+    if len(corrected) < 3 or not bridge_ranges:
+        return corrected
+
+    for start_distance, end_distance in sorted(bridge_ranges):
+        before_index = next(
+            (
+                index
+                for index in range(len(corrected) - 1, -1, -1)
+                if corrected[index].distance_meters <= start_distance
+            ),
+            None,
+        )
+        after_index = next(
+            (
+                index
+                for index, sample in enumerate(corrected)
+                if sample.distance_meters >= end_distance
+            ),
+            None,
+        )
+        if before_index is None or after_index is None or before_index >= after_index:
+            continue
+
+        before = corrected[before_index]
+        after = corrected[after_index]
+        distance_span = after.distance_meters - before.distance_meters
+        if distance_span <= 0:
+            continue
+
+        for index in range(before_index + 1, after_index):
+            sample = corrected[index]
+            if not start_distance <= sample.distance_meters <= end_distance:
+                continue
+            ratio = (sample.distance_meters - before.distance_meters) / distance_span
+            corrected[index] = replace(
+                sample,
+                elevation_meters=before.elevation_meters
+                + (after.elevation_meters - before.elevation_meters) * ratio,
+            )
+
+    return corrected
 
 
 def load_elevation_samples(

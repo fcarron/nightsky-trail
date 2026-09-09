@@ -7,6 +7,7 @@ from planner.domain.elevation import ElevationSample
 from planner.integrations.swisstopo import LineStringGeometry
 from planner.services.elevation import (
     get_elevation_profile,
+    interpolate_bridge_elevations,
     load_elevation_samples,
     split_elevation_geometry,
 )
@@ -52,6 +53,53 @@ def test_profile_is_cached_by_normalized_geometry() -> None:
 
     assert first == second
     assert client.sample_counts == [5]
+
+
+def test_bridge_elevations_are_interpolated_between_surrounding_ground_samples() -> None:
+    samples = [
+        ElevationSample(0, 520, 7.4, 46.9),
+        ElevationSample(25, 522, 7.401, 46.9),
+        ElevationSample(50, 480, 7.402, 46.9),
+        ElevationSample(75, 524, 7.403, 46.9),
+        ElevationSample(100, 525, 7.404, 46.9),
+    ]
+
+    corrected = interpolate_bridge_elevations(samples, [(40, 60)])
+
+    assert samples[2].elevation_meters == 480
+    assert corrected[2].elevation_meters == 523
+    assert corrected[1] == samples[1]
+    assert corrected[3] == samples[3]
+
+
+def test_bridge_interpolation_can_use_route_endpoints_as_anchors() -> None:
+    samples = [
+        ElevationSample(0, 520, 7.4, 46.9),
+        ElevationSample(25, 480, 7.401, 46.9),
+        ElevationSample(50, 524, 7.402, 46.9),
+    ]
+
+    corrected = interpolate_bridge_elevations(samples, [(0, 50)])
+
+    assert corrected[0] == samples[0]
+    assert corrected[1].elevation_meters == 522
+    assert corrected[2] == samples[2]
+
+
+def test_bridge_ranges_are_part_of_the_elevation_cache_key() -> None:
+    cache.clear()
+    client = FakeElevationClient()
+    coordinates = eastbound_coordinates(step_meters=100, count=2)
+
+    get_elevation_profile(client, coordinates, cache_timeout_seconds=60)
+    get_elevation_profile(
+        client,
+        coordinates,
+        bridge_ranges=[(20, 80)],
+        cache_timeout_seconds=60,
+    )
+
+    assert client.sample_counts == [5, 5]
 
 
 class FakeElevationClient:

@@ -124,8 +124,19 @@ class LineStringGeometrySerializer(serializers.Serializer):
         return value
 
 
+class ElevationBridgeRangeSerializer(serializers.Serializer):
+    startDistanceMeters = serializers.FloatField(min_value=0, max_value=1_000_000)
+    endDistanceMeters = serializers.FloatField(min_value=0, max_value=1_000_000)
+
+    def validate(self, attrs: dict[str, float]) -> dict[str, float]:
+        if attrs["endDistanceMeters"] <= attrs["startDistanceMeters"]:
+            raise serializers.ValidationError("Bridge range end must be after its start.")
+        return attrs
+
+
 class ElevationProfileRequestSerializer(serializers.Serializer):
     geometry = LineStringGeometrySerializer()
+    bridgeRanges = ElevationBridgeRangeSerializer(many=True, required=False, max_length=100)
 
 
 class TrailsQuerySerializer(serializers.Serializer):

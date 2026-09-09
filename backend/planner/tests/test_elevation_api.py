@@ -25,7 +25,8 @@ def test_elevation_profile_returns_normalized_profile(monkeypatch: pytest.Monkey
             "geometry": {
                 "type": "LineString",
                 "coordinates": [[7.4474, 46.948], [7.45, 46.95]],
-            }
+            },
+            "bridgeRanges": [{"startDistanceMeters": 40, "endDistanceMeters": 60}],
         },
         format="json",
     )
