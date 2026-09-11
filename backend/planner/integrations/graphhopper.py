@@ -13,6 +13,7 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 ROUTE_DETAILS = [
     "hike_rating",
     "foot_network",
+    "surface",
     "road_class",
     "road_environment",
 ]

@@ -3484,11 +3484,10 @@ function summarizeDifficulty(
     );
   }
 
-  const summary = DIFFICULTY_CATEGORY_ORDER.map((category) => ({
+  return DIFFICULTY_CATEGORY_ORDER.map((category) => ({
     category,
     distanceMeters: distances.get(category) ?? 0,
   })).filter((item) => item.distanceMeters > 1);
-  return summary.some((item) => item.category !== "?") ? summary : [];
 }
 
 function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
@@ -3511,20 +3510,31 @@ function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
       continue;
     }
 
+    const geometryDistanceMeters = detailDistanceFromStart(
+      segment.geometry,
+      segment.geometry.length - 1,
+    );
+    const distanceScale =
+      geometryDistanceMeters > 0
+        ? segment.distanceMeters / geometryDistanceMeters
+        : 0;
+    let classifiedDistanceMeters = 0;
     for (const detail of details) {
+      const distanceMeters =
+        detailDistanceMeters(segment.geometry, detail.from, detail.to) *
+        distanceScale;
+      classifiedDistanceMeters += distanceMeters;
       addSurfaceDistance(
         distances,
         surfaceCategoryFor(detail.value),
-        detailDistanceMeters(segment.geometry, detail.from, detail.to),
+        distanceMeters,
       );
     }
-  }
-
-  const hasKnownSurface = SURFACE_CATEGORY_ORDER.some(
-    (category) => category !== "unknown" && (distances.get(category) ?? 0) > 1,
-  );
-  if (!hasKnownSurface) {
-    return [];
+    addSurfaceDistance(
+      distances,
+      "unknown",
+      Math.max(0, segment.distanceMeters - classifiedDistanceMeters),
+    );
   }
 
   return SURFACE_CATEGORY_ORDER.map((category) => ({
