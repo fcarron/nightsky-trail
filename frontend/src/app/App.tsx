@@ -31,7 +31,6 @@ import {
 } from "../features/route/routeGeometry";
 import {
   toComputedRoute,
-  toImportedComputedRoute,
   toRouteComputeRequest,
 } from "../features/route/routeApi";
 import {
@@ -707,10 +706,9 @@ function PlannerApp() {
       return;
     }
 
-    const importedRoute = toImportedComputedRoute(history.present);
-    if (importedRoute) {
+    if (history.present.importedGeometry) {
       routeRequestIdRef.current += 1;
-      dispatchRouteCompute({ type: "succeeded", route: importedRoute });
+      dispatch({ type: "reroute-imported" });
       return;
     }
 
@@ -1473,11 +1471,12 @@ function PlannerApp() {
     try {
       const plan = importRoutePlanFromGpx(await file.text());
       dispatch({ type: "replace", plan });
+      dispatch({ type: "reroute-imported" });
       setActiveTourId(null);
       setSavedRoutePlan(null);
       setSelectedWaypointId(null);
       setRouteFitRequestId((requestId) => requestId + 1);
-      setTourMessage("GPX importiert. Original-Track bleibt erhalten.");
+      setTourMessage("GPX importiert und entlang Wegen neu berechnet.");
       setOpenTopMenu(null);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));

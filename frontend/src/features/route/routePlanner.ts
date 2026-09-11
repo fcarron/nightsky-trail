@@ -6,6 +6,10 @@ import type {
   SegmentMode,
   Waypoint,
 } from "./routeModel";
+import { distanceMetersBetween } from "./routeGeometry";
+
+const GPX_REROUTE_TARGET_SPACING_METERS = 750;
+const MAX_ROUTING_WAYPOINTS = 50;
 
 export interface PlannerHistory {
   past: RoutePlan[];
@@ -128,13 +132,18 @@ export function routePlannerReducer(
         segments: rebuildRoutedSegments(history.present.waypoints),
       });
 
-    case "reroute-imported":
+    case "reroute-imported": {
+      const waypoints = controlWaypointsForImportedGeometry(
+        history.present.importedGeometry,
+        history.present.waypoints,
+      );
       return commit(history, {
         importedGeometry: undefined,
         routingProfile: history.present.routingProfile,
-        waypoints: history.present.waypoints,
-        segments: rebuildRoutedSegments(history.present.waypoints),
+        waypoints,
+        segments: rebuildRoutedSegments(waypoints),
       });
+    }
 
     case "set-segment-mode":
       return commit(history, {
@@ -193,6 +202,57 @@ export function routePlannerReducer(
       };
     }
   }
+}
+
+function controlWaypointsForImportedGeometry(
+  geometry: RoutePlan["importedGeometry"],
+  fallbackWaypoints: Waypoint[],
+): Waypoint[] {
+  if (!geometry || geometry.length < 2) {
+    return fallbackWaypoints;
+  }
+
+  const totalDistanceMeters = geometry.slice(1).reduce(
+    (total, point, index) =>
+      total + distanceMetersBetween(geometry[index], point),
+    0,
+  );
+  const waypointCount = Math.min(
+    MAX_ROUTING_WAYPOINTS,
+    Math.max(2, Math.ceil(totalDistanceMeters / GPX_REROUTE_TARGET_SPACING_METERS) + 1),
+  );
+  const spacingMeters = totalDistanceMeters / (waypointCount - 1);
+  const positions = [geometry[0]];
+  let travelledMeters = 0;
+  let nextControlPointMeters = spacingMeters;
+
+  for (let index = 1; index < geometry.length; index += 1) {
+    const previous = geometry[index - 1];
+    const current = geometry[index];
+    const segmentDistanceMeters = distanceMetersBetween(previous, current);
+    while (
+      segmentDistanceMeters > 0 &&
+      nextControlPointMeters < travelledMeters + segmentDistanceMeters
+    ) {
+      const ratio =
+        (nextControlPointMeters - travelledMeters) / segmentDistanceMeters;
+      positions.push({
+        lat: previous.lat + (current.lat - previous.lat) * ratio,
+        lon: previous.lon + (current.lon - previous.lon) * ratio,
+      });
+      nextControlPointMeters += spacingMeters;
+    }
+    travelledMeters += segmentDistanceMeters;
+  }
+  const finalPosition = geometry.at(-1);
+  if (finalPosition) {
+    positions.push(finalPosition);
+  }
+
+  return positions.map((position, index) => ({
+    id: `gpx-reroute-${index + 1}`,
+    position,
+  }));
 }
 
 export function normalizeRoutePlan(plan: RoutePlan): RoutePlan {

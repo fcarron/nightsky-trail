@@ -157,7 +157,12 @@ describe("route planner reducer", () => {
 
     expect(history.present.importedGeometry).toBeUndefined();
     expect(history.present.segments).toEqual([
-      { fromWaypointId: "a", id: "a-b", mode: "routed", toWaypointId: "b" },
+      {
+        fromWaypointId: "gpx-reroute-1",
+        id: "gpx-reroute-1-gpx-reroute-2",
+        mode: "routed",
+        toWaypointId: "gpx-reroute-2",
+      },
     ]);
   });
 
