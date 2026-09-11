@@ -15,6 +15,7 @@ import type {
   RouteComputeResponse,
   SavedTourListResponse,
   SavedTourResponse,
+  SacHutsFeatureCollection,
   SharedTourResponse,
   SearchResponse,
   SearchResultDto,
@@ -344,6 +345,15 @@ export async function getDrinkingWater(
   return payload;
 }
 
+export async function getSacHuts(signal?: AbortSignal): Promise<SacHutsFeatureCollection> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/sac-huts`, { signal });
+  const payload: unknown = await response.json();
+  if (!response.ok || !isSacHutsFeatureCollection(payload)) {
+    throw new Error("SAC huts loading failed.");
+  }
+  return payload;
+}
+
 export async function searchLocations(
   query: string,
   signal?: AbortSignal,
@@ -647,6 +657,10 @@ function isDrinkingWaterFeatureCollection(
     (payload as { type?: unknown }).type === "FeatureCollection" &&
     Array.isArray((payload as { features?: unknown }).features)
   );
+}
+
+function isSacHutsFeatureCollection(payload: unknown): payload is SacHutsFeatureCollection {
+  return isDrinkingWaterFeatureCollection(payload);
 }
 
 function isSearchResponse(payload: unknown): payload is SearchResponse {

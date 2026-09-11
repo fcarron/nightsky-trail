@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 
 from django.conf import settings
@@ -822,6 +823,47 @@ class DrinkingWaterView(APIView):
                 ],
             }
         )
+
+
+class SacHutsView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(operation_id="sac_huts", responses={200: OpenApiTypes.OBJECT})
+    def get(self, request: object) -> Response:
+        try:
+            payload = json.loads(settings.SAC_HUTS_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise ServiceUnavailable(
+                "sac_huts_unavailable",
+                "The local SAC huts dataset is unavailable.",
+                {},
+            ) from error
+        if not is_sac_huts_feature_collection(payload):
+            raise ServiceUnavailable(
+                "sac_huts_unavailable",
+                "The local SAC huts dataset is invalid.",
+                {},
+            )
+        return Response(payload)
+
+
+def is_sac_huts_feature_collection(payload: object) -> bool:
+    if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
+        return False
+    features = payload.get("features")
+    return isinstance(features, list) and all(
+        isinstance(feature, dict)
+        and feature.get("type") == "Feature"
+        and isinstance(feature.get("geometry"), dict)
+        and feature["geometry"].get("type") == "Point"
+        and isinstance(feature["geometry"].get("coordinates"), list)
+        and len(feature["geometry"]["coordinates"]) == 2
+        and isinstance(feature.get("properties"), dict)
+        and isinstance(feature["properties"].get("name"), str)
+        and isinstance(feature["properties"].get("sac_id"), str)
+        for feature in features
+    )
 
 
 def django_request(request: object) -> object:

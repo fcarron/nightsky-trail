@@ -110,6 +110,10 @@ const drinkingWaterMarkerStyle = new Style({
     text: "💧",
   }),
 });
+const sacHutMarkerStyle = new Style({
+  image: new Circle({ radius: 8, fill: new Fill({ color: "rgba(255,255,255,.92)" }), stroke: new Stroke({ color: "#7b4b20", width: 1.5 }) }),
+  text: new Text({ text: "⌂", font: "700 15px sans-serif", fill: new Fill({ color: "#7b4b20" }) }),
+});
 
 const elevationHoverMarkerStyle = new Style({
   image: new Circle({
@@ -216,6 +220,8 @@ export function waypointStyle(selected: boolean): Style {
 export function drinkingWaterStyle(): Style {
   return drinkingWaterMarkerStyle;
 }
+
+export function sacHutStyle(): Style { return sacHutMarkerStyle; }
 
 export function graphhopperDebugStyle(feature: FeatureLike): Style {
   if (feature.get("debugKind") === "graphhopper-point") {

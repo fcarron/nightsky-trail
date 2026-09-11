@@ -121,6 +121,15 @@ export interface DrinkingWaterFeatureCollection {
   features: DrinkingWaterFeature[];
 }
 
+export interface SacHutsFeatureCollection {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: { type: "Point"; coordinates: [number, number] };
+    properties: { name: string; ele?: number; sac_id: string };
+  }>;
+}
+
 export interface DrinkingWaterFeature {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };

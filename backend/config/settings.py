@@ -196,6 +196,9 @@ OSM_PBF_PATH = Path(
 OSM_TRAIL_INDEX_PATH = Path(
     os.environ.get("OSM_TRAIL_INDEX_PATH", BASE_DIR.parent / "data/osm/trails.sqlite3")
 )
+SAC_HUTS_PATH = Path(
+    os.environ.get("SAC_HUTS_PATH", BASE_DIR.parent / "data/sac_huts.geojson")
+)
 SWISSTOPO_TRAILS_URL = os.environ.get(
     "SWISSTOPO_TRAILS_URL",
     "https://data.geo.admin.ch/ch.swisstopo.swisstlm3d-wanderwege/swisstlm3d-wanderwege/swisstlm3d-wanderwege_2056_5728.gpkg.zip",

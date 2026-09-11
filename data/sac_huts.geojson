@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [8.3275, 46.6142] },
+      "properties": { "name": "Gelmerhütte SAC", "ele": 2412, "sac_id": "2147000112" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [7.8976, 46.5615] },
+      "properties": { "name": "Dossenhütte SAC", "ele": 2663, "sac_id": "2147000054" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [8.5608, 46.7872] },
+      "properties": { "name": "Chamanna Tuoi SAC", "ele": 2250, "sac_id": "2147000260" }
+    }
+  ]
+}

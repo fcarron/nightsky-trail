@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { useI18n } from "../../app/i18n";
-import { getDrinkingWater, getTrailDifficultyWays } from "../../services/api";
+import { getDrinkingWater, getSacHuts, getTrailDifficultyWays } from "../../services/api";
 import type {
   CombinedTrailSegmentDto,
   OfficialTrailSegmentDto,
@@ -49,6 +49,7 @@ import {
 import {
   difficultyStyle,
   drinkingWaterStyle,
+  sacHutStyle,
   analysisRangeStyle,
   elevationHoverStyle,
   graphhopperDebugStyle,
@@ -139,6 +140,7 @@ export function MapPanel({
   );
   const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const drinkingWaterLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const sacHutsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const modifyInteractionRef = useRef<Modify | null>(null);
   const doubleClickZoomInteractionRef = useRef<DoubleClickZoom | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
@@ -147,6 +149,7 @@ export function MapPanel({
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
   const drinkingWaterSourceRef = useRef<VectorSource>(new VectorSource());
+  const sacHutsSourceRef = useRef<VectorSource>(new VectorSource());
   const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
   const analysisRangeSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultyRequestIdRef = useRef(0);
@@ -199,6 +202,7 @@ export function MapPanel({
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [drinkingWaterVisible, setDrinkingWaterVisible] = useState(false);
+  const [sacHutsVisible, setSacHutsVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
@@ -222,6 +226,7 @@ export function MapPanel({
     osmId: number;
     osmType: string;
   } | null>(null);
+  const [selectedSacHut, setSelectedSacHut] = useState<{ name: string; ele?: number; sacId: string } | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
     (waypoint) => waypoint.id === selectedWaypointId,
   );
@@ -532,6 +537,8 @@ export function MapPanel({
       zIndex: 26,
     });
     drinkingWaterLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const sacHutsLayer = new VectorLayer({ source: sacHutsSourceRef.current, style: sacHutStyle, minZoom: 11, visible: false, zIndex: 26 });
+    sacHutsLayer.set("layerRole", "overlay" satisfies LayerRole);
     const elevationHoverLayer = new VectorLayer({
       source: elevationHoverSourceRef.current,
       style: elevationHoverStyle,
@@ -547,6 +554,7 @@ export function MapPanel({
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
     difficultyLayerRef.current = difficultyLayer;
     drinkingWaterLayerRef.current = drinkingWaterLayer;
+    sacHutsLayerRef.current = sacHutsLayer;
     standardLayerRef.current = standardLayer;
     osmTopoLayerRef.current = osmTopoLayer;
     hikingTrailsLayerRef.current = hikingTrailsLayer;
@@ -594,6 +602,7 @@ export function MapPanel({
     map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
     map.addLayer(drinkingWaterLayer);
+    map.addLayer(sacHutsLayer);
     map.addLayer(routeCategoryLayer);
     map.addLayer(routeLayer);
     map.addLayer(analysisRangeLayer);
@@ -677,6 +686,14 @@ export function MapPanel({
 
       if (interactionModeRef.current === "explore") {
         setRouteInsertCandidate(null);
+        const sacHut = map.getFeaturesAtPixel(event.pixel, {
+          hitTolerance: touchLikeInput ? 14 : 8,
+          layerFilter: (layer) => layer === sacHutsLayer,
+        })[0]?.get("sacHut");
+        if (isSacHutRecord(sacHut)) {
+          setSelectedSacHut({ name: sacHut.name, ele: sacHut.ele, sacId: sacHut.sac_id });
+          return;
+        }
         const drinkingWaterFeature = map.getFeaturesAtPixel(event.pixel, {
           hitTolerance: touchLikeInput ? 14 : 8,
           layerFilter: (layer) => layer === drinkingWaterLayer,
@@ -894,6 +911,7 @@ export function MapPanel({
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
       drinkingWaterLayerRef.current = null;
+      sacHutsLayerRef.current = null;
       modifyInteractionRef.current = null;
       doubleClickZoomInteractionRef.current = null;
       loadLightBaseLayerRef.current = () => undefined;
@@ -1226,6 +1244,20 @@ export function MapPanel({
     const listener = map.on("moveend", load);
     return () => unByKey(listener);
   }, [drinkingWaterVisible, mapReady]);
+
+  useEffect(() => {
+    const layer = sacHutsLayerRef.current;
+    if (!layer) return;
+    layer.setVisible(sacHutsVisible);
+    if (!sacHutsVisible || sacHutsSourceRef.current.getFeatures().length) return;
+    void getSacHuts().then((collection) => {
+      collection.features.forEach((hut) => {
+        const feature = new Feature(new Point(fromLonLat(hut.geometry.coordinates)));
+        feature.set("sacHut", hut.properties);
+        sacHutsSourceRef.current.addFeature(feature);
+      });
+    }).catch(() => undefined);
+  }, [mapReady, sacHutsVisible]);
 
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);
@@ -1666,6 +1698,13 @@ export function MapPanel({
             />
             Trinkwasser
           </label>
+          <label className="mapOverlayToggle">
+            <input type="checkbox" checked={sacHutsVisible} onChange={(event) => {
+              setSacHutsVisible(event.target.checked);
+              setMapLayerMenuOpen(false);
+            }} />
+            SAC-Hütten
+          </label>
           {ENABLE_DEV_TOOLS ? (
             <label className="mapOverlayToggle">
               <input
@@ -1681,6 +1720,13 @@ export function MapPanel({
           ) : null}
         </div>
       </details>
+      {!panelOpen && selectedSacHut && interactionMode === "explore" ? (
+        <aside className="mapFeaturePanel" aria-label="SAC-Hütte Details">
+          <div className="mapFeaturePanelHeader"><div><span>⌂ SAC-Hütte</span><strong>{selectedSacHut.name}</strong></div><button type="button" onClick={() => setSelectedSacHut(null)} aria-label="Schliessen">×</button></div>
+          {selectedSacHut.ele ? <p>{selectedSacHut.ele} m ü. M.</p> : null}
+          <a href={`https://www.sac-cas.ch/de/huetten-und-touren/sac-tourenportal/${selectedSacHut.sacId}/`} target="_blank" rel="noreferrer">SAC-Tourenportal</a>
+        </aside>
+      ) : null}
       {!panelOpen && selectedDrinkingWater && interactionMode === "explore" ? (
         <aside className="mapFeaturePanel" aria-label="Trinkwasser Details">
           <div className="mapFeaturePanelHeader">
@@ -2043,6 +2089,10 @@ function isDrinkingWaterRecord(value: unknown): value is {
     "osm_id" in value && typeof value.osm_id === "number" &&
     "osm_type" in value && typeof value.osm_type === "string"
   );
+}
+
+function isSacHutRecord(value: unknown): value is { name: string; ele?: number; sac_id: string } {
+  return typeof value === "object" && value !== null && "name" in value && typeof value.name === "string" && "sac_id" in value && typeof value.sac_id === "string";
 }
 
 function hasVisibleLayerPixel(
