@@ -960,6 +960,14 @@ function PlannerApp() {
     setTourMessage("Neue Route: Startpunkt auf der Karte setzen.");
   }
 
+  function rerouteImportedTrack() {
+    if (!history.present.importedGeometry) {
+      return;
+    }
+    dispatch({ type: "reroute-imported" });
+    setTourMessage("Route wird entlang Wegen neu berechnet.");
+  }
+
   function clearRoute() {
     if (
       hasWaypoints &&
@@ -2815,7 +2823,12 @@ function PlannerApp() {
             className={`routeStatus routeStatus-${routeStatusKind}`}
             aria-live="polite"
           >
-            {routeStatusText}
+            <span>{routeStatusText}</span>
+            {importedGpxActive ? (
+              <button type="button" onClick={rerouteImportedTrack}>
+                {tx("Auf Wegen neu berechnen")}
+              </button>
+            ) : null}
           </div>
 
           <div

@@ -1751,6 +1751,9 @@ button:disabled {
 }
 
 .routeStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   justify-self: start;
   border: 0;
   border-radius: 0;
@@ -1760,6 +1763,15 @@ button:disabled {
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.routeStatus button {
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  padding: 2px 5px;
+  font: inherit;
 }
 
 .routeStatus-ready {

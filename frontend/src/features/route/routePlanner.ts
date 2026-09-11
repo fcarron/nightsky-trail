@@ -37,6 +37,7 @@ export type PlannerAction =
   | { type: "move-waypoint"; id: string; position: LonLat }
   | { type: "replace"; plan: RoutePlan }
   | { type: "set-routing-profile"; profile: RoutingProfile }
+  | { type: "reroute-imported" }
   | { type: "set-segment-mode"; id: string; mode: SegmentMode }
   | { type: "delete-waypoint"; id: string }
   | { type: "clear" }
@@ -121,8 +122,18 @@ export function routePlannerReducer(
 
     case "set-routing-profile":
       return commit(history, {
-        ...history.present,
+        importedGeometry: undefined,
         routingProfile: action.profile,
+        waypoints: history.present.waypoints,
+        segments: rebuildRoutedSegments(history.present.waypoints),
+      });
+
+    case "reroute-imported":
+      return commit(history, {
+        importedGeometry: undefined,
+        routingProfile: history.present.routingProfile,
+        waypoints: history.present.waypoints,
+        segments: rebuildRoutedSegments(history.present.waypoints),
       });
 
     case "set-segment-mode":

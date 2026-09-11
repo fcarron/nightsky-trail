@@ -127,6 +127,40 @@ describe("route planner reducer", () => {
     expect(history.future).toEqual([]);
   });
 
+  it("converts an imported track into routed segments explicitly", () => {
+    const history = routePlannerReducer(
+      {
+        future: [],
+        past: [],
+        present: {
+          importedGeometry: [
+            { lon: 7.4, lat: 46.9 },
+            { lon: 7.5, lat: 47 },
+          ],
+          routingProfile: "hike",
+          segments: [
+            {
+              fromWaypointId: "a",
+              id: "a-b",
+              mode: "straight",
+              toWaypointId: "b",
+            },
+          ],
+          waypoints: [
+            { id: "a", position: { lon: 7.4, lat: 46.9 } },
+            { id: "b", position: { lon: 7.5, lat: 47 } },
+          ],
+        },
+      },
+      { type: "reroute-imported" },
+    );
+
+    expect(history.present.importedGeometry).toBeUndefined();
+    expect(history.present.segments).toEqual([
+      { fromWaypointId: "a", id: "a-b", mode: "routed", toWaypointId: "b" },
+    ]);
+  });
+
   it("rebuilds routed segments when reversing the route", () => {
     let history = initialPlannerHistory;
 
