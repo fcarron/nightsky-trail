@@ -53,6 +53,9 @@ const translations = {
     mountainHikingTrail: "Bergwanderweg",
     alpineHikingTrail: "Alpinwanderweg",
     difficulty: "Schwierigkeit",
+    legend: "Legende",
+    profileLegendHint:
+      "Profilfarben zeigen die Steigung; der schmale Balken unter dem Profil zeigt den gemeldeten Untergrund.",
     selectedGradientAreas: "Ausgewählte Gradientbereiche",
     clearSelection: "Auswahl aufheben",
     steepestSections: "Steilste Passagen",
@@ -143,6 +146,9 @@ const translations = {
     mountainHikingTrail: "Mountain hiking trail",
     alpineHikingTrail: "Alpine hiking trail",
     difficulty: "Difficulty",
+    legend: "Legend",
+    profileLegendHint:
+      "Profile colours show gradient; the narrow bar below the profile shows the reported surface.",
     selectedGradientAreas: "Selected gradient ranges",
     clearSelection: "Clear selection",
     steepestSections: "Steepest sections",
@@ -230,6 +236,9 @@ const translations = {
     mountainHikingTrail: "Sentier de montagne",
     alpineHikingTrail: "Sentier alpin",
     difficulty: "Difficulté",
+    legend: "Légende",
+    profileLegendHint:
+      "Les couleurs du profil indiquent la pente ; la barre étroite sous le profil indique le revêtement renseigné.",
     selectedGradientAreas: "Zones de pente sélectionnées",
     clearSelection: "Effacer la sélection",
     steepestSections: "Passages les plus raides",
@@ -318,6 +327,9 @@ const translations = {
     mountainHikingTrail: "Sentiero di montagna",
     alpineHikingTrail: "Sentiero alpino",
     difficulty: "Difficoltà",
+    legend: "Legenda",
+    profileLegendHint:
+      "I colori del profilo mostrano la pendenza; la barra sottile sotto il profilo mostra il fondo indicato.",
     selectedGradientAreas: "Zone di pendenza selezionate",
     clearSelection: "Cancella selezione",
     steepestSections: "Tratti più ripidi",
@@ -382,7 +394,19 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
   en: {
     "Meine Touren": "My tours",
     Tourname: "Tour name",
+    "z.B. Bern – Bantiger": "e.g. Bern – Bantiger",
     "Gespeicherte Touren": "Saved tours",
+    "Gespeicherte Routen verwalten": "Manage saved routes",
+    "Tourenverwaltung schliessen": "Close tour management",
+    Wegdetails: "Route details",
+    "Anteile beziehen sich auf die gesamte Route.":
+      "Shares refer to the entire route.",
+    "Für diese Route liegen keine OSM-Oberflächenangaben vor.":
+      "No OSM surface data is available for this route.",
+    "Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.":
+      "No OSM difficulty data is available for this route.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Unbekannt bedeutet: keine nutzbare OSM-Angabe.":
+      "Technical difficulty comes from OSM and is independent of the climb's physical effort. Unknown means that no usable OSM data is available.",
     "Touren speichern": "Save tours",
     Dateiaktionen: "File actions",
     "Über nightsky trail": "About nightsky trail",
@@ -432,6 +456,26 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Rundenstatus: "Loop status",
     Kartenwerkzeug: "Map tool",
     "Routing-Profil": "Routing profile",
+    "Was bedeutet Trail?": "What does Trail mean?",
+    "Trail bevorzugt markierte Wandernetze und OSM-Wege wie Pfade, Fusswege, Forstwege und Treppen. Untergrund, Asphaltanteil und technische Abstiege werden nicht gezielt optimiert. Das Ergebnis kann deshalb überwiegend über Kies- oder Forstwege führen.":
+      "Trail prioritises marked hiking networks and OSM ways such as paths, footways, tracks and steps. Surface, asphalt share and technical descents are not specifically optimised, so a result can consist mostly of gravel or forestry roads.",
+    "Zum Start zurückführen": "Route back to start",
+    "Berechnet nur den zusätzlichen Weg vom aktuellen Ziel zum Start. Dabei kann derselbe Weg zurück verwendet werden; es wird keine alternative Rundtour erzeugt.":
+      "Only calculates the additional route from the current destination to the start. It may use the same way back; it does not generate an alternative round trip.",
+    "Verbindet das aktuelle Ziel gerade mit dem Start. Es wird keine alternative Rundtour erzeugt.":
+      "Connects the current destination directly to the start. It does not generate an alternative round trip.",
+    Pausenzeit: "Break time",
+    Pause: "break",
+    "Wanderzeit ohne Pausen nach Schweizer Wanderzeitmodell aus Distanz und Höhenprofil.":
+      "Hiking time excluding breaks, calculated from distance and elevation using the Swiss hiking-time model.",
+    "Laufzeit ohne Pausen. Basispace und Höhenprofil bestimmen die Zeit; Untergrund, technische Schwierigkeit, Höhe und Ermüdung sind nicht berücksichtigt.":
+      "Running time excluding breaks. Base pace and elevation determine the estimate; surface, technical difficulty, altitude and fatigue are not included.",
+    "Farben zeigen OSM-Untergrundklassen. Unbekannt bedeutet: Für diesen Abschnitt liegt keine nutzbare OSM-Angabe vor.":
+      "Colours show OSM surface classes. Unknown means there is no usable OSM surface value for this section.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Fehlende Schwierigkeit wird als unbekannt angezeigt.":
+      "Technical difficulty comes from OSM and is independent of the climb's physical-effort rating. Missing difficulty is shown as unknown.",
+    "Der Layer zeigt gemeldete Sperrungen und Umleitungen. Keine sichtbare Meldung bestätigt nicht, dass die Route frei ist.":
+      "The layer shows reported closures and detours. No visible report does not confirm that the route is clear.",
     "Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist im Datei-Menü.":
       "Follow paths uses the selected routing profile. GPX import is in the File menu.",
     "Startpunkt auf der Karte setzen": "Set starting point on the map",
@@ -536,6 +580,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Fehlende Schwierigkeit wird als unbekannt angezeigt.":
       "Missing difficulty data is shown as unknown.",
     Karte: "Map",
+    "Karte wird geladen": "Loading map",
     Kartenauswahl: "Map selection",
     Basiskarte: "Base map",
     "Offizielle Wanderwege": "Official hiking trails",
@@ -602,7 +647,19 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
   fr: {
     "Meine Touren": "Mes itinéraires",
     Tourname: "Nom de l'itinéraire",
+    "z.B. Bern – Bantiger": "p. ex. Berne – Bantiger",
     "Gespeicherte Touren": "Itinéraires enregistrés",
+    "Gespeicherte Routen verwalten": "Gérer les itinéraires enregistrés",
+    "Tourenverwaltung schliessen": "Fermer la gestion des itinéraires",
+    Wegdetails: "Détails du parcours",
+    "Anteile beziehen sich auf die gesamte Route.":
+      "Les parts se rapportent à l'ensemble de l'itinéraire.",
+    "Für diese Route liegen keine OSM-Oberflächenangaben vor.":
+      "Aucune donnée OSM sur le revêtement n'est disponible pour cet itinéraire.",
+    "Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.":
+      "Aucune donnée OSM sur la difficulté n'est disponible pour cet itinéraire.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Unbekannt bedeutet: keine nutzbare OSM-Angabe.":
+      "La difficulté technique provient d'OSM et est indépendante de l'effort physique de la montée. Inconnu signifie qu'aucune donnée OSM utilisable n'est disponible.",
     "Touren speichern": "Enregistrer les itinéraires",
     Dateiaktionen: "Actions de fichier",
     "Über nightsky trail": "À propos de nightsky trail",
@@ -652,6 +709,26 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Rundenstatus: "État de la boucle",
     Kartenwerkzeug: "Outil cartographique",
     "Routing-Profil": "Profil d'itinéraire",
+    "Was bedeutet Trail?": "Que signifie Trail ?",
+    "Trail bevorzugt markierte Wandernetze und OSM-Wege wie Pfade, Fusswege, Forstwege und Treppen. Untergrund, Asphaltanteil und technische Abstiege werden nicht gezielt optimiert. Das Ergebnis kann deshalb überwiegend über Kies- oder Forstwege führen.":
+      "Trail privilégie les réseaux pédestres balisés et les chemins OSM tels que sentiers, chemins piétons, pistes et escaliers. Le revêtement, la part d'asphalte et les descentes techniques ne sont pas optimisés spécifiquement ; le résultat peut donc emprunter surtout des pistes en gravier ou forestières.",
+    "Zum Start zurückführen": "Revenir au départ",
+    "Berechnet nur den zusätzlichen Weg vom aktuellen Ziel zum Start. Dabei kann derselbe Weg zurück verwendet werden; es wird keine alternative Rundtour erzeugt.":
+      "Calcule uniquement le trajet supplémentaire de l'arrivée actuelle au départ. Le même chemin peut être repris en sens inverse ; aucun circuit alternatif n'est généré.",
+    "Verbindet das aktuelle Ziel gerade mit dem Start. Es wird keine alternative Rundtour erzeugt.":
+      "Relie directement l'arrivée actuelle au départ. Aucun circuit alternatif n'est généré.",
+    Pausenzeit: "Temps de pause",
+    Pause: "de pause",
+    "Wanderzeit ohne Pausen nach Schweizer Wanderzeitmodell aus Distanz und Höhenprofil.":
+      "Temps de marche hors pauses, calculé à partir de la distance et du profil selon le modèle suisse.",
+    "Laufzeit ohne Pausen. Basispace und Höhenprofil bestimmen die Zeit; Untergrund, technische Schwierigkeit, Höhe und Ermüdung sind nicht berücksichtigt.":
+      "Temps de course hors pauses. L'allure de base et le profil déterminent l'estimation ; le revêtement, la difficulté technique, l'altitude et la fatigue ne sont pas pris en compte.",
+    "Farben zeigen OSM-Untergrundklassen. Unbekannt bedeutet: Für diesen Abschnitt liegt keine nutzbare OSM-Angabe vor.":
+      "Les couleurs indiquent les catégories de revêtement OSM. Inconnu signifie qu'aucune donnée OSM exploitable n'est disponible pour cette section.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Fehlende Schwierigkeit wird als unbekannt angezeigt.":
+      "La difficulté technique provient d'OSM et ne dépend pas de l'effort physique de la montée. Une difficulté manquante est indiquée comme inconnue.",
+    "Der Layer zeigt gemeldete Sperrungen und Umleitungen. Keine sichtbare Meldung bestätigt nicht, dass die Route frei ist.":
+      "La couche montre les fermetures et déviations signalées. L'absence de signalement visible ne confirme pas que l'itinéraire est libre.",
     "Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist im Datei-Menü.":
       "Le suivi des chemins utilise le profil sélectionné. L'import GPX se trouve dans le menu Fichier.",
     Routendetails: "Détails de l'itinéraire",
@@ -757,6 +834,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Fehlende Schwierigkeit wird als unbekannt angezeigt.":
       "Les difficultés manquantes sont indiquées comme inconnues.",
     Karte: "Carte",
+    "Karte wird geladen": "Chargement de la carte",
     Kartenauswahl: "Sélection de la carte",
     Basiskarte: "Fond de carte",
     "Offizielle Wanderwege": "Chemins de randonnée officiels",
@@ -825,7 +903,19 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
   it: {
     "Meine Touren": "I miei percorsi",
     Tourname: "Nome del percorso",
+    "z.B. Bern – Bantiger": "ad es. Berna – Bantiger",
     "Gespeicherte Touren": "Percorsi salvati",
+    "Gespeicherte Routen verwalten": "Gestisci i percorsi salvati",
+    "Tourenverwaltung schliessen": "Chiudi gestione percorsi",
+    Wegdetails: "Dettagli del percorso",
+    "Anteile beziehen sich auf die gesamte Route.":
+      "Le percentuali si riferiscono all'intero percorso.",
+    "Für diese Route liegen keine OSM-Oberflächenangaben vor.":
+      "Per questo percorso non sono disponibili dati OSM sulla superficie.",
+    "Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.":
+      "Per questo percorso non sono disponibili dati OSM sulla difficoltà.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Unbekannt bedeutet: keine nutzbare OSM-Angabe.":
+      "La difficoltà tecnica proviene da OSM ed è indipendente dallo sforzo fisico della salita. Sconosciuto significa che non sono disponibili dati OSM utilizzabili.",
     "Touren speichern": "Salva percorsi",
     Dateiaktionen: "Azioni file",
     "Über nightsky trail": "Informazioni su nightsky trail",
@@ -875,6 +965,26 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     Rundenstatus: "Stato dell'anello",
     Kartenwerkzeug: "Strumento mappa",
     "Routing-Profil": "Profilo di routing",
+    "Was bedeutet Trail?": "Cosa significa Trail?",
+    "Trail bevorzugt markierte Wandernetze und OSM-Wege wie Pfade, Fusswege, Forstwege und Treppen. Untergrund, Asphaltanteil und technische Abstiege werden nicht gezielt optimiert. Das Ergebnis kann deshalb überwiegend über Kies- oder Forstwege führen.":
+      "Trail privilegia le reti escursionistiche segnalate e i percorsi OSM come sentieri, vie pedonali, piste e scale. Fondo, quota di asfalto e discese tecniche non vengono ottimizzati specificamente; il risultato può quindi seguire soprattutto strade sterrate o forestali.",
+    "Zum Start zurückführen": "Ritorna alla partenza",
+    "Berechnet nur den zusätzlichen Weg vom aktuellen Ziel zum Start. Dabei kann derselbe Weg zurück verwendet werden; es wird keine alternative Rundtour erzeugt.":
+      "Calcola soltanto il tratto aggiuntivo dalla destinazione attuale alla partenza. Può ripercorrere la stessa via; non genera un anello alternativo.",
+    "Verbindet das aktuelle Ziel gerade mit dem Start. Es wird keine alternative Rundtour erzeugt.":
+      "Collega direttamente la destinazione attuale alla partenza. Non genera un anello alternativo.",
+    Pausenzeit: "Tempo di pausa",
+    Pause: "di pausa",
+    "Wanderzeit ohne Pausen nach Schweizer Wanderzeitmodell aus Distanz und Höhenprofil.":
+      "Tempo di cammino escluse le pause, calcolato da distanza e profilo con il modello svizzero.",
+    "Laufzeit ohne Pausen. Basispace und Höhenprofil bestimmen die Zeit; Untergrund, technische Schwierigkeit, Höhe und Ermüdung sind nicht berücksichtigt.":
+      "Tempo di corsa escluse le pause. Passo base e profilo determinano la stima; fondo, difficoltà tecnica, altitudine e fatica non sono inclusi.",
+    "Farben zeigen OSM-Untergrundklassen. Unbekannt bedeutet: Für diesen Abschnitt liegt keine nutzbare OSM-Angabe vor.":
+      "I colori mostrano le categorie del fondo OSM. Sconosciuto significa che per questa sezione non esiste un dato OSM utilizzabile.",
+    "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Fehlende Schwierigkeit wird als unbekannt angezeigt.":
+      "La difficoltà tecnica proviene da OSM ed è indipendente dalla valutazione dello sforzo fisico della salita. I dati mancanti sono mostrati come sconosciuti.",
+    "Der Layer zeigt gemeldete Sperrungen und Umleitungen. Keine sichtbare Meldung bestätigt nicht, dass die Route frei ist.":
+      "Il livello mostra chiusure e deviazioni segnalate. L'assenza di segnalazioni visibili non conferma che il percorso sia libero.",
     "Wegen folgen nutzt das gewählte Routingprofil. GPX-Import ist im Datei-Menü.":
       "Segui i sentieri usa il profilo selezionato. L'importazione GPX si trova nel menu File.",
     Routendetails: "Dettagli del percorso",
@@ -980,6 +1090,7 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
     "Fehlende Schwierigkeit wird als unbekannt angezeigt.":
       "Le difficoltà mancanti sono indicate come sconosciute.",
     Karte: "Mappa",
+    "Karte wird geladen": "Caricamento della mappa",
     Kartenauswahl: "Selezione della mappa",
     Basiskarte: "Mappa di base",
     "Offizielle Wanderwege": "Sentieri escursionistici ufficiali",

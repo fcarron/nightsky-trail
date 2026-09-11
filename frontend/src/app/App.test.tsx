@@ -59,6 +59,15 @@ vi.mock("../features/elevation/ElevationPanel", () => ({
               </button>
             </>
           ) : null}
+          {size === "large" ? (
+            <div aria-label="Legende">
+              <span>&gt;30%</span>
+              <span>
+                Profilfarben zeigen die Steigung; der schmale Balken unter dem
+                Profil zeigt den gemeldeten Untergrund.
+              </span>
+            </div>
+          ) : null}
         </>
       ) : null}
     </section>
@@ -230,6 +239,28 @@ describe("App", () => {
     expect(
       screen.getByText("Das Profil gilt für die gesamte Route."),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByText("Was bedeutet Trail?"));
+    expect(
+      screen.getByText(/Untergrund, Asphaltanteil und technische Abstiege/),
+    ).toBeInTheDocument();
+  });
+
+  it("describes loop closing as a return segment, not an alternative loop", async () => {
+    vi.stubGlobal("fetch", createFetchMock());
+    storeRouteWithTwoWaypoints();
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("button", { name: "Zum Start zurückführen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Gesamte Route anzeigen" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByText(/es wird keine alternative Rundtour erzeugt/i),
+    ).toBeInTheDocument();
   });
 
   it("protects an unsaved route before starting a new one", async () => {
@@ -338,7 +369,8 @@ describe("App", () => {
     expect(screen.queryByLabelText("Meine Touren")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Meine Touren" }));
 
-    expect(screen.getByLabelText("Meine Touren")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Meine Touren" })).toBeInTheDocument();
+    expect(screen.getByText("Gespeicherte Routen verwalten")).toBeInTheDocument();
     expect(screen.getByText("Touren speichern")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Datei" }));
@@ -690,6 +722,27 @@ describe("App", () => {
     ).toBe("gap_hybrid");
   });
 
+  it("shows hiking time without an inactive personal pace field", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createFetchMock());
+
+    render(<App />);
+
+    expect(screen.getByText("Wanderzeit")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Zeit-Schätzung einstellen"));
+    expect(screen.queryByLabelText("Pace")).not.toBeInTheDocument();
+    expect(screen.getByText(/Wanderzeit ohne Pausen/)).toBeInTheDocument();
+
+    const pauseInput = screen.getByLabelText("Pausenzeit");
+    await user.clear(pauseInput);
+    await user.type(pauseInput, "15");
+    expect(screen.getByText("+ 15 min Pause")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Meine Pace" }));
+    expect(screen.getByText("Laufzeit · Swiss")).toBeInTheDocument();
+    expect(screen.getByLabelText("Pace")).toBeInTheDocument();
+  });
+
   it("offers route analysis from the compact elevation profile", async () => {
     const user = userEvent.setup();
     storeRouteWithTwoWaypoints();
@@ -711,6 +764,10 @@ describe("App", () => {
 
     expect(
       screen.getByRole("button", { name: "Höhenprofil schließen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(">30%")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Profilfarben zeigen die Steigung/),
     ).toBeInTheDocument();
   });
 

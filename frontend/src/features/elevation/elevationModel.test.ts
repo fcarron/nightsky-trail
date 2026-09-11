@@ -89,11 +89,26 @@ describe("elevation profile request geometry", () => {
   });
 
   it("requests OSM bridge detection for an imported GPX track", () => {
-    const route = buildRoute([
+    const geometry = [
       { lon: 7.4, lat: 46.9 },
       { lon: 7.401, lat: 46.9 },
-    ]);
-    route.segments[0].details = { importedGpx: true };
+    ];
+    const route: ComputedRoute = {
+      distanceMeters: 76,
+      geometry,
+      segments: [
+        {
+          details: { importedGpx: true },
+          distanceMeters: 76,
+          fromWaypointId: "a",
+          geometry,
+          id: "a-b",
+          mode: "straight",
+          toWaypointId: "b",
+        },
+      ],
+      warnings: [],
+    };
 
     expect(toElevationProfileRequest(route).detectBridgeRanges).toBe(true);
   });

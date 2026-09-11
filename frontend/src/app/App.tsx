@@ -11,7 +11,10 @@ import {
   toElevationProfile,
   toElevationProfileRequest,
 } from "../features/elevation/elevationModel";
-import type { AnalysisTab } from "../features/elevation/RouteAnalysis";
+import type {
+  AnalysisTab,
+  RouteBreakdownItem,
+} from "../features/elevation/RouteAnalysis";
 import type {
   ElevationProfile,
   PersonalRunningTimeModel,
@@ -201,6 +204,16 @@ const DIFFICULTY_CATEGORY_ORDER: DifficultyCategory[] = [
   "T6",
   "?",
 ];
+const DIFFICULTY_CATEGORY_COLORS: Record<DifficultyCategory, string> = {
+  "<T1": "#aab4bf",
+  "?": "#d4dbe3",
+  T1: "#aab4bf",
+  T2: "#7f9db9",
+  T3: "#315d96",
+  T4: "#6f5599",
+  T5: "#654073",
+  T6: "#4e233f",
+};
 const PAVED_SURFACES = new Set([
   "asphalt",
   "chipseal",
@@ -302,7 +315,7 @@ function PlannerApp() {
   const [savedTours, setSavedTours] = useState<SavedTourDto[]>([]);
   const [activeTourId, setActiveTourId] = useState<string | null>(null);
   const [savedRoutePlan, setSavedRoutePlan] = useState<RoutePlan | null>(null);
-  const [tourName, setTourName] = useState(defaultTourName);
+  const [tourName, setTourName] = useState("");
   const [tourActionPending, setTourActionPending] = useState(false);
   const [pdfExportOptionsOpen, setPdfExportOptionsOpen] = useState(false);
   const [pdfExportPending, setPdfExportPending] = useState(false);
@@ -354,6 +367,7 @@ function PlannerApp() {
   const [runningTimeModel, setRunningTimeModel] =
     useState<PersonalRunningTimeModel>(loadRunningTimeModel);
   const [effortInfoOpen, setEffortInfoOpen] = useState(false);
+  const [pauseMinutes, setPauseMinutes] = useState(0);
   const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
   const [mapInteractionMode, setMapInteractionMode] =
     useState<MapInteractionMode>("explore");
@@ -451,6 +465,9 @@ function PlannerApp() {
       ? estimatedEffortMinutes
       : elevationState.profile.hikingTime.durationMinutes
     : null;
+  const durationLabel = calibratedTimeEnabled
+    ? `${tx("Laufzeit")} · ${runningTimeModelLabel(runningTimeModel)}`
+    : t("hikingTime");
   const graphhopperDebugSummary = useMemo(
     () => summarizeGraphhopperDebug(effectiveComputedRoute),
     [effectiveComputedRoute],
@@ -462,6 +479,26 @@ function PlannerApp() {
   const difficultySummary = useMemo(
     () => summarizeDifficulty(effectiveComputedRoute),
     [effectiveComputedRoute],
+  );
+  const routeSurfaceBreakdown = useMemo<RouteBreakdownItem[]>(
+    () =>
+      surfaceSummary.map((item) => ({
+        color: SURFACE_CATEGORY_COLORS[item.category],
+        distanceMeters: item.distanceMeters,
+        id: item.category,
+        label: tx(item.label),
+      })),
+    [surfaceSummary, tx],
+  );
+  const routeDifficultyBreakdown = useMemo<RouteBreakdownItem[]>(
+    () =>
+      difficultySummary.map((item) => ({
+        color: DIFFICULTY_CATEGORY_COLORS[item.category],
+        distanceMeters: item.distanceMeters,
+        id: item.category,
+        label: item.category,
+      })),
+    [difficultySummary],
   );
   const elevationSurfaceSegments = useMemo(
     () =>
@@ -914,7 +951,7 @@ function PlannerApp() {
     });
     setActiveTourId(null);
     setSavedRoutePlan(null);
-    setTourName(defaultTourName());
+    setTourName("");
     setSelectedWaypointId(null);
     setDrawingMode("routed");
     setMapInteractionMode("draw");
@@ -938,7 +975,7 @@ function PlannerApp() {
     dispatch({ type: "clear" });
     setActiveTourId(null);
     setSavedRoutePlan(null);
-    setTourName(defaultTourName());
+    setTourName("");
     setSelectedWaypointId(null);
     setTourMessage(
       "Route geleert. Mit Rückgängig kann sie wiederhergestellt werden.",
@@ -1089,7 +1126,7 @@ function PlannerApp() {
       setSavedTours([]);
       setActiveTourId(null);
       setSavedRoutePlan(null);
-      setTourName(defaultTourName());
+      setTourName("");
       setOpenTopMenu(null);
     } catch (error: unknown) {
       setTourMessage(errorMessage(error));
@@ -1226,7 +1263,7 @@ function PlannerApp() {
       if (tour.id === activeTourId) {
         setActiveTourId(null);
         setSavedRoutePlan(null);
-        setTourName(defaultTourName());
+        setTourName("");
       }
       setTourMessage("Tour gelöscht.");
     } catch (error: unknown) {
@@ -1262,7 +1299,7 @@ function PlannerApp() {
       setSavedTours([]);
       setActiveTourId(null);
       setSavedRoutePlan(null);
-      setTourName(defaultTourName());
+      setTourName("");
       setAuthFeedback({ tone: "success", message: "Konto wurde gelöscht." });
     } catch (error: unknown) {
       setAuthFeedback({ tone: "error", message: errorMessage(error) });
@@ -1579,15 +1616,42 @@ function PlannerApp() {
     }));
   }
 
+  function placeSearchResult(
+    result: SearchResultDto,
+    placement: "start" | "via" | "end",
+  ) {
+    const id = nextWaypointId(waypointCounterRef);
+    const waypoint = {
+      id,
+      position: { lat: result.latitude, lon: result.longitude },
+    };
+    dispatch(
+      placement === "start"
+        ? { type: "add-waypoint-at-start", segmentMode: drawingMode, waypoint }
+        : placement === "via"
+          ? {
+              type: "add-waypoint-before-end",
+              segmentMode: drawingMode,
+              waypoint,
+            }
+          : { type: "add-waypoint", segmentMode: drawingMode, waypoint },
+    );
+    setSelectedWaypointId(id);
+    setMapInteractionMode("draw");
+    setMobileSheetState("half");
+    selectSearchResult(result);
+  }
+
   const topMenus = (
     <div className="topMenuGroup" ref={topMenuRef}>
       <div className="manageMenu topManageMenu">
         <button
           type="button"
           aria-expanded={openTopMenu === "tours"}
-          onClick={() =>
-            setOpenTopMenu((menu) => (menu === "tours" ? null : "tours"))
-          }
+          onClick={() => {
+            setMobileHeaderOpen(false);
+            setOpenTopMenu((menu) => (menu === "tours" ? null : "tours"));
+          }}
         >
           <span className="visuallyHidden">{tx("Meine Touren")}</span>
           <span className="topMenuDesktopLabel" aria-hidden="true">
@@ -1598,7 +1662,25 @@ function PlannerApp() {
           </span>
         </button>
         {openTopMenu === "tours" ? (
-          <div className="managePanel" aria-label={tx("Meine Touren")}>
+          <div
+            className="managePanel tourManagementPanel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={tx("Meine Touren")}
+          >
+            <div className="tourManagementHeader">
+              <div>
+                <strong>{tx("Meine Touren")}</strong>
+                <span>{tx("Gespeicherte Routen verwalten")}</span>
+              </div>
+              <button
+                type="button"
+                aria-label={tx("Tourenverwaltung schliessen")}
+                onClick={() => setOpenTopMenu(null)}
+              >
+                ×
+              </button>
+            </div>
             {authState.authenticated ? (
               <>
                 <div className="tourSaveForm">
@@ -1606,6 +1688,8 @@ function PlannerApp() {
                     <span>{tx("Tourname")}</span>
                     <input
                       aria-label={tx("Tourname")}
+                      autoFocus={!activeTourId}
+                      placeholder={tx("z.B. Bern – Bantiger")}
                       value={tourName}
                       onChange={(event) =>
                         setTourName(event.currentTarget.value)
@@ -2225,14 +2309,35 @@ function PlannerApp() {
             <div className="searchResults" id="search-results">
               {searchMessage ? <p>{searchMessage}</p> : null}
               {searchResults.map((result) => (
-                <button
-                  key={result.id}
-                  type="button"
-                  onClick={() => selectSearchResult(result)}
-                >
-                  <strong>{result.label}</strong>
-                  <span>{formatSearchOrigin(result.origin)}</span>
-                </button>
+                <div className="searchResult" key={result.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectSearchResult(result)}
+                  >
+                    <strong>{result.label}</strong>
+                    <span>{formatSearchOrigin(result.origin)}</span>
+                  </button>
+                  <div className="searchResultActions">
+                    <button
+                      type="button"
+                      onClick={() => placeSearchResult(result, "start")}
+                    >
+                      {tx("Als Start")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => placeSearchResult(result, "via")}
+                    >
+                      {tx("Als Zwischenpunkt")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => placeSearchResult(result, "end")}
+                    >
+                      {tx("Als Ziel")}
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           ) : null}
@@ -2358,15 +2463,11 @@ function PlannerApp() {
           <div className="dockTop">
             <div className="sidebarHeader">
               <h1>
-                {selectedWaypoint
-                  ? `${tx("Punkt")} ${selectedWaypointIndex + 1}`
-                  : hasWaypoints
-                    ? tx("Tour bearbeiten")
-                    : tx("Tour zeichnen")}
+                {(activeTour?.name ?? tourName.trim()) || tx("Deine Route")}
               </h1>
               <p>
                 {selectedWaypoint
-                  ? tx("Punkt-Aktionen ohne Dialog")
+                  ? `${tx("Punkt")} ${selectedWaypointIndex + 1} · ${tx("Punkt-Aktionen ohne Dialog")}`
                   : (activeTour?.name ??
                     (mapInteractionMode === "draw"
                       ? tx(
@@ -2483,6 +2584,16 @@ function PlannerApp() {
                       )
                     : tx("Das Profil gilt für die gesamte Route.")}
                 </small>
+                {history.present.routingProfile === "hike" ? (
+                  <details className="routingProfileInfo">
+                    <summary>{tx("Was bedeutet Trail?")}</summary>
+                    <p>
+                      {tx(
+                        "Trail bevorzugt markierte Wandernetze und OSM-Wege wie Pfade, Fusswege, Forstwege und Treppen. Untergrund, Asphaltanteil und technische Abstiege werden nicht gezielt optimiert. Das Ergebnis kann deshalb überwiegend über Kies- oder Forstwege führen.",
+                      )}
+                    </p>
+                  </details>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -2496,7 +2607,7 @@ function PlannerApp() {
               <dd>{formatDistance(routeSummary.distanceMeters)}</dd>
             </div>
             <div className="runSummaryTimeCard">
-              <dt>{t("time")}</dt>
+              <dt>{durationLabel}</dt>
               <dd>
                 <span>
                   {displayedDurationMinutes !== null
@@ -2567,53 +2678,92 @@ function PlannerApp() {
                         </button>
                       </div>
                     ) : null}
-                    <label htmlFor="base-pace-input">Pace</label>
-                    <button
-                      type="button"
-                      aria-label={tx("Basispace 10 Sekunden schneller")}
-                      onClick={() => stepBasePace(-10)}
-                    >
-                      -10s
-                    </button>
-                    <input
-                      id="base-pace-input"
-                      type="text"
-                      inputMode="decimal"
-                      value={basePaceInput}
-                      onChange={(event) =>
-                        updateBasePaceInput(event.currentTarget.value)
-                      }
-                      onBlur={() =>
-                        setBasePaceInput(formatPaceInput(basePaceMinPerKm))
-                      }
-                    />
-                    <button
-                      type="button"
-                      aria-label={tx("Basispace 10 Sekunden langsamer")}
-                      onClick={() => stepBasePace(10)}
-                    >
-                      +10s
-                    </button>
-                    <span>min/km</span>
-                    <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
-                    <details className="paceInfo">
-                      <summary aria-label={tx("Zeitberechnung erklären")}>
-                        i
-                      </summary>
-                      <p>
-                        {tx(
-                          runningTimeModel === "gap"
-                            ? "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
-                            : runningTimeModel === "gap_strava"
-                              ? "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
-                              : runningTimeModel === "gap_hybrid"
-                                ? "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet."
-                                : "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.",
-                        )}
-                      </p>
-                    </details>
+                    {calibratedTimeEnabled ? (
+                      <>
+                        <label htmlFor="base-pace-input">Pace</label>
+                        <button
+                          type="button"
+                          aria-label={tx("Basispace 10 Sekunden schneller")}
+                          onClick={() => stepBasePace(-10)}
+                        >
+                          −10s
+                        </button>
+                        <input
+                          id="base-pace-input"
+                          type="text"
+                          inputMode="decimal"
+                          value={basePaceInput}
+                          onChange={(event) =>
+                            updateBasePaceInput(event.currentTarget.value)
+                          }
+                          onBlur={() =>
+                            setBasePaceInput(formatPaceInput(basePaceMinPerKm))
+                          }
+                        />
+                        <button
+                          type="button"
+                          aria-label={tx("Basispace 10 Sekunden langsamer")}
+                          onClick={() => stepBasePace(10)}
+                        >
+                          +10s
+                        </button>
+                        <span>min/km</span>
+                        <strong>{formatSpeedKmh(basePaceMinPerKm)}</strong>
+                        <details className="paceInfo">
+                          <summary aria-label={tx("Zeitberechnung erklären")}>
+                            i
+                          </summary>
+                          <p>
+                            {tx(
+                              runningTimeModel === "gap"
+                                ? "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
+                                : runningTimeModel === "gap_strava"
+                                  ? "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
+                                  : runningTimeModel === "gap_hybrid"
+                                    ? "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet."
+                                    : "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.",
+                            )}
+                          </p>
+                        </details>
+                      </>
+                    ) : null}
+                    <label className="pauseTimeInput">
+                      <span>{tx("Pausenzeit")}</span>
+                      <input
+                        type="number"
+                        aria-label={tx("Pausenzeit")}
+                        min="0"
+                        max="1440"
+                        step="5"
+                        value={pauseMinutes}
+                        onChange={(event) =>
+                          setPauseMinutes(
+                            Math.min(
+                              1440,
+                              Math.max(
+                                0,
+                                Number(event.currentTarget.value) || 0,
+                              ),
+                            ),
+                          )
+                        }
+                      />
+                      <span>min</span>
+                    </label>
+                    <small className="timeModelAssumption">
+                      {tx(
+                        calibratedTimeEnabled
+                          ? "Laufzeit ohne Pausen. Basispace und Höhenprofil bestimmen die Zeit; Untergrund, technische Schwierigkeit, Höhe und Ermüdung sind nicht berücksichtigt."
+                          : "Wanderzeit ohne Pausen nach Schweizer Wanderzeitmodell aus Distanz und Höhenprofil.",
+                      )}
+                    </small>
                   </div>
                 </details>
+                {pauseMinutes > 0 ? (
+                  <small className="summaryPauseTime">
+                    + {pauseMinutes} min {tx("Pause")}
+                  </small>
+                ) : null}
               </dd>
             </div>
             <div>
@@ -2677,6 +2827,15 @@ function PlannerApp() {
             </button>
             <button
               type="button"
+              disabled={!hasRoute}
+              onClick={() =>
+                setRouteFitRequestId((requestId) => requestId + 1)
+              }
+            >
+              {tx("Gesamte Route anzeigen")}
+            </button>
+            <button
+              type="button"
               className="quietAction"
               disabled={history.past.length === 0}
               onClick={() => dispatch({ type: "undo" })}
@@ -2690,21 +2849,6 @@ function PlannerApp() {
             >
               {tx("Umkehren")}
             </button>
-            <button
-              type="button"
-              className={selectedWaypointId ? "primaryAction" : undefined}
-              disabled={!selectedWaypointId}
-              onClick={deleteSelectedWaypoint}
-            >
-              {tx("Punkt löschen")}
-            </button>
-            <button
-              type="button"
-              disabled={!hasWaypoints}
-              onClick={deleteLastWaypoint}
-            >
-              {tx("Letzten löschen")}
-            </button>
             <details className="routeActionMenu">
               <summary>{tx("Weitere Aktionen")}</summary>
               <button
@@ -2713,6 +2857,20 @@ function PlannerApp() {
                 onClick={() => dispatch({ type: "redo" })}
               >
                 {tx("Wiederholen")}
+              </button>
+              <button
+                type="button"
+                disabled={!selectedWaypointId}
+                onClick={deleteSelectedWaypoint}
+              >
+                {tx("Ausgewählten Punkt löschen")}
+              </button>
+              <button
+                type="button"
+                disabled={!hasWaypoints}
+                onClick={deleteLastWaypoint}
+              >
+                {tx("Letzten löschen")}
               </button>
               <button
                 type="button"
@@ -2810,6 +2968,9 @@ function PlannerApp() {
               onSizeChange={setElevationPanelDisplay}
               size={elevationPanelSize}
               analysisTab={analysisTab}
+              routeDistanceMeters={routeSummary.distanceMeters}
+              surfaceBreakdown={routeSurfaceBreakdown}
+              difficultyBreakdown={routeDifficultyBreakdown}
               splits={kilometreSplits}
               climbs={climbs}
               onAnalysisTabChange={setAnalysisTab}
@@ -2840,7 +3001,8 @@ function PlannerApp() {
               <summary>
                 <span>{tx("Runde")}</span>
                 <small>
-                  {isClosedLoop ? tx("geschlossen") : tx("offen")} ·{" "}
+                  {isClosedLoop ? tx("geschlossen") : tx("Abstand Start–Ziel")}{" "}
+                  ·{" "}
                   {loopGapMeters !== null
                     ? formatDistance(loopGapMeters)
                     : tx("Start setzen")}
@@ -2870,8 +3032,17 @@ function PlannerApp() {
                   }
                   onClick={closeLoop}
                 >
-                  {tx("Schliessen")}
+                  {tx("Zum Start zurückführen")}
                 </button>
+                {!isClosedLoop ? (
+                  <small className="loopCloseHint">
+                    {tx(
+                      drawingMode === "routed"
+                        ? "Berechnet nur den zusätzlichen Weg vom aktuellen Ziel zum Start. Dabei kann derselbe Weg zurück verwendet werden; es wird keine alternative Rundtour erzeugt."
+                        : "Verbindet das aktuelle Ziel gerade mit dem Start. Es wird keine alternative Rundtour erzeugt.",
+                    )}
+                  </small>
+                ) : null}
               </div>
             </details>
             {effectiveComputedRoute?.warnings.length ? (
@@ -2920,10 +3091,21 @@ function PlannerApp() {
                             />
                             {tx(item.label)}
                           </dt>
-                          <dd>{formatDistance(item.distanceMeters)}</dd>
+                          <dd>
+                            {formatDistance(item.distanceMeters)} ·{" "}
+                            {formatRouteShare(
+                              item.distanceMeters,
+                              routeSummary.distanceMeters,
+                            )}
+                          </dd>
                         </div>
                       ))}
                     </dl>
+                    <small className="trailDataHint">
+                      {tx(
+                        "Farben zeigen OSM-Untergrundklassen. Unbekannt bedeutet: Für diesen Abschnitt liegt keine nutzbare OSM-Angabe vor.",
+                      )}
+                    </small>
                   </section>
                 ) : null}
                 {difficultySummary.length ? (
@@ -2965,7 +3147,7 @@ function PlannerApp() {
                     </dl>
                     <small className="trailDataHint">
                       {tx(
-                        "Fehlende Schwierigkeit wird als unbekannt angezeigt.",
+                        "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Fehlende Schwierigkeit wird als unbekannt angezeigt.",
                       )}
                     </small>
                   </section>
@@ -3124,13 +3306,13 @@ function PlannerApp() {
             aria-label={tx("Höhenprofil öffnen")}
             onClick={() => setElevationPanelDisplay("large")}
           >
-            <span>{t("elevationProfile")}</span>
+            <span>{tx("Analyse")}</span>
             <small>
               {elevationState.status === "loading"
                 ? t("calculating")
                 : elevationState.status === "error"
                   ? tx("Fehler anzeigen")
-                  : t("show")}
+                  : t("elevationProfile")}
             </small>
           </button>
         ) : null}
@@ -3138,14 +3320,18 @@ function PlannerApp() {
         <button
           type="button"
           className={`mobileDrawAction mobileDrawAction-${mobileSheetState}`}
-          aria-label={tx("Route zeichnen und Routenpanel öffnen")}
+          aria-label={tx(
+            hasRoute
+              ? "Route bearbeiten und Routenpanel öffnen"
+              : "Route zeichnen und Routenpanel öffnen",
+          )}
           aria-pressed={mapInteractionMode === "draw"}
           onClick={() => {
             setMapInteractionMode("draw");
             setMobileSheetState("half");
           }}
         >
-          {tx("Route zeichnen")}
+          {tx(hasRoute ? "Route bearbeiten" : "Route zeichnen")}
         </button>
 
         <MapPanel
@@ -3159,10 +3345,15 @@ function PlannerApp() {
           elevationMarkerBottomPadding={
             elevationPanelSize === "large" ? 310 : 40
           }
-          fitGeometry={history.present.importedGeometry}
+          fitGeometry={
+            effectiveComputedRoute?.geometry ?? history.present.importedGeometry
+          }
           fitRequestId={routeFitRequestId}
           searchFocus={searchFocus}
           selectedWaypointId={selectedWaypointId}
+          panelOpen={
+            mobileSheetState !== "collapsed" || elevationPanelSize === "large"
+          }
           interactionMode={mapInteractionMode}
           onInteractionModeChange={setMapInteractionMode}
           onAddWaypoint={addWaypoint}
@@ -3916,7 +4107,7 @@ function elevationReducer(
       return initialElevationState;
     case "started":
       return {
-        ...state,
+        profile: null,
         status: "loading",
         message: null,
       };

@@ -24,6 +24,16 @@ export type PlannerAction =
       segmentId: string;
       waypoint: { id: string; position: LonLat };
     }
+  | {
+      type: "add-waypoint-at-start";
+      waypoint: { id: string; position: LonLat };
+      segmentMode?: SegmentMode;
+    }
+  | {
+      type: "add-waypoint-before-end";
+      waypoint: { id: string; position: LonLat };
+      segmentMode?: SegmentMode;
+    }
   | { type: "move-waypoint"; id: string; position: LonLat }
   | { type: "replace"; plan: RoutePlan }
   | { type: "set-routing-profile"; profile: RoutingProfile }
@@ -72,6 +82,26 @@ export function routePlannerReducer(
       return commit(
         history,
         insertWaypoint(history.present, action.segmentId, action.waypoint),
+      );
+
+    case "add-waypoint-at-start":
+      return commit(
+        history,
+        addWaypointAtStart(
+          history.present,
+          action.waypoint,
+          action.segmentMode,
+        ),
+      );
+
+    case "add-waypoint-before-end":
+      return commit(
+        history,
+        addWaypointBeforeEnd(
+          history.present,
+          action.waypoint,
+          action.segmentMode,
+        ),
       );
 
     case "move-waypoint":
@@ -211,6 +241,49 @@ function addWaypoint(
           createSegment(previousWaypoint.id, waypoint.id, segmentMode),
         ]
       : plan.segments,
+  };
+}
+
+function addWaypointAtStart(
+  plan: RoutePlan,
+  waypoint: Waypoint,
+  segmentMode: SegmentMode = "routed",
+): RoutePlan {
+  const firstWaypoint = plan.waypoints[0];
+  return {
+    importedGeometry: undefined,
+    routingProfile: plan.routingProfile,
+    waypoints: [waypoint, ...plan.waypoints],
+    segments: firstWaypoint
+      ? [
+          createSegment(waypoint.id, firstWaypoint.id, segmentMode),
+          ...plan.segments,
+        ]
+      : plan.segments,
+  };
+}
+
+function addWaypointBeforeEnd(
+  plan: RoutePlan,
+  waypoint: Waypoint,
+  segmentMode: SegmentMode = "routed",
+): RoutePlan {
+  if (plan.waypoints.length < 2) {
+    return addWaypoint(plan, waypoint, segmentMode);
+  }
+
+  const endWaypoint = plan.waypoints.at(-1)!;
+  const previousWaypoint = plan.waypoints.at(-2)!;
+  const mode = plan.segments.at(-1)?.mode ?? segmentMode;
+  return {
+    importedGeometry: undefined,
+    routingProfile: plan.routingProfile,
+    waypoints: [...plan.waypoints.slice(0, -1), waypoint, endWaypoint],
+    segments: [
+      ...plan.segments.slice(0, -1),
+      createSegment(previousWaypoint.id, waypoint.id, mode),
+      createSegment(waypoint.id, endWaypoint.id, mode),
+    ],
   };
 }
 

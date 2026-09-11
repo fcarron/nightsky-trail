@@ -301,4 +301,49 @@ describe("route planner reducer", () => {
       },
     ]);
   });
+
+  it("places search results at the start or before the destination", () => {
+    let history = initialPlannerHistory;
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      waypoint: { id: "a", position: { lon: 7.4, lat: 46.9 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint",
+      segmentMode: "straight",
+      waypoint: { id: "b", position: { lon: 7.6, lat: 47.0 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint-at-start",
+      waypoint: { id: "start", position: { lon: 7.3, lat: 46.8 } },
+    });
+    history = routePlannerReducer(history, {
+      type: "add-waypoint-before-end",
+      waypoint: { id: "via", position: { lon: 7.5, lat: 46.95 } },
+    });
+
+    expect(history.present.waypoints.map((waypoint) => waypoint.id)).toEqual([
+      "start",
+      "a",
+      "via",
+      "b",
+    ]);
+    expect(history.present.segments).toEqual([
+      expect.objectContaining({
+        fromWaypointId: "start",
+        toWaypointId: "a",
+        mode: "routed",
+      }),
+      expect.objectContaining({
+        fromWaypointId: "a",
+        toWaypointId: "via",
+        mode: "straight",
+      }),
+      expect.objectContaining({
+        fromWaypointId: "via",
+        toWaypointId: "b",
+        mode: "straight",
+      }),
+    ]);
+  });
 });

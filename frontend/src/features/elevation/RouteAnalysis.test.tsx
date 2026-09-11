@@ -106,4 +106,55 @@ describe("RouteAnalysis", () => {
     fireEvent.mouseLeave(passage);
     expect(onRangeChange).toHaveBeenLastCalledWith(uphillRange);
   });
+
+  it("shows surface and OSM difficulty shares in the route tab", () => {
+    render(
+      <RouteAnalysis
+        activeTab="route"
+        climbs={[]}
+        difficultyBreakdown={[
+          {
+            color: "#7f9db9",
+            distanceMeters: 600,
+            id: "T2",
+            label: "T2",
+          },
+          {
+            color: "#d4dbe3",
+            distanceMeters: 400,
+            id: "unknown",
+            label: "?",
+          },
+        ]}
+        gradientDistribution={[]}
+        onRangeChange={vi.fn()}
+        onTabChange={vi.fn()}
+        routeDistanceMeters={1_000}
+        splits={[]}
+        surfaceBreakdown={[
+          {
+            color: "#8fa1ad",
+            distanceMeters: 250,
+            id: "paved",
+            label: "Strasse",
+          },
+          {
+            color: "#3f9b68",
+            distanceMeters: 750,
+            id: "natural",
+            label: "Trail/Natur",
+          },
+        ]}
+        sustainedGradients={[]}
+      />,
+    );
+
+    expect(screen.getByText("Strasse")).toBeInTheDocument();
+    expect(screen.getByText("25 % · 250 m")).toBeInTheDocument();
+    expect(screen.getByText("T2")).toBeInTheDocument();
+    expect(screen.getByText("60 % · 600 m")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unbekannt bedeutet: keine nutzbare OSM-Angabe/),
+    ).toBeInTheDocument();
+  });
 });

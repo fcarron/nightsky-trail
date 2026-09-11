@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { useI18n, type Locale } from "../../app/i18n";
+import { formatDistance } from "../route/routeGeometry";
 
 import type {
   Climb,
@@ -16,7 +17,18 @@ import {
   formatGradientPercent,
 } from "./elevationModel";
 
-export type AnalysisTab = "profile" | "splits" | "climbs" | "gradient";
+export type AnalysisTab =
+  | "profile"
+  | "splits"
+  | "climbs"
+  | "gradient"
+  | "route";
+export interface RouteBreakdownItem {
+  color: string;
+  distanceMeters: number;
+  id: string;
+  label: string;
+}
 type AnalysisRange = {
   startDistanceMeters: number;
   endDistanceMeters: number;
@@ -28,6 +40,9 @@ interface RouteAnalysisProps {
   climbs: Climb[];
   gradientDistribution: GradientDistributionBin[];
   sustainedGradients: SustainedGradient[];
+  routeDistanceMeters?: number;
+  surfaceBreakdown?: RouteBreakdownItem[];
+  difficultyBreakdown?: RouteBreakdownItem[];
   onTabChange: (tab: AnalysisTab) => void;
   onRangeChange: (range: AnalysisRange | null) => void;
   profileOverview?: ReactNode;
@@ -39,6 +54,9 @@ export function RouteAnalysis({
   climbs,
   gradientDistribution,
   sustainedGradients,
+  routeDistanceMeters = 0,
+  surfaceBreakdown = [],
+  difficultyBreakdown = [],
   onTabChange,
   onRangeChange,
   profileOverview,
@@ -69,7 +87,7 @@ export function RouteAnalysis({
         role="tablist"
         aria-label={t("showRouteAnalysis")}
       >
-        {(["profile", "splits", "climbs", "gradient"] as const).map((tab) => (
+        {(["profile", "splits", "climbs", "gradient", "route"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -82,8 +100,10 @@ export function RouteAnalysis({
               : tab === "splits"
                 ? t("kilometreSplits")
                 : tab === "climbs"
-                  ? t("climbs")
-                  : t("gradient")}
+                ? t("climbs")
+                  : tab === "gradient"
+                    ? t("gradient")
+                    : t("surface")}
           </button>
         ))}
       </div>
@@ -103,8 +123,110 @@ export function RouteAnalysis({
           {...rangeInteractions}
         />
       ) : null}
+      {activeTab === "route" ? (
+        <RouteDetailsAnalysis
+          difficultyBreakdown={difficultyBreakdown}
+          routeDistanceMeters={routeDistanceMeters}
+          surfaceBreakdown={surfaceBreakdown}
+        />
+      ) : null}
     </section>
   );
+}
+
+function RouteDetailsAnalysis({
+  difficultyBreakdown,
+  routeDistanceMeters,
+  surfaceBreakdown,
+}: {
+  difficultyBreakdown: RouteBreakdownItem[];
+  routeDistanceMeters: number;
+  surfaceBreakdown: RouteBreakdownItem[];
+}) {
+  const { t, tx } = useI18n();
+  return (
+    <section className="routeDetailsAnalysis" aria-label={tx("Wegdetails")}>
+      <p>{tx("Anteile beziehen sich auf die gesamte Route.")}</p>
+      <RouteBreakdown
+        emptyMessage={tx("Für diese Route liegen keine OSM-Oberflächenangaben vor.")}
+        items={surfaceBreakdown}
+        routeDistanceMeters={routeDistanceMeters}
+        title={t("surface")}
+      />
+      <RouteBreakdown
+        emptyMessage={tx("Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.")}
+        items={difficultyBreakdown}
+        routeDistanceMeters={routeDistanceMeters}
+        title={t("difficulty")}
+      />
+      <small>
+        {tx(
+          "Technische Schwierigkeit stammt aus OSM und ist unabhängig von der körperlichen Anstiegsbewertung. Unbekannt bedeutet: keine nutzbare OSM-Angabe.",
+        )}
+      </small>
+    </section>
+  );
+}
+
+function RouteBreakdown({
+  emptyMessage,
+  items,
+  routeDistanceMeters,
+  title,
+}: {
+  emptyMessage: string;
+  items: RouteBreakdownItem[];
+  routeDistanceMeters: number;
+  title: string;
+}) {
+  if (!items.length) {
+    return (
+      <section className="routeBreakdown">
+        <h3>{title}</h3>
+        <p>{emptyMessage}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="routeBreakdown">
+      <h3>{title}</h3>
+      <div className="routeBreakdownBar" aria-hidden="true">
+        {items.map((item) => (
+          <span
+            key={item.id}
+            style={{
+              backgroundColor: item.color,
+              flexGrow: Math.max(1, item.distanceMeters),
+            }}
+          />
+        ))}
+      </div>
+      <dl>
+        {items.map((item) => {
+          const percentage = routeShare(item.distanceMeters, routeDistanceMeters);
+          return (
+            <div key={item.id}>
+              <dt>
+                <span style={{ backgroundColor: item.color }} />
+                {item.label}
+              </dt>
+              <dd>
+                {percentage} · {formatDistance(item.distanceMeters)}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </section>
+  );
+}
+
+function routeShare(distanceMeters: number, routeDistanceMeters: number): string {
+  if (routeDistanceMeters <= 0) {
+    return "0 %";
+  }
+  return `${Math.round((distanceMeters / routeDistanceMeters) * 100)} %`;
 }
 
 function GradientAnalysis({
@@ -404,6 +526,7 @@ function ClimbList({
   const { t, tx } = useI18n();
   return (
     <div className="analysisList">
+      <p className="analysisMeaningHint">{t("climbEffortHint")}</p>
       {climbs.length ? (
         <>
           <div className="analysisTableHeader" aria-hidden="true">

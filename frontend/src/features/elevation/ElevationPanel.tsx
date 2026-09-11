@@ -21,10 +21,15 @@ import type {
   KilometreSplit,
   SustainedGradient,
 } from "./elevationModel";
-import { RouteAnalysis, type AnalysisTab } from "./RouteAnalysis";
+import {
+  RouteAnalysis,
+  type AnalysisTab,
+  type RouteBreakdownItem,
+} from "./RouteAnalysis";
 import {
   formatElevationMeters,
   formatGradientPercent,
+  GRADIENT_GROUPS,
   gradientGroupForPercent,
   calculateGradientDistribution,
   calculateSustainedGradients,
@@ -99,6 +104,9 @@ interface ElevationPanelProps {
   analysisTab?: AnalysisTab;
   splits?: KilometreSplit[];
   climbs?: Climb[];
+  routeDistanceMeters?: number;
+  surfaceBreakdown?: RouteBreakdownItem[];
+  difficultyBreakdown?: RouteBreakdownItem[];
   onAnalysisTabChange?: (tab: AnalysisTab) => void;
   onAnalysisRangeChange?: (
     range: { startDistanceMeters: number; endDistanceMeters: number } | null,
@@ -120,6 +128,9 @@ export function ElevationPanel({
   analysisTab = "profile",
   splits = [],
   climbs = [],
+  routeDistanceMeters = 0,
+  surfaceBreakdown = [],
+  difficultyBreakdown = [],
   onAnalysisTabChange,
   onAnalysisRangeChange,
   highlightedRange = null,
@@ -650,6 +661,9 @@ export function ElevationPanel({
               climbs={climbs}
               gradientDistribution={gradientDistribution}
               sustainedGradients={sustainedGradients}
+              routeDistanceMeters={routeDistanceMeters}
+              surfaceBreakdown={surfaceBreakdown}
+              difficultyBreakdown={difficultyBreakdown}
               onTabChange={onAnalysisTabChange ?? (() => undefined)}
               onRangeChange={onAnalysisRangeChange ?? (() => undefined)}
               profileOverview={
@@ -662,6 +676,18 @@ export function ElevationPanel({
           ) : null}
           {analysisTab === "profile" || panelSize === "compact" ? (
             <div ref={chartRef} className="elevationChart" />
+          ) : null}
+          {panelSize === "large" && analysisTab === "profile" ? (
+            <div className="profileChartLegend" aria-label={t("legend")}>
+              <strong>{t("gradient")}</strong>
+              {GRADIENT_GROUPS.map((group) => (
+                <span key={group.id}>
+                  <i style={{ backgroundColor: group.color }} />
+                  {group.label}
+                </span>
+              ))}
+              <small>{t("profileLegendHint")}</small>
+            </div>
           ) : null}
         </>
       ) : (

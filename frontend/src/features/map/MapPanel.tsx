@@ -92,6 +92,7 @@ interface MapPanelProps {
     requestId: number;
   } | null;
   selectedWaypointId: string | null;
+  panelOpen?: boolean;
   interactionMode: MapInteractionMode;
   onInteractionModeChange: (mode: MapInteractionMode) => void;
   onAddWaypoint: (position: LonLat) => void;
@@ -114,6 +115,7 @@ export function MapPanel({
   fitRequestId,
   searchFocus,
   selectedWaypointId,
+  panelOpen = false,
   interactionMode,
   onInteractionModeChange,
   onAddWaypoint,
@@ -150,7 +152,7 @@ export function MapPanel({
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
   const mapFeatureRequestIdRef = useRef(0);
-  const lastHandledFitRequestIdRef = useRef(0);
+  const lastHandledFitKeyRef = useRef<string | null>(null);
   const lastHandledSearchRequestIdRef = useRef(0);
   const callbacksRef = useRef({
     onAddWaypoint,
@@ -185,6 +187,8 @@ export function MapPanel({
   const suppressNextSingleClickRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapSizeKey, setMapSizeKey] = useState("");
+  const [mapTilesLoaded, setMapTilesLoaded] = useState(false);
   const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("standard");
   const [hikingTrailsVisible, setHikingTrailsVisible] = useState(true);
   const [hikingRoutesVisible, setHikingRoutesVisible] = useState(false);
@@ -194,6 +198,9 @@ export function MapPanel({
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
+    [number, number] | null
+  >(null);
+  const [searchFocusPixel, setSearchFocusPixel] = useState<
     [number, number] | null
   >(null);
   const [routeInsertCandidate, setRouteInsertCandidate] = useState<{
@@ -242,6 +249,30 @@ export function MapPanel({
   }, [selectedWaypointId]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    const target = targetRef.current;
+    if (!mapReady || !map || !target) {
+      return;
+    }
+
+    function updateMapSize() {
+      if (!map) {
+        return;
+      }
+      map.updateSize();
+      const size = map.getSize();
+      if (size && size[0] > 0 && size[1] > 0) {
+        setMapSizeKey(`${Math.round(size[0])}x${Math.round(size[1])}`);
+      }
+    }
+
+    const observer = new ResizeObserver(updateMapSize);
+    observer.observe(target);
+    updateMapSize();
+    return () => observer.disconnect();
+  }, [mapReady]);
+
+  useEffect(() => {
     interactionModeRef.current = interactionMode;
     onInteractionModeChangeRef.current = onInteractionModeChange;
     modifyInteractionRef.current?.setActive(interactionMode === "draw");
@@ -284,6 +315,29 @@ export function MapPanel({
     selectedWaypoint?.position.lat,
     selectedWaypoint?.position.lon,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !searchFocus) {
+      setSearchFocusPixel(null);
+      return;
+    }
+
+    const coordinate = fromLonLat([searchFocus.lon, searchFocus.lat]);
+    const updatePixel = () => {
+      const pixel = map.getPixelFromCoordinate(coordinate);
+      setSearchFocusPixel([Math.round(pixel[0]), Math.round(pixel[1])]);
+    };
+
+    updatePixel();
+    const view = map.getView();
+    const listeners = [
+      map.on("moveend", updatePixel),
+      view.on("change:center", updatePixel),
+      view.on("change:resolution", updatePixel),
+    ];
+    return () => unByKey(listeners);
+  }, [mapReady, searchFocus]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -498,6 +552,9 @@ export function MapPanel({
         zoom: 8,
       }),
     });
+    const renderCompleteListener = map.once("rendercomplete", () =>
+      setMapTilesLoaded(true),
+    );
     const doubleClickZoomInteraction = map
       .getInteractions()
       .getArray()
@@ -785,12 +842,15 @@ export function MapPanel({
     return () => {
       map.setTarget(undefined);
       unByKey(layerAddListener);
+      unByKey(renderCompleteListener);
       unByKey(pointerMoveListener);
       viewport.removeEventListener("pointerdown", handleRoutePointerDown);
       window.removeEventListener("pointerup", handleRoutePointerUp);
       window.removeEventListener("keydown", handleKeyDown);
       mapRef.current = null;
       setMapReady(false);
+      setMapSizeKey("");
+      setMapTilesLoaded(false);
       standardLayerRef.current = null;
       osmTopoLayerRef.current = null;
       hikingTrailsLayerRef.current = null;
@@ -928,8 +988,7 @@ export function MapPanel({
   useEffect(() => {
     if (
       !mapReady ||
-      fitRequestId === 0 ||
-      fitRequestId === lastHandledFitRequestIdRef.current ||
+      !mapSizeKey ||
       (!fitGeometry?.length && waypoints.length === 0)
     ) {
       return;
@@ -937,15 +996,21 @@ export function MapPanel({
 
     const map = mapRef.current;
     const size = map?.getSize();
-    if (!map || !size) {
+    if (!map || !size || size[0] <= 0 || size[1] <= 0) {
       return;
     }
-    lastHandledFitRequestIdRef.current = fitRequestId;
 
     const positions =
       fitGeometry && fitGeometry.length >= 2
         ? fitGeometry
         : waypoints.map((waypoint) => waypoint.position);
+    const fitKey = `${fitRequestId}:${mapSizeKey}:${positions
+      .map((position) => `${position.lon.toFixed(6)},${position.lat.toFixed(6)}`)
+      .join(";")}`;
+    if (fitKey === lastHandledFitKeyRef.current) {
+      return;
+    }
+    lastHandledFitKeyRef.current = fitKey;
     const coordinates = positions.map((position) =>
       fromLonLat([position.lon, position.lat]),
     );
@@ -973,7 +1038,7 @@ export function MapPanel({
       padding: [90, 90, 180, 90],
       size,
     });
-  }, [fitGeometry, fitRequestId, mapReady, waypoints]);
+  }, [fitGeometry, fitRequestId, mapReady, mapSizeKey, waypoints]);
 
   useEffect(() => {
     const source = analysisRangeSourceRef.current;
@@ -1060,8 +1125,9 @@ export function MapPanel({
       return;
     }
     lastHandledSearchRequestIdRef.current = searchFocus.requestId;
+    const target = fromLonLat([searchFocus.lon, searchFocus.lat]);
     map.getView().animate({
-      center: fromLonLat([searchFocus.lon, searchFocus.lat]),
+      center: target,
       duration: 350,
       zoom: searchFocus.zoom,
     });
@@ -1271,6 +1337,12 @@ export function MapPanel({
   return (
     <section className="mapSurface" aria-label={tx("Karte")}>
       <div ref={targetRef} className="mapTarget" />
+      {!mapTilesLoaded ? (
+        <div className="mapLoadingPlaceholder" aria-live="polite">
+          <span aria-hidden="true" />
+          {tx("Karte wird geladen")}
+        </div>
+      ) : null}
       {activeRouteInsertCandidate && routeInsertCandidatePixel ? (
         <button
           type="button"
@@ -1356,7 +1428,7 @@ export function MapPanel({
           <span aria-hidden="true">+</span>
         </button>
       ) : null}
-      {selectedWaypoint && selectedWaypointPixel ? (
+      {!panelOpen && selectedWaypoint && selectedWaypointPixel ? (
         <div
           className="mapWaypointActions"
           style={{
@@ -1395,6 +1467,15 @@ export function MapPanel({
           >
             <span className="mapWaypointDeleteIcon" aria-hidden="true" />
           </button>
+        </div>
+      ) : null}
+      {searchFocusPixel ? (
+        <div
+          className="mapSearchTarget"
+          aria-label={tx("Suchziel")}
+          style={{ left: searchFocusPixel[0], top: searchFocusPixel[1] }}
+        >
+          <span aria-hidden="true" />
         </div>
       ) : null}
       <details
@@ -1465,6 +1546,13 @@ export function MapPanel({
             />
             {tx("Sperrungen")}
           </label>
+          {hikingClosuresVisible ? (
+            <small className="mapLayerDataHint">
+              {tx(
+                "Der Layer zeigt gemeldete Sperrungen und Umleitungen. Keine sichtbare Meldung bestätigt nicht, dass die Route frei ist.",
+              )}
+            </small>
+          ) : null}
           <label className="mapOverlayToggle">
             <input
               type="checkbox"
@@ -1508,7 +1596,8 @@ export function MapPanel({
           ) : null}
         </div>
       </details>
-      {selectedMapFeature &&
+      {!panelOpen &&
+      selectedMapFeature &&
       interactionMode === "explore" &&
       (selectedMapFeature.kind === "closure"
         ? hikingClosuresVisible
