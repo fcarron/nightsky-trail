@@ -5,6 +5,7 @@ import { useI18n } from "../../app/i18n";
 import { CustomChart, LineChart } from "echarts/charts";
 import {
   DataZoomComponent,
+  GraphicComponent,
   GridComponent,
   MarkPointComponent,
   TooltipComponent,
@@ -39,6 +40,7 @@ registerEChartsModules([
   CustomChart,
   LineChart,
   DataZoomComponent,
+  GraphicComponent,
   GridComponent,
   MarkPointComponent,
   TooltipComponent,
@@ -826,11 +828,11 @@ function renderProfileBand(params: CustomRenderParams, api: CustomRenderApi) {
 
   return {
     shape: { points },
-    style: api.style({
+    style: {
       fill: gradientGroupForPercent(gradientPercent).color,
       opacity: 0.96,
       stroke: "transparent",
-    }),
+    },
     type: "polygon",
   };
 }
