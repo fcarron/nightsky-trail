@@ -17,7 +17,10 @@ def clear_auth_rate_limit_cache() -> None:
 
 
 @pytest.mark.django_db
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    AUTH_EMAIL_VERIFICATION_REQUIRED=True,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 def test_register_requires_email_verification() -> None:
     client = APIClient()
 
@@ -42,6 +45,27 @@ def test_register_requires_email_verification() -> None:
 
 @pytest.mark.django_db
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+def test_register_in_development_activates_and_logs_in_without_sending_email() -> None:
+    client = APIClient()
+
+    response = client.post(
+        reverse("auth-register"),
+        {"email": "Runner@example.com", "password": "correct-horse"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["authenticated"] is True
+    assert response.json()["user"]["email"] == "runner@example.com"
+    assert get_user_model().objects.get(username="runner@example.com").is_active is True
+    assert len(mail.outbox) == 0
+
+
+@pytest.mark.django_db
+@override_settings(
+    AUTH_EMAIL_VERIFICATION_REQUIRED=True,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 def test_email_verification_activates_and_logs_in_user() -> None:
     client = APIClient()
     client.post(
@@ -65,7 +89,10 @@ def test_email_verification_activates_and_logs_in_user() -> None:
 
 
 @pytest.mark.django_db
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    AUTH_EMAIL_VERIFICATION_REQUIRED=True,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 def test_resend_verification_email_is_neutral_and_only_sends_to_unverified_accounts() -> None:
     client = APIClient()
     client.post(
@@ -90,7 +117,10 @@ def test_resend_verification_email_is_neutral_and_only_sends_to_unverified_accou
 
 
 @pytest.mark.django_db
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    AUTH_EMAIL_VERIFICATION_REQUIRED=True,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 def test_unverified_account_cannot_log_in() -> None:
     client = APIClient()
     client.post(
@@ -306,7 +336,7 @@ def test_register_and_login_require_csrf_token() -> None:
         HTTP_ORIGIN="http://127.0.0.1:5173",
     )
 
-    assert response.status_code == 202
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db

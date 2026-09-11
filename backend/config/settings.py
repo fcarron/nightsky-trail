@@ -105,6 +105,13 @@ EMAIL_BACKEND = os.environ.get(
     if DEBUG
     else "django.core.mail.backends.smtp.EmailBackend",
 )
+AUTH_EMAIL_VERIFICATION_REQUIRED = (
+    os.environ.get(
+        "AUTH_EMAIL_VERIFICATION_REQUIRED",
+        str(DJANGO_ENV == "production"),
+    ).lower()
+    == "true"
+)
 EMAIL_HOST = os.environ.get("BREVO_SMTP_HOST", "smtp-relay.brevo.com")
 EMAIL_PORT = int(os.environ.get("BREVO_SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("BREVO_SMTP_LOGIN", "")

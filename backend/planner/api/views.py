@@ -123,7 +123,7 @@ class AuthRegisterView(APIView):
     @extend_schema(
         operation_id="auth_register",
         request=AuthRegisterSerializer,
-        responses={202: OpenApiTypes.OBJECT},
+        responses={200: OpenApiTypes.OBJECT, 202: OpenApiTypes.OBJECT},
     )
     def post(self, request: object) -> Response:
         serializer = AuthRegisterSerializer(data=getattr(request, "data", {}))
@@ -151,24 +151,34 @@ class AuthRegisterView(APIView):
             username=email,
             email=email,
             password=data["password"],
-            is_active=False,
+            is_active=not settings.AUTH_EMAIL_VERIFICATION_REQUIRED,
         )
         if existing_user:
             user.email = email
             user.set_password(data["password"])
-            user.save(update_fields=["email", "password"])
-        try:
-            send_verification_email(user)
-        except AccountEmailUnavailableError as error:
-            if not existing_user:
-                user.delete()
-            raise ServiceUnavailable(
-                "verification_email_unavailable",
-                "Verification email could not be sent. Please try again later.",
-            ) from error
+            user.is_active = not settings.AUTH_EMAIL_VERIFICATION_REQUIRED
+            user.save(update_fields=["email", "password", "is_active"])
+        if settings.AUTH_EMAIL_VERIFICATION_REQUIRED:
+            try:
+                send_verification_email(user)
+            except AccountEmailUnavailableError as error:
+                if not existing_user:
+                    user.delete()
+                raise ServiceUnavailable(
+                    "verification_email_unavailable",
+                    "Verification email could not be sent. Please try again later.",
+                ) from error
+            return Response(
+                {"authenticated": False, "user": None},
+                status=202,
+            )
+
+        login(django_request(request), user)
         return Response(
-            {"authenticated": False, "user": None},
-            status=202,
+            {
+                "authenticated": True,
+                "user": {"id": user.id, "email": user.email or user.get_username()},
+            }
         )
 
 

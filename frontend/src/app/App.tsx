@@ -981,13 +981,16 @@ function PlannerApp() {
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
       setAuthPasswordConfirmation("");
-      setPendingVerificationEmail(authMode === "register" ? email : null);
+      const verificationPending = authMode === "register" && !session.authenticated;
+      setPendingVerificationEmail(verificationPending ? email : null);
       setAuthFeedback({
         tone: "success",
         message:
           authMode === "login"
             ? `Angemeldet als ${session.user?.email ?? email}.`
-            : "Fast geschafft: Bitte bestätige deine E-Mail über den zugesandten Link.",
+            : verificationPending
+              ? "Fast geschafft: Bitte bestätige deine E-Mail über den zugesandten Link."
+              : `Angemeldet als ${session.user?.email ?? email}.`,
       });
     } catch (error: unknown) {
       setAuthFeedback({ tone: "error", message: errorMessage(error) });
