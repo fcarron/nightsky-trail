@@ -201,8 +201,8 @@ export function MapPanel({
   const [hikingClosuresVisible, setHikingClosuresVisible] = useState(false);
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
-  const [drinkingWaterVisible, setDrinkingWaterVisible] = useState(false);
-  const [sacHutsVisible, setSacHutsVisible] = useState(false);
+  const [drinkingWaterVisible, setDrinkingWaterVisible] = useState(true);
+  const [sacHutsVisible, setSacHutsVisible] = useState(true);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
