@@ -3502,9 +3502,7 @@ function summarizeSurface(route: ComputedRoute | null): SurfaceSummaryItem[] {
       continue;
     }
 
-    const details =
-      firstDetailRanges(segment.details.surface, segment.details.track_type) ??
-      readDetailRanges(segment.details.road_class);
+    const details = surfaceDetailRanges(segment.details);
     if (!details.length) {
       addSurfaceDistance(distances, "unknown", segment.distanceMeters);
       continue;
@@ -3567,9 +3565,7 @@ function surfaceSegmentsForElevation(
       continue;
     }
 
-    const details =
-      firstDetailRanges(segment.details.surface, segment.details.track_type) ??
-      readDetailRanges(segment.details.road_class);
+    const details = surfaceDetailRanges(segment.details);
     if (!details.length) {
       segments.push(
         createSurfaceSegment(
@@ -3582,14 +3578,22 @@ function surfaceSegmentsForElevation(
       continue;
     }
 
+    const geometryDistanceMeters = detailDistanceFromStart(
+      segment.geometry,
+      segment.geometry.length - 1,
+    );
+    const distanceScale =
+      geometryDistanceMeters > 0
+        ? segment.distanceMeters / geometryDistanceMeters
+        : 0;
     for (const detail of details) {
       const category = surfaceCategoryFor(detail.value);
       const startDistanceMeters =
         routeOffsetMeters +
-        detailDistanceFromStart(segment.geometry, detail.from);
+        detailDistanceFromStart(segment.geometry, detail.from) * distanceScale;
       const endDistanceMeters =
         routeOffsetMeters +
-        detailDistanceFromStart(segment.geometry, detail.to);
+        detailDistanceFromStart(segment.geometry, detail.to) * distanceScale;
       if (endDistanceMeters <= startDistanceMeters) {
         continue;
       }
@@ -3687,6 +3691,20 @@ function firstDetailRanges(...values: unknown[]): DetailRange[] | null {
     }
   }
   return null;
+}
+
+function surfaceDetailRanges(details: Record<string, unknown>): DetailRange[] {
+  const surfaceOrTrack = firstDetailRanges(details.surface, details.track_type);
+  if (
+    surfaceOrTrack?.some(
+      (detail) => surfaceCategoryFor(detail.value) !== "unknown",
+    )
+  ) {
+    return surfaceOrTrack;
+  }
+
+  const roadClass = readDetailRanges(details.road_class);
+  return roadClass.length ? roadClass : (surfaceOrTrack ?? []);
 }
 
 function detailDistanceFromStart(geometry: LonLat[], index: number): number {
