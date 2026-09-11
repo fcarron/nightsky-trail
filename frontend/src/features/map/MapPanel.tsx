@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { useI18n } from "../../app/i18n";
-import { getTrailDifficultyWays } from "../../services/api";
+import { getDrinkingWater, getTrailDifficultyWays } from "../../services/api";
 import type {
   CombinedTrailSegmentDto,
   OfficialTrailSegmentDto,
@@ -48,6 +48,7 @@ import {
 } from "./mapConstants";
 import {
   difficultyStyle,
+  drinkingWaterStyle,
   analysisRangeStyle,
   elevationHoverStyle,
   graphhopperDebugStyle,
@@ -137,6 +138,7 @@ export function MapPanel({
     null,
   );
   const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const drinkingWaterLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const modifyInteractionRef = useRef<Modify | null>(null);
   const doubleClickZoomInteractionRef = useRef<DoubleClickZoom | null>(null);
   const pointSourceRef = useRef<VectorSource>(new VectorSource());
@@ -144,6 +146,7 @@ export function MapPanel({
   const routeCategorySourceRef = useRef<VectorSource>(new VectorSource());
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
+  const drinkingWaterSourceRef = useRef<VectorSource>(new VectorSource());
   const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
   const analysisRangeSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultyRequestIdRef = useRef(0);
@@ -195,6 +198,7 @@ export function MapPanel({
   const [hikingClosuresVisible, setHikingClosuresVisible] = useState(false);
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
+  const [drinkingWaterVisible, setDrinkingWaterVisible] = useState(false);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
@@ -212,6 +216,12 @@ export function MapPanel({
   >(null);
   const [selectedMapFeature, setSelectedMapFeature] =
     useState<MapFeatureInfo | null>(null);
+  const [selectedDrinkingWater, setSelectedDrinkingWater] = useState<{
+    name: string | null;
+    seasonal: boolean;
+    osmId: number;
+    osmType: string;
+  } | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
     (waypoint) => waypoint.id === selectedWaypointId,
   );
@@ -514,6 +524,14 @@ export function MapPanel({
       zIndex: 24,
     });
     difficultyLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const drinkingWaterLayer = new VectorLayer({
+      source: drinkingWaterSourceRef.current,
+      style: drinkingWaterStyle,
+      minZoom: 13,
+      visible: false,
+      zIndex: 26,
+    });
+    drinkingWaterLayer.set("layerRole", "overlay" satisfies LayerRole);
     const elevationHoverLayer = new VectorLayer({
       source: elevationHoverSourceRef.current,
       style: elevationHoverStyle,
@@ -528,6 +546,7 @@ export function MapPanel({
     analysisRangeLayer.set("layerRole", "overlay" satisfies LayerRole);
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
     difficultyLayerRef.current = difficultyLayer;
+    drinkingWaterLayerRef.current = drinkingWaterLayer;
     standardLayerRef.current = standardLayer;
     osmTopoLayerRef.current = osmTopoLayer;
     hikingTrailsLayerRef.current = hikingTrailsLayer;
@@ -574,6 +593,7 @@ export function MapPanel({
     map.addLayer(cyclingRoutesLayer);
     map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
+    map.addLayer(drinkingWaterLayer);
     map.addLayer(routeCategoryLayer);
     map.addLayer(routeLayer);
     map.addLayer(analysisRangeLayer);
@@ -657,6 +677,20 @@ export function MapPanel({
 
       if (interactionModeRef.current === "explore") {
         setRouteInsertCandidate(null);
+        const drinkingWaterFeature = map.getFeaturesAtPixel(event.pixel, {
+          hitTolerance: touchLikeInput ? 14 : 8,
+          layerFilter: (layer) => layer === drinkingWaterLayer,
+        })[0];
+        const drinkingWater = drinkingWaterFeature?.get("drinkingWater");
+        if (isDrinkingWaterRecord(drinkingWater)) {
+          setSelectedDrinkingWater({
+            name: drinkingWater.name,
+            seasonal: drinkingWater.seasonal,
+            osmId: drinkingWater.osm_id,
+            osmType: drinkingWater.osm_type,
+          });
+          return;
+        }
         const requestId = ++mapFeatureRequestIdRef.current;
         void inspectVisibleWmsFeatures({
           coordinate: event.coordinate,
@@ -859,6 +893,7 @@ export function MapPanel({
       hikingClosuresLayerRef.current = null;
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
+      drinkingWaterLayerRef.current = null;
       modifyInteractionRef.current = null;
       doubleClickZoomInteractionRef.current = null;
       loadLightBaseLayerRef.current = () => undefined;
@@ -1152,6 +1187,45 @@ export function MapPanel({
   useEffect(() => {
     graphhopperDebugLayerRef.current?.setVisible(graphhopperDebugVisible);
   }, [graphhopperDebugVisible]);
+
+  useEffect(() => {
+    const layer = drinkingWaterLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) {
+      return;
+    }
+    layer.setVisible(drinkingWaterVisible);
+    if (!drinkingWaterVisible) {
+      drinkingWaterSourceRef.current.clear();
+      return;
+    }
+    let requestId = 0;
+    const load = () => {
+      const zoom = map.getView().getZoom() ?? 0;
+      const size = map.getSize();
+      if (zoom < 13 || !size) {
+        drinkingWaterSourceRef.current.clear();
+        return;
+      }
+      const extent = transformExtent(map.getView().calculateExtent(size), "EPSG:3857", "EPSG:4326");
+      const currentRequestId = ++requestId;
+      void getDrinkingWater([extent[0], extent[1], extent[2], extent[3]], zoom)
+        .then((collection) => {
+          if (requestId !== currentRequestId) return;
+          const source = drinkingWaterSourceRef.current;
+          source.clear();
+          collection.features.forEach((place) => {
+            const feature = new Feature(new Point(fromLonLat(place.geometry.coordinates)));
+            feature.set("drinkingWater", place.properties);
+            source.addFeature(feature);
+          });
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const listener = map.on("moveend", load);
+    return () => unByKey(listener);
+  }, [drinkingWaterVisible, mapReady]);
 
   useEffect(() => {
     hikingTrailsLayerRef.current?.setVisible(hikingTrailsVisible);
@@ -1581,6 +1655,17 @@ export function MapPanel({
             />
             {t("difficulty")}
           </label>
+          <label className="mapOverlayToggle">
+            <input
+              type="checkbox"
+              checked={drinkingWaterVisible}
+              onChange={(event) => {
+                setDrinkingWaterVisible(event.target.checked);
+                setMapLayerMenuOpen(false);
+              }}
+            />
+            Trinkwasser
+          </label>
           {ENABLE_DEV_TOOLS ? (
             <label className="mapOverlayToggle">
               <input
@@ -1596,6 +1681,16 @@ export function MapPanel({
           ) : null}
         </div>
       </details>
+      {!panelOpen && selectedDrinkingWater && interactionMode === "explore" ? (
+        <aside className="mapFeaturePanel" aria-label="Trinkwasser Details">
+          <div className="mapFeaturePanelHeader">
+            <div><span>💧 Trinkwasser</span><strong>{selectedDrinkingWater.name ?? "Trinkwasser"}</strong></div>
+            <button type="button" onClick={() => setSelectedDrinkingWater(null)} aria-label="Schliessen">×</button>
+          </div>
+          <p>{selectedDrinkingWater.seasonal ? "Saisonal verfügbar" : "Ganzjährig"}</p>
+          <a href={`https://www.openstreetmap.org/${selectedDrinkingWater.osmType}/${selectedDrinkingWater.osmId}`} target="_blank" rel="noreferrer">OpenStreetMap</a>
+        </aside>
+      ) : null}
       {!panelOpen &&
       selectedMapFeature &&
       interactionMode === "explore" &&
@@ -1933,6 +2028,21 @@ function routeStageNumber(
     return null;
   }
   return String(Number(match[2]));
+}
+
+function isDrinkingWaterRecord(value: unknown): value is {
+  name: string | null;
+  seasonal: boolean;
+  osm_id: number;
+  osm_type: string;
+} {
+  return (
+    typeof value === "object" && value !== null &&
+    "name" in value && (typeof value.name === "string" || value.name === null) &&
+    "seasonal" in value && typeof value.seasonal === "boolean" &&
+    "osm_id" in value && typeof value.osm_id === "number" &&
+    "osm_type" in value && typeof value.osm_type === "string"
+  );
 }
 
 function hasVisibleLayerPixel(

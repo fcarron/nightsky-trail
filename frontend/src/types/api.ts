@@ -116,6 +116,23 @@ export interface TrailsResponse {
   warnings: string[];
 }
 
+export interface DrinkingWaterFeatureCollection {
+  type: "FeatureCollection";
+  features: DrinkingWaterFeature[];
+}
+
+export interface DrinkingWaterFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    name: string | null;
+    type: "fountain" | "tap" | "spring" | "other";
+    seasonal: boolean;
+    osm_type: "node" | "way";
+    osm_id: number;
+  };
+}
+
 export interface TrailSummaryDto {
   totalWays: number;
   byLabel: Record<string, number>;

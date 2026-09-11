@@ -13,8 +13,9 @@ from planner.integrations.overpass import OVERPASS_TAGS, OsmWay
 
 TRAIL_HIGHWAYS = {"path", "footway", "track", "steps", "pedestrian", "bridleway"}
 TRAIL_ROUTES = {"hiking", "foot"}
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MAX_TRAIL_RESULTS = 5000
+MAX_DRINKING_WATER_RESULTS = 1000
 
 _INDEX_LOCK = threading.Lock()
 
@@ -53,6 +54,34 @@ class LocalOsmTrailIndex:
 
         return [row_to_osm_way(row) for row in rows]
 
+    def drinking_water(self, bbox: tuple[float, float, float, float]) -> list[DrinkingWaterPlace]:
+        ensure_index(self.pbf_path, self.db_path)
+        min_lon, min_lat, max_lon, max_lat = bbox
+        with sqlite3.connect(self.db_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT osm_type, osm_id, longitude, latitude, tags_json
+                FROM drinking_water
+                WHERE longitude >= ? AND longitude <= ?
+                  AND latitude >= ? AND latitude <= ?
+                ORDER BY osm_type, osm_id
+                LIMIT ?
+                """,
+                (min_lon, max_lon, min_lat, max_lat, MAX_DRINKING_WATER_RESULTS),
+            ).fetchall()
+        return [row_to_drinking_water_place(row) for row in rows]
+
+
+@dataclass(frozen=True)
+class DrinkingWaterPlace:
+    osm_type: str
+    osm_id: int
+    longitude: float
+    latitude: float
+    name: str | None
+    place_type: str
+    seasonal: bool
+
 
 class TrailWayHandler(osmium.SimpleHandler):
     def __init__(self, writer: TrailIndexWriter) -> None:
@@ -61,15 +90,23 @@ class TrailWayHandler(osmium.SimpleHandler):
 
     def way(self, way: object) -> None:
         tags = {str(tag.k): str(tag.v) for tag in way.tags}
-        if not is_relevant_tags(tags):
-            return
-
         coordinates = way_coordinates(way.nodes)
-        if len(coordinates) < 2:
-            return
+        if is_relevant_tags(tags) and len(coordinates) >= 2:
+            normalized_tags = {key: value for key, value in tags.items() if key in OVERPASS_TAGS}
+            self.writer.add_way(int(way.id), coordinates, normalized_tags)
 
-        normalized_tags = {key: value for key, value in tags.items() if key in OVERPASS_TAGS}
-        self.writer.add_way(int(way.id), coordinates, normalized_tags)
+        if is_confirmed_drinking_water(tags) and coordinates:
+            longitude = sum(point[0] for point in coordinates) / len(coordinates)
+            latitude = sum(point[1] for point in coordinates) / len(coordinates)
+            self.writer.add_drinking_water("way", int(way.id), longitude, latitude, tags)
+
+    def node(self, node: object) -> None:
+        tags = {str(tag.k): str(tag.v) for tag in node.tags}
+        if not is_confirmed_drinking_water(tags) or not node.location.valid():
+            return
+        self.writer.add_drinking_water(
+            "node", int(node.id), float(node.location.lon), float(node.location.lat), tags
+        )
 
 
 class TrailIndexWriter:
@@ -86,6 +123,7 @@ class TrailIndexWriter:
         self.connection.execute("PRAGMA synchronous = NORMAL")
         self.connection.execute("DROP TABLE IF EXISTS metadata")
         self.connection.execute("DROP TABLE IF EXISTS trail_ways")
+        self.connection.execute("DROP TABLE IF EXISTS drinking_water")
         self.connection.execute(
             """
             CREATE TABLE metadata (
@@ -93,6 +131,21 @@ class TrailIndexWriter:
               value TEXT NOT NULL
             )
             """
+        )
+        self.connection.execute(
+            """
+            CREATE TABLE drinking_water (
+              osm_type TEXT NOT NULL,
+              osm_id INTEGER NOT NULL,
+              longitude REAL NOT NULL,
+              latitude REAL NOT NULL,
+              tags_json TEXT NOT NULL,
+              PRIMARY KEY (osm_type, osm_id)
+            )
+            """
+        )
+        self.connection.execute(
+            "CREATE INDEX drinking_water_point ON drinking_water (longitude, latitude)"
         )
         self.connection.execute(
             """
@@ -148,6 +201,26 @@ class TrailIndexWriter:
                 max_lat,
                 json.dumps(coordinates, separators=(",", ":")),
                 json.dumps(tags, separators=(",", ":"), sort_keys=True),
+            ),
+        )
+        self.pending += 1
+        if self.pending >= 1000:
+            self.connection_or_raise.commit()
+            self.pending = 0
+
+    def add_drinking_water(
+        self, osm_type: str, osm_id: int, longitude: float, latitude: float, tags: dict[str, str]
+    ) -> None:
+        self.connection_or_raise.execute(
+            "INSERT OR REPLACE INTO drinking_water VALUES (?, ?, ?, ?, ?)",
+            (
+                osm_type,
+                osm_id,
+                round(longitude, 7),
+                round(latitude, 7),
+                json.dumps(
+                    compact_drinking_water_tags(tags), separators=(",", ":"), sort_keys=True
+                ),
             ),
         )
         self.pending += 1
@@ -217,6 +290,39 @@ def is_relevant_tags(tags: dict[str, str]) -> bool:
     )
 
 
+def is_confirmed_drinking_water(tags: dict[str, str]) -> bool:
+    if tags.get("drinking_water") == "no" or tags.get("access") == "private":
+        return False
+    if (
+        tags.get("disused:amenity") == "drinking_water"
+        or tags.get("abandoned:amenity") == "drinking_water"
+    ):
+        return False
+    return (
+        tags.get("amenity") == "drinking_water"
+        or tags.get("drinking_water") == "yes"
+        or tags.get("fountain") == "drinking"
+    )
+
+
+def compact_drinking_water_tags(tags: dict[str, str]) -> dict[str, str]:
+    return {
+        key: tags[key]
+        for key in ("name", "seasonal", "natural", "man_made", "amenity", "fountain")
+        if key in tags
+    }
+
+
+def drinking_water_type(tags: dict[str, str]) -> str:
+    if tags.get("natural") == "spring":
+        return "spring"
+    if tags.get("man_made") == "water_tap":
+        return "tap"
+    if tags.get("amenity") == "fountain" or "fountain" in tags:
+        return "fountain"
+    return "other"
+
+
 def way_coordinates(nodes: Iterable[object]) -> list[list[float]]:
     coordinates: list[list[float]] = []
     for node in nodes:
@@ -239,4 +345,18 @@ def row_to_osm_way(row: tuple[int, str, str]) -> OsmWay:
         id=osm_id,
         coordinates=json.loads(coordinates_json),
         tags=json.loads(tags_json),
+    )
+
+
+def row_to_drinking_water_place(row: tuple[str, int, float, float, str]) -> DrinkingWaterPlace:
+    osm_type, osm_id, longitude, latitude, tags_json = row
+    tags = json.loads(tags_json)
+    return DrinkingWaterPlace(
+        osm_type=osm_type,
+        osm_id=osm_id,
+        longitude=longitude,
+        latitude=latitude,
+        name=tags.get("name"),
+        place_type=drinking_water_type(tags),
+        seasonal=tags.get("seasonal") == "yes",
     )

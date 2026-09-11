@@ -1,5 +1,5 @@
 import type { FeatureLike } from "ol/Feature.js";
-import { Circle, Fill, Stroke, Style } from "ol/style.js";
+import { Circle, Fill, Stroke, Style, Text } from "ol/style.js";
 
 const routedRouteStyle = [
   new Style({
@@ -95,6 +95,19 @@ const defaultWaypointStyle = new Style({
     radius: 6,
     fill: new Fill({ color: "#1967d2" }),
     stroke: new Stroke({ color: "#ffffff", width: 2 }),
+  }),
+});
+
+const drinkingWaterMarkerStyle = new Style({
+  image: new Circle({
+    radius: 8,
+    fill: new Fill({ color: "rgba(255, 255, 255, 0.92)" }),
+    stroke: new Stroke({ color: "#1677b8", width: 1.5 }),
+  }),
+  text: new Text({
+    fill: new Fill({ color: "#1677b8" }),
+    font: "700 12px sans-serif",
+    text: "💧",
   }),
 });
 
@@ -198,6 +211,10 @@ export function routeCategoryStyle(feature: FeatureLike): Style | undefined {
 
 export function waypointStyle(selected: boolean): Style {
   return selected ? selectedWaypointStyle : defaultWaypointStyle;
+}
+
+export function drinkingWaterStyle(): Style {
+  return drinkingWaterMarkerStyle;
 }
 
 export function graphhopperDebugStyle(feature: FeatureLike): Style {

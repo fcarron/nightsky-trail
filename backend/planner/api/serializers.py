@@ -174,6 +174,14 @@ class TrailsQuerySerializer(serializers.Serializer):
         return min_lon, min_lat, max_lon, max_lat
 
 
+class DrinkingWaterQuerySerializer(serializers.Serializer):
+    bbox = serializers.CharField()
+    zoom = serializers.IntegerField(min_value=0, max_value=22)
+
+    def validate_bbox(self, value: str) -> tuple[float, float, float, float]:
+        return TrailsQuerySerializer().validate_bbox(value)
+
+
 class SearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(min_length=2, max_length=120, trim_whitespace=True)
     limit = serializers.IntegerField(min_value=1, max_value=12, default=8)

@@ -24,6 +24,7 @@ from planner.api.serializers import (
     AccountDeleteSerializer,
     AuthLoginSerializer,
     AuthRegisterSerializer,
+    DrinkingWaterQuerySerializer,
     ElevationProfileRequestSerializer,
     EmailTokenSerializer,
     PasswordResetConfirmSerializer,
@@ -774,6 +775,53 @@ class TrailsView(APIView):
             )
         except OverpassUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, error.details) from error
+
+
+class DrinkingWaterView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(operation_id="drinking_water", responses={200: OpenApiTypes.OBJECT})
+    def get(self, request: object) -> Response:
+        serializer = DrinkingWaterQuerySerializer(data=getattr(request, "query_params", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_drinking_water_request",
+                "Drinking water request validation failed.",
+                {"fields": serializer.errors},
+            )
+        if serializer.validated_data["zoom"] < 13:
+            return Response({"type": "FeatureCollection", "features": []})
+        try:
+            index = LocalOsmTrailIndex(
+                settings.OSM_PBF_PATH,
+                settings.OSM_TRAIL_INDEX_PATH,
+            )
+            places = index.drinking_water(serializer.validated_data["bbox"])
+        except LocalOsmUnavailableError as error:
+            raise UnprocessableEntity(error.code, error.message, error.details) from error
+        return Response(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [place.longitude, place.latitude],
+                        },
+                        "properties": {
+                            "name": place.name,
+                            "type": place.place_type,
+                            "seasonal": place.seasonal,
+                            "osm_type": place.osm_type,
+                            "osm_id": place.osm_id,
+                        },
+                    }
+                    for place in places
+                ],
+            }
+        )
 
 
 def django_request(request: object) -> object:

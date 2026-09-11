@@ -1,4 +1,5 @@
 import type {
+  DrinkingWaterFeatureCollection,
   ApiErrorResponse,
   AuthSessionResponse,
   CombinedTrailSegmentDto,
@@ -326,6 +327,23 @@ export async function getTrailDifficultyWays(
   return payload;
 }
 
+export async function getDrinkingWater(
+  bbox: [number, number, number, number],
+  zoom: number,
+  signal?: AbortSignal,
+): Promise<DrinkingWaterFeatureCollection> {
+  const params = new URLSearchParams({
+    bbox: bbox.map((value) => value.toFixed(7)).join(","),
+    zoom: String(Math.round(zoom)),
+  });
+  const response = await fetch(`${API_BASE_URL}/api/v1/drinking-water?${params}`, { signal });
+  const payload: unknown = await response.json();
+  if (!response.ok || !isDrinkingWaterFeatureCollection(payload)) {
+    throw new Error("Drinking water loading failed.");
+  }
+  return payload;
+}
+
 export async function searchLocations(
   query: string,
   signal?: AbortSignal,
@@ -618,6 +636,16 @@ function isTrailsResponse(payload: unknown): payload is TrailsResponse {
     payload.combinedSegments.every(isCombinedTrailSegment) &&
     Array.isArray(payload.warnings) &&
     payload.warnings.every((warning) => typeof warning === "string")
+  );
+}
+
+function isDrinkingWaterFeatureCollection(
+  payload: unknown,
+): payload is DrinkingWaterFeatureCollection {
+  return (
+    typeof payload === "object" && payload !== null &&
+    (payload as { type?: unknown }).type === "FeatureCollection" &&
+    Array.isArray((payload as { features?: unknown }).features)
   );
 }
 
