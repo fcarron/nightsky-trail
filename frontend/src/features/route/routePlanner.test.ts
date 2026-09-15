@@ -156,14 +156,21 @@ describe("route planner reducer", () => {
     );
 
     expect(history.present.importedGeometry).toBeUndefined();
-    expect(history.present.segments).toEqual([
-      {
-        fromWaypointId: "gpx-reroute-1",
-        id: "gpx-reroute-1-gpx-reroute-2",
-        mode: "routed",
-        toWaypointId: "gpx-reroute-2",
-      },
-    ]);
+    expect(history.present.waypoints.length).toBeGreaterThan(2);
+    expect(history.present.waypoints[0]?.position).toEqual({
+      lon: 7.4,
+      lat: 46.9,
+    });
+    expect(history.present.waypoints.at(-1)?.position).toEqual({
+      lon: 7.5,
+      lat: 47,
+    });
+    expect(history.present.segments).toHaveLength(
+      history.present.waypoints.length - 1,
+    );
+    expect(
+      history.present.segments.every((segment) => segment.mode === "routed"),
+    ).toBe(true);
   });
 
   it("rebuilds routed segments when reversing the route", () => {

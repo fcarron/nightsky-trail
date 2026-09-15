@@ -18,11 +18,7 @@ import {
 } from "./elevationModel";
 
 export type AnalysisTab =
-  | "profile"
-  | "splits"
-  | "climbs"
-  | "gradient"
-  | "route";
+  "profile" | "splits" | "climbs" | "gradient" | "route";
 export interface RouteBreakdownItem {
   color: string;
   distanceMeters: number;
@@ -87,25 +83,27 @@ export function RouteAnalysis({
         role="tablist"
         aria-label={t("showRouteAnalysis")}
       >
-        {(["profile", "splits", "climbs", "gradient", "route"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            onClick={() => onTabChange(tab)}
-          >
-            {tab === "profile"
-              ? t("profile")
-              : tab === "splits"
-                ? t("kilometreSplits")
-                : tab === "climbs"
-                ? t("climbs")
-                  : tab === "gradient"
-                    ? t("gradient")
-                    : t("surface")}
-          </button>
-        ))}
+        {(["profile", "splits", "climbs", "gradient", "route"] as const).map(
+          (tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => onTabChange(tab)}
+            >
+              {tab === "profile"
+                ? t("profile")
+                : tab === "splits"
+                  ? t("kilometreSplits")
+                  : tab === "climbs"
+                    ? t("climbs")
+                    : tab === "gradient"
+                      ? t("gradient")
+                      : t("surface")}
+            </button>
+          ),
+        )}
       </div>
       {activeTab === "splits" || activeTab === "climbs"
         ? profileOverview
@@ -148,14 +146,22 @@ function RouteDetailsAnalysis({
     <section className="routeDetailsAnalysis" aria-label={tx("Wegdetails")}>
       <p>{tx("Anteile beziehen sich auf die gesamte Route.")}</p>
       <RouteBreakdown
-        emptyMessage={tx("Für diese Route liegen keine OSM-Oberflächenangaben vor.")}
+        emptyMessage={tx(
+          "Für diese Route liegen keine OSM-Oberflächenangaben vor.",
+        )}
         items={surfaceBreakdown}
         routeDistanceMeters={routeDistanceMeters}
         title={t("surface")}
       />
       <RouteBreakdown
-        emptyMessage={tx("Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.")}
-        items={difficultyBreakdown}
+        emptyMessage={tx(
+          "Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.",
+        )}
+        items={
+          difficultyBreakdown.some((item) => !isUnknownDifficulty(item))
+            ? difficultyBreakdown
+            : []
+        }
         routeDistanceMeters={routeDistanceMeters}
         title={t("difficulty")}
       />
@@ -188,6 +194,8 @@ function RouteBreakdown({
     );
   }
 
+  const shares = routeShares(items, routeDistanceMeters);
+
   return (
     <section className="routeBreakdown">
       <h3>{title}</h3>
@@ -204,7 +212,7 @@ function RouteBreakdown({
       </div>
       <dl>
         {items.map((item) => {
-          const percentage = routeShare(item.distanceMeters, routeDistanceMeters);
+          const percentage = shares.get(item.id) ?? "0 %";
           return (
             <div key={item.id}>
               <dt>
@@ -222,11 +230,45 @@ function RouteBreakdown({
   );
 }
 
-function routeShare(distanceMeters: number, routeDistanceMeters: number): string {
+function isUnknownDifficulty(item: RouteBreakdownItem): boolean {
+  return item.id === "?" || item.id === "unknown" || item.label === "?";
+}
+
+function routeShares(
+  items: RouteBreakdownItem[],
+  routeDistanceMeters: number,
+): Map<string, string> {
   if (routeDistanceMeters <= 0) {
-    return "0 %";
+    return new Map(items.map((item) => [item.id, "0 %"]));
   }
-  return `${Math.round((distanceMeters / routeDistanceMeters) * 100)} %`;
+
+  const exactShares = items.map(
+    (item) => (item.distanceMeters / routeDistanceMeters) * 100,
+  );
+  const roundedShares = exactShares.map(Math.floor);
+  const targetTotal = Math.round(
+    exactShares.reduce((total, share) => total + share, 0),
+  );
+  let remainder =
+    targetTotal - roundedShares.reduce((total, share) => total + share, 0);
+
+  [...exactShares.keys()]
+    .sort((left, right) => {
+      const fractionDifference =
+        exactShares[right] -
+        Math.floor(exactShares[right]) -
+        (exactShares[left] - Math.floor(exactShares[left]));
+      return fractionDifference || left - right;
+    })
+    .forEach((index) => {
+      if (remainder <= 0) return;
+      roundedShares[index] += 1;
+      remainder -= 1;
+    });
+
+  return new Map(
+    items.map((item, index) => [item.id, `${roundedShares[index]} %`]),
+  );
 }
 
 function GradientAnalysis({

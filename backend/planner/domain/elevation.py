@@ -176,15 +176,26 @@ def calculate_gradients(samples: list[ElevationSample], elevations: list[float])
         typical_sample_distance(samples) * GRADIENT_SAMPLE_MULTIPLIER,
     )
     sample_distances = [sample.distance_meters for sample in samples]
+    half_window = gradient_distance / 2
+    total_distance = sample_distances[-1]
     gradients: list[float] = []
     for sample in samples:
+        # A truncated window at a route endpoint is not comparable with the
+        # documented sustained 100-metre gradient and made the maximum depend
+        # on whether a route was extended or reversed.
+        if (
+            sample.distance_meters < half_window
+            or sample.distance_meters > total_distance - half_window
+        ):
+            gradients.append(0.0)
+            continue
         before = find_distance_index(
             sample_distances,
-            sample.distance_meters - gradient_distance / 2,
+            sample.distance_meters - half_window,
         )
         after = find_distance_index(
             sample_distances,
-            sample.distance_meters + gradient_distance / 2,
+            sample.distance_meters + half_window,
         )
         distance_delta = samples[after].distance_meters - samples[before].distance_meters
         if distance_delta <= 0:

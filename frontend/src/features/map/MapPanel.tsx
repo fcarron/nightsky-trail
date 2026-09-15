@@ -22,7 +22,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { useI18n } from "../../app/i18n";
-import { getDrinkingWater, getSacHuts, getTrailDifficultyWays } from "../../services/api";
+import {
+  getDrinkingWater,
+  getSacHuts,
+  getTrailDifficultyWays,
+  getToilets,
+} from "../../services/api";
 import type {
   CombinedTrailSegmentDto,
   OfficialTrailSegmentDto,
@@ -36,9 +41,9 @@ import type {
 import {
   HIKING_TRAIL_OVERLAY_MIN_ZOOM,
   OPEN_TOPO_MAP_URL,
-  SWISSTOPO_CYCLING_ROUTES_LAYER,
+  SWISSTOPO_CYCLING_ROUTES_WMTS_URL,
   SWISSTOPO_HIKING_CLOSURES_LAYER,
-  SWISSTOPO_HIKING_ROUTES_LAYER,
+  SWISSTOPO_HIKING_ROUTES_WMTS_URL,
   SWISSTOPO_HIKING_TRAILS_WMTS_URL,
   SWISSTOPO_SATELLITE_WMTS_URL,
   SWISSTOPO_STANDARD_WMTS_URL,
@@ -50,6 +55,7 @@ import {
   difficultyStyle,
   drinkingWaterStyle,
   sacHutStyle,
+  toiletStyle,
   analysisRangeStyle,
   elevationHoverStyle,
   graphhopperDebugStyle,
@@ -132,14 +138,15 @@ export function MapPanel({
   const standardLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const osmTopoLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const hikingTrailsLayerRef = useRef<TileLayer<XYZ> | null>(null);
-  const hikingRoutesLayerRef = useRef<TileLayer<TileWMS> | null>(null);
-  const cyclingRoutesLayerRef = useRef<TileLayer<TileWMS> | null>(null);
+  const hikingRoutesLayerRef = useRef<TileLayer<XYZ> | null>(null);
+  const cyclingRoutesLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const hikingClosuresLayerRef = useRef<TileLayer<TileWMS> | null>(null);
   const graphhopperDebugLayerRef = useRef<VectorLayer<VectorSource> | null>(
     null,
   );
   const difficultyLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const drinkingWaterLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const toiletsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const sacHutsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const modifyInteractionRef = useRef<Modify | null>(null);
   const doubleClickZoomInteractionRef = useRef<DoubleClickZoom | null>(null);
@@ -149,6 +156,7 @@ export function MapPanel({
   const graphhopperDebugSourceRef = useRef<VectorSource>(new VectorSource());
   const difficultySourceRef = useRef<VectorSource>(new VectorSource());
   const drinkingWaterSourceRef = useRef<VectorSource>(new VectorSource());
+  const toiletsSourceRef = useRef<VectorSource>(new VectorSource());
   const sacHutsSourceRef = useRef<VectorSource>(new VectorSource());
   const elevationHoverSourceRef = useRef<VectorSource>(new VectorSource());
   const analysisRangeSourceRef = useRef<VectorSource>(new VectorSource());
@@ -158,7 +166,9 @@ export function MapPanel({
   const difficultyQueuedLoadRef = useRef(false);
   const difficultyTimerRef = useRef<number | null>(null);
   const mapFeatureRequestIdRef = useRef(0);
-  const lastHandledFitKeyRef = useRef<string | null>(null);
+  const sacHutsRequestIdRef = useRef(0);
+  const lastHandledFitRequestIdRef = useRef<number | null>(null);
+  const lastHandledFitSizeKeyRef = useRef<string | null>(null);
   const lastHandledSearchRequestIdRef = useRef(0);
   const callbacksRef = useRef({
     onAddWaypoint,
@@ -192,6 +202,7 @@ export function MapPanel({
   } | null>(null);
   const suppressNextSingleClickRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [poiLayerError, setPoiLayerError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapSizeKey, setMapSizeKey] = useState("");
   const [mapTilesLoaded, setMapTilesLoaded] = useState(false);
@@ -202,9 +213,11 @@ export function MapPanel({
   const [cyclingRoutesVisible, setCyclingRoutesVisible] = useState(false);
   const [difficultyVisible, setDifficultyVisible] = useState(false);
   const [drinkingWaterVisible, setDrinkingWaterVisible] = useState(true);
+  const [toiletsVisible, setToiletsVisible] = useState(true);
   const [sacHutsVisible, setSacHutsVisible] = useState(true);
   const [trailMatchDebugVisible, setTrailMatchDebugVisible] = useState(false);
   const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false);
+  const [poiInfoOpen, setPoiInfoOpen] = useState(false);
   const [selectedWaypointPixel, setSelectedWaypointPixel] = useState<
     [number, number] | null
   >(null);
@@ -226,7 +239,18 @@ export function MapPanel({
     osmId: number;
     osmType: string;
   } | null>(null);
-  const [selectedSacHut, setSelectedSacHut] = useState<{ name: string; ele?: number; sacId: string } | null>(null);
+  const [selectedToilet, setSelectedToilet] = useState<{
+    name: string | null;
+    wheelchair: string | null;
+    fee: boolean | null;
+    osmId: number;
+    osmType: string;
+  } | null>(null);
+  const [selectedSacHut, setSelectedSacHut] = useState<{
+    name: string;
+    ele?: number;
+    sacId: string;
+  } | null>(null);
   const selectedWaypointIndex = waypoints.findIndex(
     (waypoint) => waypoint.id === selectedWaypointId,
   );
@@ -438,7 +462,9 @@ export function MapPanel({
       source: new XYZ({
         attributions: "© swisstopo",
         crossOrigin: "anonymous",
-        maxZoom: 19,
+        // ch.swisstopo.swisstlm3d-wanderwege ends at WMTS matrix 18.
+        // OpenLayers reuses that last tile level when the map itself is closer.
+        maxZoom: 18,
         url: SWISSTOPO_HIKING_TRAILS_WMTS_URL,
       }),
       visible: true,
@@ -448,15 +474,10 @@ export function MapPanel({
     const hikingRoutesLayer = new TileLayer({
       minZoom: 10,
       opacity: 0.9,
-      source: new TileWMS({
+      source: new XYZ({
         attributions: "© swisstopo",
         crossOrigin: "anonymous",
-        params: {
-          FORMAT: "image/png",
-          LAYERS: SWISSTOPO_HIKING_ROUTES_LAYER,
-          TRANSPARENT: true,
-        },
-        url: SWISSTOPO_WMS_URL,
+        url: SWISSTOPO_HIKING_ROUTES_WMTS_URL,
       }),
       visible: false,
       zIndex: 11,
@@ -465,15 +486,10 @@ export function MapPanel({
     const cyclingRoutesLayer = new TileLayer({
       minZoom: 10,
       opacity: 0.9,
-      source: new TileWMS({
+      source: new XYZ({
         attributions: "© swisstopo",
         crossOrigin: "anonymous",
-        params: {
-          FORMAT: "image/png",
-          LAYERS: SWISSTOPO_CYCLING_ROUTES_LAYER,
-          TRANSPARENT: true,
-        },
-        url: SWISSTOPO_WMS_URL,
+        url: SWISSTOPO_CYCLING_ROUTES_WMTS_URL,
       }),
       visible: false,
       zIndex: 11,
@@ -537,7 +553,21 @@ export function MapPanel({
       zIndex: 26,
     });
     drinkingWaterLayer.set("layerRole", "overlay" satisfies LayerRole);
-    const sacHutsLayer = new VectorLayer({ source: sacHutsSourceRef.current, style: sacHutStyle, minZoom: 11, visible: false, zIndex: 26 });
+    const toiletsLayer = new VectorLayer({
+      source: toiletsSourceRef.current,
+      style: toiletStyle,
+      minZoom: 13,
+      visible: false,
+      zIndex: 26,
+    });
+    toiletsLayer.set("layerRole", "overlay" satisfies LayerRole);
+    const sacHutsLayer = new VectorLayer({
+      source: sacHutsSourceRef.current,
+      style: sacHutStyle,
+      minZoom: 11,
+      visible: false,
+      zIndex: 26,
+    });
     sacHutsLayer.set("layerRole", "overlay" satisfies LayerRole);
     const elevationHoverLayer = new VectorLayer({
       source: elevationHoverSourceRef.current,
@@ -554,6 +584,7 @@ export function MapPanel({
     graphhopperDebugLayerRef.current = graphhopperDebugLayer;
     difficultyLayerRef.current = difficultyLayer;
     drinkingWaterLayerRef.current = drinkingWaterLayer;
+    toiletsLayerRef.current = toiletsLayer;
     sacHutsLayerRef.current = sacHutsLayer;
     standardLayerRef.current = standardLayer;
     osmTopoLayerRef.current = osmTopoLayer;
@@ -602,6 +633,7 @@ export function MapPanel({
     map.addLayer(hikingClosuresLayer);
     map.addLayer(difficultyLayer);
     map.addLayer(drinkingWaterLayer);
+    map.addLayer(toiletsLayer);
     map.addLayer(sacHutsLayer);
     map.addLayer(routeCategoryLayer);
     map.addLayer(routeLayer);
@@ -686,12 +718,20 @@ export function MapPanel({
 
       if (interactionModeRef.current === "explore") {
         setRouteInsertCandidate(null);
-        const sacHut = map.getFeaturesAtPixel(event.pixel, {
-          hitTolerance: touchLikeInput ? 14 : 8,
-          layerFilter: (layer) => layer === sacHutsLayer,
-        })[0]?.get("sacHut");
+        const sacHut = map
+          .getFeaturesAtPixel(event.pixel, {
+            hitTolerance: touchLikeInput ? 14 : 8,
+            layerFilter: (layer) => layer === sacHutsLayer,
+          })[0]
+          ?.get("sacHut");
         if (isSacHutRecord(sacHut)) {
-          setSelectedSacHut({ name: sacHut.name, ele: sacHut.ele, sacId: sacHut.sac_id });
+          setSelectedDrinkingWater(null);
+          setSelectedToilet(null);
+          setSelectedSacHut({
+            name: sacHut.name,
+            ele: sacHut.ele,
+            sacId: sacHut.sac_id,
+          });
           return;
         }
         const drinkingWaterFeature = map.getFeaturesAtPixel(event.pixel, {
@@ -700,11 +740,30 @@ export function MapPanel({
         })[0];
         const drinkingWater = drinkingWaterFeature?.get("drinkingWater");
         if (isDrinkingWaterRecord(drinkingWater)) {
+          setSelectedSacHut(null);
+          setSelectedToilet(null);
           setSelectedDrinkingWater({
             name: drinkingWater.name,
             seasonal: drinkingWater.seasonal,
             osmId: drinkingWater.osm_id,
             osmType: drinkingWater.osm_type,
+          });
+          return;
+        }
+        const toiletFeature = map.getFeaturesAtPixel(event.pixel, {
+          hitTolerance: touchLikeInput ? 14 : 8,
+          layerFilter: (layer) => layer === toiletsLayer,
+        })[0];
+        const toilet = toiletFeature?.get("toilet");
+        if (isToiletRecord(toilet)) {
+          setSelectedSacHut(null);
+          setSelectedDrinkingWater(null);
+          setSelectedToilet({
+            name: toilet.name,
+            wheelchair: toilet.wheelchair,
+            fee: toilet.fee,
+            osmId: toilet.osm_id,
+            osmType: toilet.osm_type,
           });
           return;
         }
@@ -715,11 +774,6 @@ export function MapPanel({
           closuresLayer: hikingClosuresLayerRef.current,
           closuresVisible:
             hikingClosuresLayerRef.current?.getVisible() === true,
-          routesLayer: hikingRoutesLayerRef.current,
-          routesVisible: hikingRoutesLayerRef.current?.getVisible() === true,
-          cyclingRoutesLayer: cyclingRoutesLayerRef.current,
-          cyclingRoutesVisible:
-            cyclingRoutesLayerRef.current?.getVisible() === true,
         }).then((featureInfo) => {
           if (requestId !== mapFeatureRequestIdRef.current) {
             return;
@@ -768,10 +822,7 @@ export function MapPanel({
         difficultyFeatures.some((feature) =>
           isCombinedTrailSegmentRecord(feature.get("combinedSegment")),
         );
-      const hasWmsInfo =
-        hasVisibleLayerPixel(hikingClosuresLayer, event.pixel) ||
-        hasVisibleLayerPixel(hikingRoutesLayer, event.pixel) ||
-        hasVisibleLayerPixel(cyclingRoutesLayer, event.pixel);
+      const hasWmsInfo = hasVisibleLayerPixel(hikingClosuresLayer, event.pixel);
 
       target.style.cursor = hasDifficultyInfo || hasWmsInfo ? "help" : "";
     });
@@ -911,6 +962,7 @@ export function MapPanel({
       graphhopperDebugLayerRef.current = null;
       difficultyLayerRef.current = null;
       drinkingWaterLayerRef.current = null;
+      toiletsLayerRef.current = null;
       sacHutsLayerRef.current = null;
       modifyInteractionRef.current = null;
       doubleClickZoomInteractionRef.current = null;
@@ -1057,13 +1109,13 @@ export function MapPanel({
       fitGeometry && fitGeometry.length >= 2
         ? fitGeometry
         : waypoints.map((waypoint) => waypoint.position);
-    const fitKey = `${fitRequestId}:${mapSizeKey}:${positions
-      .map((position) => `${position.lon.toFixed(6)},${position.lat.toFixed(6)}`)
-      .join(";")}`;
-    if (fitKey === lastHandledFitKeyRef.current) {
+    const isExplicitFit = fitRequestId !== lastHandledFitRequestIdRef.current;
+    const layoutChanged = mapSizeKey !== lastHandledFitSizeKeyRef.current;
+    if (!isExplicitFit && !layoutChanged) {
       return;
     }
-    lastHandledFitKeyRef.current = fitKey;
+    lastHandledFitRequestIdRef.current = fitRequestId;
+    lastHandledFitSizeKeyRef.current = mapSizeKey;
     const coordinates = positions.map((position) =>
       fromLonLat([position.lon, position.lat]),
     );
@@ -1218,45 +1270,162 @@ export function MapPanel({
       return;
     }
     let requestId = 0;
+    let controller: AbortController | null = null;
+    let timer: number | null = null;
     const load = () => {
+      controller?.abort();
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
       const zoom = map.getView().getZoom() ?? 0;
       const size = map.getSize();
       if (zoom < 13 || !size) {
         drinkingWaterSourceRef.current.clear();
         return;
       }
-      const extent = transformExtent(map.getView().calculateExtent(size), "EPSG:3857", "EPSG:4326");
+      const extent = transformExtent(
+        map.getView().calculateExtent(size),
+        "EPSG:3857",
+        "EPSG:4326",
+      );
       const currentRequestId = ++requestId;
-      void getDrinkingWater([extent[0], extent[1], extent[2], extent[3]], zoom)
-        .then((collection) => {
-          if (requestId !== currentRequestId) return;
-          const source = drinkingWaterSourceRef.current;
-          source.clear();
-          collection.features.forEach((place) => {
-            const feature = new Feature(new Point(fromLonLat(place.geometry.coordinates)));
-            feature.set("drinkingWater", place.properties);
-            source.addFeature(feature);
+      timer = window.setTimeout(() => {
+        controller = new AbortController();
+        void getDrinkingWater(
+          [extent[0], extent[1], extent[2], extent[3]],
+          zoom,
+          controller.signal,
+        )
+          .then((collection) => {
+            if (requestId !== currentRequestId) return;
+            const source = drinkingWaterSourceRef.current;
+            source.clear();
+            collection.features.forEach((place) => {
+              const feature = new Feature(
+                new Point(fromLonLat(place.geometry.coordinates)),
+              );
+              feature.set("drinkingWater", place.properties);
+              source.addFeature(feature);
+            });
+            setPoiLayerError(null);
+          })
+          .catch((error: unknown) => {
+            if (!isAbortError(error) && requestId === currentRequestId) {
+              setPoiLayerError(
+                "Trinkwasserstellen konnten nicht geladen werden.",
+              );
+            }
           });
-        })
-        .catch(() => undefined);
+      }, 150);
     };
     load();
     const listener = map.on("moveend", load);
-    return () => unByKey(listener);
+    return () => {
+      controller?.abort();
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+      unByKey(listener);
+    };
   }, [drinkingWaterVisible, mapReady]);
+
+  useEffect(() => {
+    const layer = toiletsLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) {
+      return;
+    }
+    layer.setVisible(toiletsVisible);
+    if (!toiletsVisible) {
+      toiletsSourceRef.current.clear();
+      return;
+    }
+    let requestId = 0;
+    let controller: AbortController | null = null;
+    let timer: number | null = null;
+    const load = () => {
+      controller?.abort();
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+      const zoom = map.getView().getZoom() ?? 0;
+      const size = map.getSize();
+      if (zoom < 13 || !size) {
+        toiletsSourceRef.current.clear();
+        return;
+      }
+      const extent = transformExtent(
+        map.getView().calculateExtent(size),
+        "EPSG:3857",
+        "EPSG:4326",
+      );
+      const currentRequestId = ++requestId;
+      timer = window.setTimeout(() => {
+        controller = new AbortController();
+        void getToilets(
+          [extent[0], extent[1], extent[2], extent[3]],
+          zoom,
+          controller.signal,
+        )
+          .then((collection) => {
+            if (requestId !== currentRequestId) return;
+            const source = toiletsSourceRef.current;
+            source.clear();
+            collection.features.forEach((toilet) => {
+              const feature = new Feature(
+                new Point(fromLonLat(toilet.geometry.coordinates)),
+              );
+              feature.set("toilet", toilet.properties);
+              source.addFeature(feature);
+            });
+            setPoiLayerError(null);
+          })
+          .catch((error: unknown) => {
+            if (!isAbortError(error) && requestId === currentRequestId) {
+              setPoiLayerError("WCs konnten nicht geladen werden.");
+            }
+          });
+      }, 150);
+    };
+    load();
+    const listener = map.on("moveend", load);
+    return () => {
+      controller?.abort();
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+      unByKey(listener);
+    };
+  }, [mapReady, toiletsVisible]);
 
   useEffect(() => {
     const layer = sacHutsLayerRef.current;
     if (!layer) return;
     layer.setVisible(sacHutsVisible);
-    if (!sacHutsVisible || sacHutsSourceRef.current.getFeatures().length) return;
-    void getSacHuts().then((collection) => {
-      collection.features.forEach((hut) => {
-        const feature = new Feature(new Point(fromLonLat(hut.geometry.coordinates)));
-        feature.set("sacHut", hut.properties);
-        sacHutsSourceRef.current.addFeature(feature);
+    if (!sacHutsVisible || sacHutsSourceRef.current.getFeatures().length)
+      return;
+    const controller = new AbortController();
+    const requestId = ++sacHutsRequestIdRef.current;
+    void getSacHuts(controller.signal)
+      .then((collection) => {
+        if (requestId !== sacHutsRequestIdRef.current) return;
+        const source = sacHutsSourceRef.current;
+        source.clear();
+        collection.features.forEach((hut) => {
+          const feature = new Feature(
+            new Point(fromLonLat(hut.geometry.coordinates)),
+          );
+          feature.set("sacHut", hut.properties);
+          source.addFeature(feature);
+        });
+        setPoiLayerError(null);
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error) && requestId === sacHutsRequestIdRef.current) {
+          setPoiLayerError("SAC-Hütten konnten nicht geladen werden.");
+        }
       });
-    }).catch(() => undefined);
+    return () => controller.abort();
   }, [mapReady, sacHutsVisible]);
 
   useEffect(() => {
@@ -1687,22 +1856,55 @@ export function MapPanel({
             />
             {t("difficulty")}
           </label>
+          <div className="mapPoiLayerControl">
+            <label className="mapOverlayToggle">
+              <input
+                type="checkbox"
+                checked={drinkingWaterVisible && toiletsVisible}
+                onChange={(event) => {
+                  const visible = event.target.checked;
+                  setDrinkingWaterVisible(visible);
+                  setToiletsVisible(visible);
+                  if (!visible) {
+                    setSelectedDrinkingWater(null);
+                    setSelectedToilet(null);
+                  }
+                  setMapLayerMenuOpen(false);
+                }}
+              />
+              Wasser &amp; WCs
+            </label>
+            <button
+              type="button"
+              className="mapPoiInfoButton"
+              aria-label="Informationen zu Wasser- und WC-Daten"
+              aria-expanded={poiInfoOpen}
+              aria-controls="poi-layer-info"
+              onClick={() => setPoiInfoOpen((open) => !open)}
+            >
+              i
+            </button>
+          </div>
+          {poiInfoOpen ? (
+            <small id="poi-layer-info" className="mapLayerDataHint">
+              Trinkwasserstellen und WCs stammen aus OpenStreetMap. Die Daten
+              werden von der Community gepflegt und können fehlen, veraltet oder
+              falsch sein. Prüfe die Situation vor Ort.
+            </small>
+          ) : null}
           <label className="mapOverlayToggle">
             <input
               type="checkbox"
-              checked={drinkingWaterVisible}
+              checked={sacHutsVisible}
               onChange={(event) => {
-                setDrinkingWaterVisible(event.target.checked);
+                const visible = event.target.checked;
+                setSacHutsVisible(visible);
+                if (!visible) {
+                  setSelectedSacHut(null);
+                }
                 setMapLayerMenuOpen(false);
               }}
             />
-            Trinkwasser
-          </label>
-          <label className="mapOverlayToggle">
-            <input type="checkbox" checked={sacHutsVisible} onChange={(event) => {
-              setSacHutsVisible(event.target.checked);
-              setMapLayerMenuOpen(false);
-            }} />
             SAC-Hütten
           </label>
           {ENABLE_DEV_TOOLS ? (
@@ -1720,21 +1922,94 @@ export function MapPanel({
           ) : null}
         </div>
       </details>
-      {!panelOpen && selectedSacHut && interactionMode === "explore" ? (
+      {!panelOpen &&
+      sacHutsVisible &&
+      selectedSacHut &&
+      interactionMode === "explore" ? (
         <aside className="mapFeaturePanel" aria-label="SAC-Hütte Details">
-          <div className="mapFeaturePanelHeader"><div><span>⌂ SAC-Hütte</span><strong>{selectedSacHut.name}</strong></div><button type="button" onClick={() => setSelectedSacHut(null)} aria-label="Schliessen">×</button></div>
+          <div className="mapFeaturePanelHeader">
+            <div>
+              <span>⌂ SAC-Hütte</span>
+              <strong>{selectedSacHut.name}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedSacHut(null)}
+              aria-label="Schliessen"
+            >
+              ×
+            </button>
+          </div>
           {selectedSacHut.ele ? <p>{selectedSacHut.ele} m ü. M.</p> : null}
-          <a href={`https://www.sac-cas.ch/de/huetten-und-touren/sac-tourenportal/${selectedSacHut.sacId}/`} target="_blank" rel="noreferrer">SAC-Tourenportal</a>
+          <a
+            href={`https://www.sac-cas.ch/de/huetten-und-touren/sac-tourenportal/${selectedSacHut.sacId}/`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            SAC-Tourenportal
+          </a>
         </aside>
       ) : null}
-      {!panelOpen && selectedDrinkingWater && interactionMode === "explore" ? (
+      {!panelOpen &&
+      drinkingWaterVisible &&
+      selectedDrinkingWater &&
+      interactionMode === "explore" ? (
         <aside className="mapFeaturePanel" aria-label="Trinkwasser Details">
           <div className="mapFeaturePanelHeader">
-            <div><span>💧 Trinkwasser</span><strong>{selectedDrinkingWater.name ?? "Trinkwasser"}</strong></div>
-            <button type="button" onClick={() => setSelectedDrinkingWater(null)} aria-label="Schliessen">×</button>
+            <div>
+              <span>💧 Trinkwasser</span>
+              <strong>{selectedDrinkingWater.name ?? "Trinkwasser"}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedDrinkingWater(null)}
+              aria-label="Schliessen"
+            >
+              ×
+            </button>
           </div>
-          <p>{selectedDrinkingWater.seasonal ? "Saisonal verfügbar" : "Ganzjährig"}</p>
-          <a href={`https://www.openstreetmap.org/${selectedDrinkingWater.osmType}/${selectedDrinkingWater.osmId}`} target="_blank" rel="noreferrer">OpenStreetMap</a>
+          <p>
+            {selectedDrinkingWater.seasonal
+              ? "Saisonal verfügbar"
+              : "Ganzjährig"}
+          </p>
+          <a
+            href={`https://www.openstreetmap.org/${selectedDrinkingWater.osmType}/${selectedDrinkingWater.osmId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenStreetMap
+          </a>
+        </aside>
+      ) : null}
+      {!panelOpen &&
+      toiletsVisible &&
+      selectedToilet &&
+      interactionMode === "explore" ? (
+        <aside className="mapFeaturePanel" aria-label="WC Details">
+          <div className="mapFeaturePanelHeader">
+            <div>
+              <span>WC</span>
+              <strong>{selectedToilet.name ?? "Öffentliches WC"}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedToilet(null)}
+              aria-label="Schliessen"
+            >
+              ×
+            </button>
+          </div>
+          <p>Öffentlich zugänglich (laut OSM)</p>
+          {selectedToilet.wheelchair === "yes" ? <p>Rollstuhlgängig</p> : null}
+          {selectedToilet.fee === true ? <p>Kostenpflichtig</p> : null}
+          <a
+            href={`https://www.openstreetmap.org/${selectedToilet.osmType}/${selectedToilet.osmId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenStreetMap
+          </a>
         </aside>
       ) : null}
       {!panelOpen &&
@@ -1757,7 +2032,9 @@ export function MapPanel({
           trailMatchDebugEnabled={trailMatchDebugEnabled}
         />
       ) : null}
-      {mapError ? <div className="mapNotice">{mapError}</div> : null}
+      {mapError || poiLayerError ? (
+        <div className="mapNotice">{mapError ?? poiLayerError}</div>
+      ) : null}
       <div className="attribution" aria-label={tx("Datenquellen")}>
         <span>{tx("Datenquellen")}:</span>
         <a
@@ -1843,50 +2120,23 @@ async function inspectVisibleWmsFeatures({
   resolution,
   closuresLayer,
   closuresVisible,
-  routesLayer,
-  routesVisible,
-  cyclingRoutesLayer,
-  cyclingRoutesVisible,
 }: {
   coordinate: number[];
   resolution: number;
   closuresLayer: TileLayer<TileWMS> | null;
   closuresVisible: boolean;
-  routesLayer: TileLayer<TileWMS> | null;
-  routesVisible: boolean;
-  cyclingRoutesLayer: TileLayer<TileWMS> | null;
-  cyclingRoutesVisible: boolean;
 }): Promise<MapFeatureInfo | null> {
   if (closuresVisible) {
     const closure = await getWmsFeatureInfo(
       closuresLayer,
       coordinate,
       resolution,
-      "closure",
     );
     if (closure) {
       return closure;
     }
   }
 
-  // Veloland is rendered above Wanderland, so inspect it first when both
-  // overlays are enabled. If no feature is found at the click, fall back to
-  // the hiking route layer.
-  if (cyclingRoutesVisible) {
-    const cyclingRoute = await getWmsFeatureInfo(
-      cyclingRoutesLayer,
-      coordinate,
-      resolution,
-      "veloland",
-    );
-    if (cyclingRoute) {
-      return cyclingRoute;
-    }
-  }
-
-  if (routesVisible) {
-    return getWmsFeatureInfo(routesLayer, coordinate, resolution, "wanderland");
-  }
   return null;
 }
 
@@ -1894,13 +2144,11 @@ async function getWmsFeatureInfo(
   layer: TileLayer<TileWMS> | null,
   coordinate: number[],
   resolution: number,
-  kind: MapFeatureInfo["kind"],
 ): Promise<MapFeatureInfo | null> {
   const source = layer?.getSource();
-  const infoFormat = kind === "closure" ? "text/plain" : "application/json";
   const url = source?.getFeatureInfoUrl(coordinate, resolution, "EPSG:3857", {
     FEATURE_COUNT: 1,
-    INFO_FORMAT: infoFormat,
+    INFO_FORMAT: "text/plain",
   });
   if (!url) {
     return null;
@@ -1911,169 +2159,10 @@ async function getWmsFeatureInfo(
     if (!response.ok) {
       return null;
     }
-    if (kind === "closure") {
-      return parseClosureFeatureInfo(await response.text());
-    }
-    return toMapFeatureInfo(kind, await response.json());
+    return parseClosureFeatureInfo(await response.text());
   } catch {
     return null;
   }
-}
-
-function toMapFeatureInfo(
-  kind: MapFeatureInfo["kind"],
-  payload: unknown,
-): MapFeatureInfo | null {
-  if (!isRecord(payload) || !Array.isArray(payload.features)) {
-    return null;
-  }
-  const firstFeature = payload.features[0];
-  if (!isRecord(firstFeature) || !isRecord(firstFeature.properties)) {
-    return null;
-  }
-
-  const properties = firstFeature.properties;
-  const title = featureProperty(properties, [
-    "chmobil_title",
-    "name",
-    "bezeichnung",
-    "titel",
-    "route_name",
-    "routenname",
-  ]);
-  const routeNumber = featureProperty(properties, [
-    "chmobil_route_number",
-    "nummer",
-    "route_nr",
-    "routennummer",
-    "number",
-  ]);
-  const segmentId = featureProperty(properties, ["id"]);
-  const details = mapFeatureDetails(kind, properties, routeNumber);
-
-  return {
-    details,
-    kind,
-    schweizMobilUrl:
-      kind === "wanderland" || kind === "veloland"
-        ? toSchweizMobilRouteUrl(kind, routeNumber, segmentId)
-        : undefined,
-    title:
-      title ??
-      (routeNumber
-        ? `Route ${routeNumber}`
-        : kind === "closure"
-          ? "Wanderweg-Sperrung"
-          : kind === "veloland"
-            ? "Veloland-Route"
-            : "Wanderland-Route"),
-  };
-}
-
-function mapFeatureDetails(
-  kind: MapFeatureInfo["kind"],
-  properties: Record<string, unknown>,
-  routeNumber: string | null,
-): Array<[string, string]> {
-  const preferredDetails: Array<[string, string]> = [];
-  const usedKeys = new Set([
-    "chmobil_title",
-    "name",
-    "bezeichnung",
-    "titel",
-    "route_name",
-    "routenname",
-  ]);
-
-  const addProperty = (label: string, keys: string[]) => {
-    const key = keys.find((candidate) =>
-      featureProperty(properties, [candidate]),
-    );
-    if (!key) {
-      return;
-    }
-    const value = featureProperty(properties, [key]);
-    if (value) {
-      preferredDetails.push([label, value]);
-      usedKeys.add(key);
-    }
-  };
-
-  if (kind === "wanderland" || kind === "veloland") {
-    if (routeNumber) {
-      preferredDetails.push(["Routennummer", routeNumber]);
-      usedKeys.add("chmobil_route_number");
-    }
-    preferredDetails.push([
-      "Netz",
-      kind === "veloland" ? "Veloland Schweiz" : "Wanderland Schweiz",
-    ]);
-    const segmentId = featureProperty(properties, ["id"]);
-    if (segmentId) {
-      preferredDetails.push(["Abschnitt", segmentId]);
-      usedKeys.add("id");
-      const stageNumber = routeStageNumber(segmentId, routeNumber);
-      if (stageNumber) {
-        preferredDetails.push(["Etappe", stageNumber]);
-      }
-    }
-    const hasSegment = featureProperty(properties, ["chmobil_has_segment"]);
-    if (hasSegment && !segmentId) {
-      preferredDetails.push([
-        "Abschnitt",
-        hasSegment === "true" ? "verfügbar" : hasSegment,
-      ]);
-      usedKeys.add("chmobil_has_segment");
-    }
-  } else {
-    addProperty("Status", ["status", "closure_status", "sperrung", "zustand"]);
-    addProperty("Zeitraum", ["zeitraum", "validity", "gueltigkeit"]);
-    addProperty("Von", ["start_date", "startdatum", "von", "begin"]);
-    addProperty("Bis", ["end_date", "enddatum", "bis", "ende"]);
-    addProperty("Quelle", ["source", "quelle", "provider", "organisation"]);
-  }
-
-  return [
-    ...preferredDetails,
-    ...Object.entries(properties)
-      .filter(
-        ([key, value]) =>
-          !usedKeys.has(key) && isDisplayableFeatureProperty(key, value),
-      )
-      .slice(0, Math.max(0, 5 - preferredDetails.length))
-      .map(([key, value]): [string, string] => [
-        formatFeaturePropertyName(key),
-        String(value),
-      ]),
-  ];
-}
-
-function toSchweizMobilRouteUrl(
-  kind: "wanderland" | "veloland",
-  routeNumber: string | null,
-  segmentId: string | null,
-): string {
-  const network = kind === "veloland" ? "veloland" : "wanderland";
-  if (!routeNumber || !/^\d+$/.test(routeNumber)) {
-    return `https://schweizmobil.ch/de/${network}`;
-  }
-  const stageNumber = segmentId
-    ? routeStageNumber(segmentId, routeNumber)
-    : null;
-  return stageNumber
-    ? `https://schweizmobil.ch/de/${network}/route-${routeNumber}/etappe-${stageNumber}`
-    : `https://schweizmobil.ch/de/${network}/route-${routeNumber}`;
-}
-
-function routeStageNumber(
-  segmentId: string,
-  routeNumber: string | null,
-): string | null {
-  const match = segmentId.trim().match(/^(\d+)\.(\d+)$/);
-  if (!match || (routeNumber && match[1] !== routeNumber)) {
-    return null;
-  }
-  return String(Number(match[2]));
 }
 
 function isDrinkingWaterRecord(value: unknown): value is {
@@ -2083,16 +2172,57 @@ function isDrinkingWaterRecord(value: unknown): value is {
   osm_type: string;
 } {
   return (
-    typeof value === "object" && value !== null &&
-    "name" in value && (typeof value.name === "string" || value.name === null) &&
-    "seasonal" in value && typeof value.seasonal === "boolean" &&
-    "osm_id" in value && typeof value.osm_id === "number" &&
-    "osm_type" in value && typeof value.osm_type === "string"
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    (typeof value.name === "string" || value.name === null) &&
+    "seasonal" in value &&
+    typeof value.seasonal === "boolean" &&
+    "osm_id" in value &&
+    typeof value.osm_id === "number" &&
+    "osm_type" in value &&
+    typeof value.osm_type === "string"
   );
 }
 
-function isSacHutRecord(value: unknown): value is { name: string; ele?: number; sac_id: string } {
-  return typeof value === "object" && value !== null && "name" in value && typeof value.name === "string" && "sac_id" in value && typeof value.sac_id === "string";
+function isToiletRecord(value: unknown): value is {
+  name: string | null;
+  wheelchair: string | null;
+  fee: boolean | null;
+  osm_id: number;
+  osm_type: string;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    (typeof value.name === "string" || value.name === null) &&
+    "wheelchair" in value &&
+    (typeof value.wheelchair === "string" || value.wheelchair === null) &&
+    "fee" in value &&
+    (typeof value.fee === "boolean" || value.fee === null) &&
+    "osm_id" in value &&
+    typeof value.osm_id === "number" &&
+    "osm_type" in value &&
+    typeof value.osm_type === "string"
+  );
+}
+
+function isSacHutRecord(
+  value: unknown,
+): value is { name: string; ele?: number; sac_id: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "sac_id" in value &&
+    typeof value.sac_id === "string"
+  );
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function hasVisibleLayerPixel(
@@ -2107,49 +2237,6 @@ function hasVisibleLayerPixel(
     return data.byteLength >= 4 && data.getUint8(3) > 0;
   }
   return data !== null && data.length >= 4 && data[3] > 0;
-}
-
-function featureProperty(
-  properties: Record<string, unknown>,
-  keys: string[],
-): string | null {
-  for (const key of keys) {
-    const value = properties[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === "number") {
-      return String(value);
-    }
-  }
-  return null;
-}
-
-function isDisplayableFeatureProperty(key: string, value: unknown): boolean {
-  return (
-    !["geometry", "geom", "the_geom"].includes(key.toLowerCase()) &&
-    (typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean")
-  );
-}
-
-function formatFeaturePropertyName(key: string): string {
-  const labels: Record<string, string> = {
-    chmobil_has_segment: "Aktueller Abschnitt",
-    chmobil_route_number: "Routennummer",
-    chmobil_title: "Route",
-  };
-  if (labels[key]) {
-    return labels[key];
-  }
-  return key
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {

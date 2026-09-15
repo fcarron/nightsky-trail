@@ -1,4 +1,4 @@
-.PHONY: bootstrap dev graphhopper test lint format build backend-test backend-lint frontend-test frontend-lint
+.PHONY: bootstrap dev graphhopper osm-index test lint format build backend-test backend-lint frontend-test frontend-lint
 
 bootstrap:
 	cd backend && uv sync
@@ -12,8 +12,11 @@ graphhopper:
 	test -f data/osm/switzerland-latest.osm.pbf || curl -L --fail -o data/osm/switzerland-latest.osm.pbf https://download.geofabrik.de/europe/switzerland-latest.osm.pbf
 	docker compose up -d graphhopper
 
+osm-index:
+	cd backend && uv run python manage.py build_osm_index
+
 backend-dev:
-	cd backend && uv run python manage.py runserver 127.0.0.1:8000
+	cd backend && uv run python manage.py build_osm_index && uv run python manage.py runserver 127.0.0.1:8000
 
 frontend-dev:
 	cd frontend && npm run dev -- --host 127.0.0.1

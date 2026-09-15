@@ -196,9 +196,7 @@ OSM_PBF_PATH = Path(
 OSM_TRAIL_INDEX_PATH = Path(
     os.environ.get("OSM_TRAIL_INDEX_PATH", BASE_DIR.parent / "data/osm/trails.sqlite3")
 )
-SAC_HUTS_PATH = Path(
-    os.environ.get("SAC_HUTS_PATH", BASE_DIR.parent / "data/sac_huts.geojson")
-)
+SAC_HUTS_PATH = Path(os.environ.get("SAC_HUTS_PATH", BASE_DIR.parent / "data/sac_huts.geojson"))
 SWISSTOPO_TRAILS_URL = os.environ.get(
     "SWISSTOPO_TRAILS_URL",
     "https://data.geo.admin.ch/ch.swisstopo.swisstlm3d-wanderwege/swisstlm3d-wanderwege/swisstlm3d-wanderwege_2056_5728.gpkg.zip",
@@ -218,6 +216,10 @@ SWISSTOPO_TRAILS_GPKG_PATH = Path(
 SWISSTOPO_TRAILS_TIMEOUT_SECONDS = float(os.environ.get("SWISSTOPO_TRAILS_TIMEOUT_SECONDS", "60"))
 TRAILS_CACHE_TIMEOUT_SECONDS = int(os.environ.get("TRAILS_CACHE_TIMEOUT_SECONDS", "86400"))
 TRAILS_CACHE_BBOX_DECIMALS = int(os.environ.get("TRAILS_CACHE_BBOX_DECIMALS", "3"))
+DRINKING_WATER_CACHE_TIMEOUT_SECONDS = int(
+    os.environ.get("DRINKING_WATER_CACHE_TIMEOUT_SECONDS", "86400")
+)
+DRINKING_WATER_CACHE_BBOX_DECIMALS = int(os.environ.get("DRINKING_WATER_CACHE_BBOX_DECIMALS", "4"))
 TRAILS_DEBUG_MIN_ZOOM = int(os.environ.get("TRAILS_DEBUG_MIN_ZOOM", "15"))
 TRAILS_DEBUG_MAX_BBOX_AREA = float(os.environ.get("TRAILS_DEBUG_MAX_BBOX_AREA", "0.004"))
 

@@ -1024,7 +1024,8 @@ function PlannerApp() {
       setAuthState({ ...session, status: "ready" });
       setAuthPassword("");
       setAuthPasswordConfirmation("");
-      const verificationPending = authMode === "register" && !session.authenticated;
+      const verificationPending =
+        authMode === "register" && !session.authenticated;
       setPendingVerificationEmail(verificationPending ? email : null);
       setAuthFeedback({
         tone: "success",
@@ -2840,9 +2841,7 @@ function PlannerApp() {
             <button
               type="button"
               disabled={!hasRoute}
-              onClick={() =>
-                setRouteFitRequestId((requestId) => requestId + 1)
-              }
+              onClick={() => setRouteFitRequestId((requestId) => requestId + 1)}
             >
               {tx("Gesamte Route anzeigen")}
             </button>
@@ -3778,6 +3777,18 @@ function addDifficultyDistance(
 function difficultyCategoryFor(
   value: string | number | null,
 ): DifficultyCategory {
+  if (typeof value === "number") {
+    const categories: Record<number, DifficultyCategory> = {
+      0: "?",
+      1: "T1",
+      2: "T2",
+      3: "T3",
+      4: "T4",
+      5: "T5",
+      6: "T6",
+    };
+    return categories[value] ?? "?";
+  }
   if (typeof value !== "string") {
     return "?";
   }

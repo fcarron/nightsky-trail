@@ -20,6 +20,7 @@ from planner.api.views import (
     SavedTourListView,
     SearchView,
     SharedTourView,
+    ToiletsView,
     TrailsView,
     VerificationEmailResendView,
 )
@@ -52,6 +53,7 @@ urlpatterns = [
     path("search", SearchView.as_view(), name="search"),
     path("trails", TrailsView.as_view(), name="trails"),
     path("drinking-water", DrinkingWaterView.as_view(), name="drinking-water"),
+    path("toilets", ToiletsView.as_view(), name="toilets"),
     path("sac-huts", SacHutsView.as_view(), name="sac-huts"),
     path("tours", SavedTourListView.as_view(), name="tour-list"),
     path("tours/<uuid:tour_id>", SavedTourDetailView.as_view(), name="tour-detail"),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from collections.abc import Iterable
@@ -13,11 +14,13 @@ from planner.integrations.overpass import OVERPASS_TAGS, OsmWay
 
 TRAIL_HIGHWAYS = {"path", "footway", "track", "steps", "pedestrian", "bridleway"}
 TRAIL_ROUTES = {"hiking", "foot"}
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 MAX_TRAIL_RESULTS = 5000
 MAX_DRINKING_WATER_RESULTS = 1000
+MAX_TOILET_RESULTS = 1000
 
 _INDEX_LOCK = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 class LocalOsmUnavailableError(RuntimeError):
@@ -29,13 +32,17 @@ class LocalOsmUnavailableError(RuntimeError):
         self.details = details or {}
 
 
+class LocalOsmIndexNotReadyError(LocalOsmUnavailableError):
+    code = "osm_index_not_ready"
+
+
 @dataclass(frozen=True)
 class LocalOsmTrailIndex:
     pbf_path: Path
     db_path: Path
 
     def trails(self, bbox: tuple[float, float, float, float]) -> list[OsmWay]:
-        ensure_index(self.pbf_path, self.db_path)
+        require_current_index(self.pbf_path, self.db_path)
         min_lon, min_lat, max_lon, max_lat = bbox
         with sqlite3.connect(self.db_path) as connection:
             rows = connection.execute(
@@ -55,7 +62,7 @@ class LocalOsmTrailIndex:
         return [row_to_osm_way(row) for row in rows]
 
     def drinking_water(self, bbox: tuple[float, float, float, float]) -> list[DrinkingWaterPlace]:
-        ensure_index(self.pbf_path, self.db_path)
+        require_current_index(self.pbf_path, self.db_path)
         min_lon, min_lat, max_lon, max_lat = bbox
         with sqlite3.connect(self.db_path) as connection:
             rows = connection.execute(
@@ -69,7 +76,26 @@ class LocalOsmTrailIndex:
                 """,
                 (min_lon, max_lon, min_lat, max_lat, MAX_DRINKING_WATER_RESULTS),
             ).fetchall()
-        return [row_to_drinking_water_place(row) for row in rows]
+        return deduplicate_drinking_water_places(row_to_drinking_water_place(row) for row in rows)
+
+    def toilets(self, bbox: tuple[float, float, float, float]) -> list[ToiletPlace]:
+        """Return publicly accessible toilets represented by OSM nodes or areas."""
+
+        require_current_index(self.pbf_path, self.db_path)
+        min_lon, min_lat, max_lon, max_lat = bbox
+        with sqlite3.connect(self.db_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT osm_type, osm_id, longitude, latitude, tags_json
+                FROM toilets
+                WHERE longitude >= ? AND longitude <= ?
+                  AND latitude >= ? AND latitude <= ?
+                ORDER BY osm_type, osm_id
+                LIMIT ?
+                """,
+                (min_lon, max_lon, min_lat, max_lat, MAX_TOILET_RESULTS),
+            ).fetchall()
+        return [row_to_toilet_place(row) for row in rows]
 
 
 @dataclass(frozen=True)
@@ -83,10 +109,61 @@ class DrinkingWaterPlace:
     seasonal: bool
 
 
+@dataclass(frozen=True)
+class ToiletPlace:
+    osm_type: str
+    osm_id: int
+    longitude: float
+    latitude: float
+    name: str | None
+    wheelchair: str | None
+    fee: bool | None
+
+
+@dataclass(frozen=True)
+class DrinkingWaterRelation:
+    osm_id: int
+    node_ids: tuple[int, ...]
+    way_ids: tuple[int, ...]
+    tags: dict[str, str]
+
+
+class DrinkingWaterRelationHandler(osmium.SimpleHandler):
+    """Collect confirmed-water relation members before resolving their geometry."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.relations: list[DrinkingWaterRelation] = []
+
+    def relation(self, relation: object) -> None:
+        tags = {str(tag.k): str(tag.v) for tag in relation.tags}
+        if not is_confirmed_drinking_water(tags):
+            return
+        node_ids = tuple(int(member.ref) for member in relation.members if member.type == "n")
+        way_ids = tuple(int(member.ref) for member in relation.members if member.type == "w")
+        if node_ids or way_ids:
+            self.relations.append(DrinkingWaterRelation(int(relation.id), node_ids, way_ids, tags))
+
+
 class TrailWayHandler(osmium.SimpleHandler):
-    def __init__(self, writer: TrailIndexWriter) -> None:
+    def __init__(
+        self,
+        writer: TrailIndexWriter,
+        drinking_water_relations: Iterable[DrinkingWaterRelation] = (),
+    ) -> None:
         super().__init__()
         self.writer = writer
+        self.relation_nodes: dict[int, list[DrinkingWaterRelation]] = {}
+        self.relation_ways: dict[int, list[DrinkingWaterRelation]] = {}
+        self.relation_coordinates: dict[int, list[list[float]]] = {}
+        self.relations_by_id: dict[int, DrinkingWaterRelation] = {}
+        for relation in drinking_water_relations:
+            self.relations_by_id[relation.osm_id] = relation
+            self.relation_coordinates[relation.osm_id] = []
+            for node_id in relation.node_ids:
+                self.relation_nodes.setdefault(node_id, []).append(relation)
+            for way_id in relation.way_ids:
+                self.relation_ways.setdefault(way_id, []).append(relation)
 
     def way(self, way: object) -> None:
         tags = {str(tag.k): str(tag.v) for tag in way.tags}
@@ -99,14 +176,40 @@ class TrailWayHandler(osmium.SimpleHandler):
             longitude = sum(point[0] for point in coordinates) / len(coordinates)
             latitude = sum(point[1] for point in coordinates) / len(coordinates)
             self.writer.add_drinking_water("way", int(way.id), longitude, latitude, tags)
+        if is_public_toilet(tags) and coordinates:
+            longitude = sum(point[0] for point in coordinates) / len(coordinates)
+            latitude = sum(point[1] for point in coordinates) / len(coordinates)
+            self.writer.add_toilet("way", int(way.id), longitude, latitude, tags)
+        for relation in self.relation_ways.get(int(way.id), []):
+            self.relation_coordinates[relation.osm_id].extend(coordinates)
 
     def node(self, node: object) -> None:
         tags = {str(tag.k): str(tag.v) for tag in node.tags}
-        if not is_confirmed_drinking_water(tags) or not node.location.valid():
+        if not node.location.valid():
             return
-        self.writer.add_drinking_water(
-            "node", int(node.id), float(node.location.lon), float(node.location.lat), tags
-        )
+        if is_confirmed_drinking_water(tags):
+            self.writer.add_drinking_water(
+                "node", int(node.id), float(node.location.lon), float(node.location.lat), tags
+            )
+        if is_public_toilet(tags):
+            self.writer.add_toilet(
+                "node", int(node.id), float(node.location.lon), float(node.location.lat), tags
+            )
+        for relation in self.relation_nodes.get(int(node.id), []):
+            self.relation_coordinates[relation.osm_id].append(
+                [float(node.location.lon), float(node.location.lat)]
+            )
+
+    def write_drinking_water_relations(self) -> None:
+        for relation_id, coordinates in self.relation_coordinates.items():
+            if not coordinates:
+                continue
+            relation = self.relations_by_id[relation_id]
+            longitude = sum(point[0] for point in coordinates) / len(coordinates)
+            latitude = sum(point[1] for point in coordinates) / len(coordinates)
+            self.writer.add_drinking_water(
+                "relation", relation_id, longitude, latitude, relation.tags
+            )
 
 
 class TrailIndexWriter:
@@ -119,11 +222,14 @@ class TrailIndexWriter:
     def __enter__(self) -> TrailIndexWriter:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.db_path)
-        self.connection.execute("PRAGMA journal_mode = WAL")
+        # The index is built into a temporary file and atomically replaced.
+        # DELETE avoids orphaned WAL sidecars after an interrupted build.
+        self.connection.execute("PRAGMA journal_mode = DELETE")
         self.connection.execute("PRAGMA synchronous = NORMAL")
         self.connection.execute("DROP TABLE IF EXISTS metadata")
         self.connection.execute("DROP TABLE IF EXISTS trail_ways")
         self.connection.execute("DROP TABLE IF EXISTS drinking_water")
+        self.connection.execute("DROP TABLE IF EXISTS toilets")
         self.connection.execute(
             """
             CREATE TABLE metadata (
@@ -147,6 +253,19 @@ class TrailIndexWriter:
         self.connection.execute(
             "CREATE INDEX drinking_water_point ON drinking_water (longitude, latitude)"
         )
+        self.connection.execute(
+            """
+            CREATE TABLE toilets (
+              osm_type TEXT NOT NULL,
+              osm_id INTEGER NOT NULL,
+              longitude REAL NOT NULL,
+              latitude REAL NOT NULL,
+              tags_json TEXT NOT NULL,
+              PRIMARY KEY (osm_type, osm_id)
+            )
+            """
+        )
+        self.connection.execute("CREATE INDEX toilets_point ON toilets (longitude, latitude)")
         self.connection.execute(
             """
             CREATE TABLE trail_ways (
@@ -228,6 +347,24 @@ class TrailIndexWriter:
             self.connection_or_raise.commit()
             self.pending = 0
 
+    def add_toilet(
+        self, osm_type: str, osm_id: int, longitude: float, latitude: float, tags: dict[str, str]
+    ) -> None:
+        self.connection_or_raise.execute(
+            "INSERT OR REPLACE INTO toilets VALUES (?, ?, ?, ?, ?)",
+            (
+                osm_type,
+                osm_id,
+                round(longitude, 7),
+                round(latitude, 7),
+                json.dumps(compact_toilet_tags(tags), separators=(",", ":"), sort_keys=True),
+            ),
+        )
+        self.pending += 1
+        if self.pending >= 1000:
+            self.connection_or_raise.commit()
+            self.pending = 0
+
     @property
     def connection_or_raise(self) -> sqlite3.Connection:
         if self.connection is None:
@@ -252,15 +389,33 @@ def ensure_index(pbf_path: Path, db_path: Path) -> None:
 
         try:
             with TrailIndexWriter(temporary_path, pbf_path) as writer:
-                TrailWayHandler(writer).apply_file(str(pbf_path), locations=True)
+                relation_handler = DrinkingWaterRelationHandler()
+                relation_handler.apply_file(str(pbf_path))
+                handler = TrailWayHandler(writer, relation_handler.relations)
+                handler.apply_file(str(pbf_path), locations=True)
+                handler.write_drinking_water_relations()
         except Exception as error:
             if temporary_path.exists():
                 temporary_path.unlink()
+            logger.exception("Local OSM index build failed for %s", pbf_path)
             raise LocalOsmUnavailableError(
                 "The local OSM trail index could not be built."
             ) from error
 
         temporary_path.replace(db_path)
+
+
+def require_current_index(pbf_path: Path, db_path: Path) -> None:
+    """Keep expensive PBF indexing out of interactive API requests."""
+
+    if not pbf_path.exists():
+        raise LocalOsmUnavailableError(
+            "The local OSM extract is not available.", {"path": str(pbf_path)}
+        )
+    if not index_is_current(pbf_path, db_path):
+        raise LocalOsmIndexNotReadyError(
+            "The local OSM index is not ready. Run 'python manage.py build_osm_index'."
+        )
 
 
 def index_is_current(pbf_path: Path, db_path: Path) -> bool:
@@ -323,6 +478,20 @@ def drinking_water_type(tags: dict[str, str]) -> str:
     return "other"
 
 
+def is_public_toilet(tags: dict[str, str]) -> bool:
+    """Keep toilets that are public or have no explicit access restriction."""
+
+    if tags.get("amenity") != "toilets":
+        return False
+    if tags.get("access") in {"private", "no", "customers"}:
+        return False
+    return tags.get("disused:amenity") != "toilets" and tags.get("abandoned:amenity") != "toilets"
+
+
+def compact_toilet_tags(tags: dict[str, str]) -> dict[str, str]:
+    return {key: tags[key] for key in ("name", "wheelchair", "fee", "opening_hours") if key in tags}
+
+
 def way_coordinates(nodes: Iterable[object]) -> list[list[float]]:
     coordinates: list[list[float]] = []
     for node in nodes:
@@ -360,3 +529,37 @@ def row_to_drinking_water_place(row: tuple[str, int, float, float, str]) -> Drin
         place_type=drinking_water_type(tags),
         seasonal=tags.get("seasonal") == "yes",
     )
+
+
+def row_to_toilet_place(row: tuple[str, int, float, float, str]) -> ToiletPlace:
+    osm_type, osm_id, longitude, latitude, tags_json = row
+    tags = json.loads(tags_json)
+    fee = tags.get("fee")
+    return ToiletPlace(
+        osm_type=osm_type,
+        osm_id=osm_id,
+        longitude=longitude,
+        latitude=latitude,
+        name=tags.get("name"),
+        wheelchair=tags.get("wheelchair"),
+        fee=True if fee == "yes" else False if fee == "no" else None,
+    )
+
+
+def deduplicate_drinking_water_places(
+    places: Iterable[DrinkingWaterPlace],
+) -> list[DrinkingWaterPlace]:
+    """Collapse node/way duplicates without merging nearby, distinct taps."""
+
+    unique: list[DrinkingWaterPlace] = []
+    seen: set[tuple[float, float, str]] = set()
+    for place in places:
+        key = (
+            round(place.longitude, 6),
+            round(place.latitude, 6),
+            (place.name or "").casefold(),
+        )
+        if key not in seen:
+            seen.add(key)
+            unique.append(place)
+    return unique

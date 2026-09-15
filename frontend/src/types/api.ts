@@ -137,6 +137,23 @@ export interface DrinkingWaterFeature {
     name: string | null;
     type: "fountain" | "tap" | "spring" | "other";
     seasonal: boolean;
+    osm_type: "node" | "way" | "relation";
+    osm_id: number;
+  };
+}
+
+export interface ToiletsFeatureCollection {
+  type: "FeatureCollection";
+  features: ToiletFeature[];
+}
+
+export interface ToiletFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    name: string | null;
+    wheelchair: string | null;
+    fee: boolean | null;
     osm_type: "node" | "way";
     osm_id: number;
   };

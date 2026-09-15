@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+from hashlib import sha256
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.tokens import default_token_generator
+from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -34,6 +36,7 @@ from planner.api.serializers import (
     SavedTourSerializer,
     SearchQuerySerializer,
     SharedTourSerializer,
+    ToiletsQuerySerializer,
     TrailsQuerySerializer,
     VerificationEmailResendSerializer,
 )
@@ -793,36 +796,93 @@ class DrinkingWaterView(APIView):
             )
         if serializer.validated_data["zoom"] < 13:
             return Response({"type": "FeatureCollection", "features": []})
+        bbox = serializer.validated_data["bbox"]
+        cache_key = drinking_water_cache_key(bbox)
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
         try:
             index = LocalOsmTrailIndex(
                 settings.OSM_PBF_PATH,
                 settings.OSM_TRAIL_INDEX_PATH,
             )
-            places = index.drinking_water(serializer.validated_data["bbox"])
+            places = index.drinking_water(bbox)
         except LocalOsmUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, error.details) from error
-        return Response(
-            {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [place.longitude, place.latitude],
-                        },
-                        "properties": {
-                            "name": place.name,
-                            "type": place.place_type,
-                            "seasonal": place.seasonal,
-                            "osm_type": place.osm_type,
-                            "osm_id": place.osm_id,
-                        },
-                    }
-                    for place in places
-                ],
-            }
-        )
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [place.longitude, place.latitude],
+                    },
+                    "properties": {
+                        "name": place.name,
+                        "type": place.place_type,
+                        "seasonal": place.seasonal,
+                        "osm_type": place.osm_type,
+                        "osm_id": place.osm_id,
+                    },
+                }
+                for place in places
+            ],
+        }
+        cache.set(cache_key, payload, settings.DRINKING_WATER_CACHE_TIMEOUT_SECONDS)
+        return Response(payload)
+
+
+class ToiletsView(APIView):
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(operation_id="toilets", responses={200: OpenApiTypes.OBJECT})
+    def get(self, request: object) -> Response:
+        serializer = ToiletsQuerySerializer(data=getattr(request, "query_params", {}))
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_toilets_request",
+                "Toilet request validation failed.",
+                {"fields": serializer.errors},
+            )
+        if serializer.validated_data["zoom"] < 13:
+            return Response({"type": "FeatureCollection", "features": []})
+        bbox = serializer.validated_data["bbox"]
+        cache_key = toilets_cache_key(bbox)
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
+        try:
+            index = LocalOsmTrailIndex(
+                settings.OSM_PBF_PATH,
+                settings.OSM_TRAIL_INDEX_PATH,
+            )
+            places = index.toilets(bbox)
+        except LocalOsmUnavailableError as error:
+            raise UnprocessableEntity(error.code, error.message, error.details) from error
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [place.longitude, place.latitude],
+                    },
+                    "properties": {
+                        "name": place.name,
+                        "wheelchair": place.wheelchair,
+                        "fee": place.fee,
+                        "osm_type": place.osm_type,
+                        "osm_id": place.osm_id,
+                    },
+                }
+                for place in places
+            ],
+        }
+        cache.set(cache_key, payload, settings.DRINKING_WATER_CACHE_TIMEOUT_SECONDS)
+        return Response(payload)
 
 
 class SacHutsView(APIView):
@@ -837,13 +897,11 @@ class SacHutsView(APIView):
             raise ServiceUnavailable(
                 "sac_huts_unavailable",
                 "The local SAC huts dataset is unavailable.",
-                {},
             ) from error
         if not is_sac_huts_feature_collection(payload):
             raise ServiceUnavailable(
                 "sac_huts_unavailable",
                 "The local SAC huts dataset is invalid.",
-                {},
             )
         return Response(payload)
 
@@ -859,11 +917,42 @@ def is_sac_huts_feature_collection(payload: object) -> bool:
         and feature["geometry"].get("type") == "Point"
         and isinstance(feature["geometry"].get("coordinates"), list)
         and len(feature["geometry"]["coordinates"]) == 2
+        and all(isinstance(value, int | float) for value in feature["geometry"]["coordinates"])
+        and 5 <= feature["geometry"]["coordinates"][0] <= 11
+        and 45 <= feature["geometry"]["coordinates"][1] <= 48
         and isinstance(feature.get("properties"), dict)
         and isinstance(feature["properties"].get("name"), str)
         and isinstance(feature["properties"].get("sac_id"), str)
+        and isinstance(feature["properties"].get("ele"), int)
+        and 500 <= feature["properties"]["ele"] <= 5000
         for feature in features
     )
+
+
+def drinking_water_cache_key(bbox: tuple[float, float, float, float]) -> str:
+    """Invalidate cached POIs whenever the underlying PBF changes."""
+
+    decimals = settings.DRINKING_WATER_CACHE_BBOX_DECIMALS
+    rounded_bbox = ",".join(f"{value:.{decimals}f}" for value in bbox)
+    try:
+        stat = settings.OSM_PBF_PATH.stat()
+        data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+    except OSError:
+        data_version = "missing"
+    digest = sha256(f"{data_version}:{rounded_bbox}".encode()).hexdigest()[:16]
+    return f"drinking-water:v2:{digest}"
+
+
+def toilets_cache_key(bbox: tuple[float, float, float, float]) -> str:
+    decimals = settings.DRINKING_WATER_CACHE_BBOX_DECIMALS
+    rounded_bbox = ",".join(f"{value:.{decimals}f}" for value in bbox)
+    try:
+        stat = settings.OSM_PBF_PATH.stat()
+        data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+    except OSError:
+        data_version = "missing"
+    digest = sha256(f"{data_version}:{rounded_bbox}".encode()).hexdigest()[:16]
+    return f"toilets:v1:{digest}"
 
 
 def django_request(request: object) -> object:

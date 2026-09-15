@@ -369,8 +369,12 @@ describe("App", () => {
     expect(screen.queryByLabelText("Meine Touren")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Meine Touren" }));
 
-    expect(screen.getByRole("dialog", { name: "Meine Touren" })).toBeInTheDocument();
-    expect(screen.getByText("Gespeicherte Routen verwalten")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Meine Touren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Gespeicherte Routen verwalten"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Touren speichern")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Datei" }));
@@ -597,9 +601,9 @@ describe("App", () => {
     expect(screen.getByText("Route berechnet")).toBeInTheDocument();
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Gerade");
     expect(screen.getByLabelText("Legende")).toHaveTextContent("Wegen folgen");
-    expect(
-      screen.queryByLabelText("Wegbeschaffenheit"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Wegbeschaffenheit")).toHaveTextContent(
+      "Unbekannt",
+    );
   });
 
   it("summarizes classified route surface details", async () => {
@@ -632,7 +636,7 @@ describe("App", () => {
     );
   });
 
-  it("summarizes route difficulty without treating missing data as T1", async () => {
+  it("summarizes GraphHopper's numeric route difficulty without treating missing data as T1", async () => {
     storeRouteWithTwoWaypoints();
     vi.stubGlobal(
       "fetch",
@@ -642,8 +646,8 @@ describe("App", () => {
             distanceMeters: 1234,
             mode: "routed",
             hikeRatingDetails: [
-              [0, 1, "hiking"],
-              [1, 2, "demanding_mountain_hiking"],
+              [0, 1, 1],
+              [1, 2, 3],
             ],
           }),
         ],
@@ -1194,7 +1198,7 @@ function routeResponse({
   distanceMeters: number;
   mode?: "straight" | "routed";
   surfaceDetails?: Array<[number, number, string]>;
-  hikeRatingDetails?: Array<[number, number, string]>;
+  hikeRatingDetails?: Array<[number, number, string | number]>;
 }) {
   return new Response(
     JSON.stringify({

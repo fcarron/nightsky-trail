@@ -49,7 +49,7 @@ def test_elevation_profile_returns_normalized_profile(monkeypatch: pytest.Monkey
         "distanceMeters": 0,
         "elevationMeters": 500,
         "smoothedElevationMeters": 505,
-        "gradientPercent": 30,
+        "gradientPercent": 0,
         "longitude": 7.4474,
         "latitude": 46.948,
     }

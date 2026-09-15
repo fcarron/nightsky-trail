@@ -107,6 +107,19 @@ Swiss hiking time is derived only from the swisstopo elevation profile and route
 
 ## GraphHopper Routing
 
+The frontend's **Trail** option uses the GraphHopper `hike` profile with the
+versioned custom model in
+`backend/planner/integrations/graphhopper_models/hiking.json`. It increases the
+relative priority of marked hiking networks, path/footway/track/steps/pedestrian
+road classes, and ways with a known hiking rating. Its current rules do not use
+`surface` to avoid asphalt and do not model technical descents. “Trail” is
+therefore a routing preference, not a guarantee that the result consists mostly
+of narrow or natural trails.
+
+Closing a loop adds one segment from the current destination to the start using
+the currently selected routed/straight segment mode. It can select the same path
+in reverse and is not an alternative-round-trip generator.
+
 Routing uses a self-hosted GraphHopper instance with an OpenStreetMap extract for Switzerland. It is accessed only through Django. The backend keeps `GRAPHHOPPER_BASE_URL` and `GRAPHHOPPER_PROFILE` configurable, defaults to the `hike` profile, requests unencoded point geometry, asks for route details, and normalizes responses before returning them to the frontend.
 
 The local Docker GraphHopper is configured in:

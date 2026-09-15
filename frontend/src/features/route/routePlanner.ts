@@ -212,14 +212,19 @@ function controlWaypointsForImportedGeometry(
     return fallbackWaypoints;
   }
 
-  const totalDistanceMeters = geometry.slice(1).reduce(
-    (total, point, index) =>
-      total + distanceMetersBetween(geometry[index], point),
-    0,
-  );
+  const totalDistanceMeters = geometry
+    .slice(1)
+    .reduce(
+      (total, point, index) =>
+        total + distanceMetersBetween(geometry[index], point),
+      0,
+    );
   const waypointCount = Math.min(
     MAX_ROUTING_WAYPOINTS,
-    Math.max(2, Math.ceil(totalDistanceMeters / GPX_REROUTE_TARGET_SPACING_METERS) + 1),
+    Math.max(
+      2,
+      Math.ceil(totalDistanceMeters / GPX_REROUTE_TARGET_SPACING_METERS) + 1,
+    ),
   );
   const spacingMeters = totalDistanceMeters / (waypointCount - 1);
   const positions = [geometry[0]];

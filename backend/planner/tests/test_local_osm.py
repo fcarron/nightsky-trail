@@ -3,10 +3,19 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+from django.core.cache import cache
+from django.urls import reverse
+from rest_framework.test import APIClient
+
 from planner.integrations.local_osm import (
+    DrinkingWaterPlace,
+    ToiletPlace,
     TrailIndexWriter,
     coordinate_bounds,
+    deduplicate_drinking_water_places,
     is_confirmed_drinking_water,
+    is_public_toilet,
     is_relevant_tags,
     row_to_osm_way,
 )
@@ -60,6 +69,15 @@ def test_confirmed_drinking_water_filter() -> None:
     assert not is_confirmed_drinking_water({"disused:amenity": "drinking_water"})
 
 
+def test_public_toilet_filter() -> None:
+    assert is_public_toilet({"amenity": "toilets"})
+    assert is_public_toilet({"amenity": "toilets", "access": "yes"})
+    assert not is_public_toilet({"amenity": "toilets", "access": "private"})
+    assert not is_public_toilet({"amenity": "toilets", "access": "customers"})
+    assert not is_public_toilet({"amenity": "toilets", "disused:amenity": "toilets"})
+    assert not is_public_toilet({"amenity": "fountain"})
+
+
 def test_drinking_water_writer_deduplicates_osm_objects(tmp_path: Path) -> None:
     pbf_path = tmp_path / "switzerland.osm.pbf"
     pbf_path.touch()
@@ -70,3 +88,61 @@ def test_drinking_water_writer_deduplicates_osm_objects(tmp_path: Path) -> None:
 
     with sqlite3.connect(db_path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM drinking_water").fetchone() == (1,)
+
+
+def test_toilet_writer_deduplicates_osm_objects(tmp_path: Path) -> None:
+    pbf_path = tmp_path / "switzerland.osm.pbf"
+    pbf_path.touch()
+    db_path = tmp_path / "trails.sqlite3"
+    with TrailIndexWriter(db_path, pbf_path) as writer:
+        writer.add_toilet("node", 123, 7.4, 46.9, {"name": "WC"})
+        writer.add_toilet("node", 123, 7.4, 46.9, {"name": "WC"})
+
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM toilets").fetchone() == (1,)
+
+
+def test_drinking_water_query_deduplicates_matching_node_and_way() -> None:
+    node = DrinkingWaterPlace("node", 1, 7.4474, 46.9481, "Dorfbrunnen", "fountain", False)
+    way = DrinkingWaterPlace("way", 2, 7.4474001, 46.9481001, "Dorfbrunnen", "fountain", False)
+
+    assert deduplicate_drinking_water_places([node, way]) == [node]
+
+
+def test_toilets_endpoint_returns_normalized_public_toilets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeLocalOsmTrailIndex:
+        def __init__(self, *args: object) -> None:
+            pass
+
+        def toilets(self, bbox: tuple[float, float, float, float]) -> list[ToiletPlace]:
+            assert bbox == (7.4, 46.9, 7.5, 47.0)
+            return [
+                ToiletPlace(
+                    "node",
+                    123,
+                    7.4474,
+                    46.9481,
+                    "WC Bahnhof",
+                    "yes",
+                    True,
+                )
+            ]
+
+    cache.clear()
+    monkeypatch.setattr("planner.api.views.LocalOsmTrailIndex", FakeLocalOsmTrailIndex)
+
+    response = APIClient().get(
+        reverse("toilets"),
+        {"bbox": "7.4,46.9,7.5,47.0", "zoom": "14"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["features"][0]["properties"] == {
+        "name": "WC Bahnhof",
+        "wheelchair": "yes",
+        "fee": True,
+        "osm_type": "node",
+        "osm_id": 123,
+    }

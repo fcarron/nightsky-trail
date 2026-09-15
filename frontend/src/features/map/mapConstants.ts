@@ -10,6 +10,15 @@ export const SWISSTOPO_SATELLITE_WMTS_URL =
 export const SWISSTOPO_HIKING_TRAILS_WMTS_URL =
   "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swisstlm3d-wanderwege/default/current/3857/{z}/{x}/{y}.png";
 
+// Unlike the WMS endpoint, the WMTS endpoints explicitly allow browser tile
+// requests. Use them for map overlays so a layer toggle never depends on a
+// cross-origin WMS image request.
+export const SWISSTOPO_HIKING_ROUTES_WMTS_URL =
+  "https://wmts.geo.admin.ch/1.0.0/ch.astra.wanderland/default/current/3857/{z}/{x}/{y}.png";
+
+export const SWISSTOPO_CYCLING_ROUTES_WMTS_URL =
+  "https://wmts.geo.admin.ch/1.0.0/ch.astra.veloland/default/current/3857/{z}/{x}/{y}.png";
+
 export const HIKING_TRAIL_OVERLAY_MIN_ZOOM = 13;
 
 export const SWISSTOPO_WMS_URL = "https://wms.geo.admin.ch/";

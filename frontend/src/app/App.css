@@ -3614,6 +3614,37 @@ button:disabled {
   color: #dce7ee;
 }
 
+.mapPoiLayerControl {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mapPoiLayerControl .mapOverlayToggle {
+  flex: 1;
+}
+
+.mapPoiInfoButton {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid #64798a;
+  border-radius: 999px;
+  background: transparent;
+  color: #c6d5df;
+  font: 700 12px/1 serif;
+  cursor: pointer;
+}
+
+.mapPoiInfoButton:hover,
+.mapPoiInfoButton:focus-visible {
+  border-color: #9ec3ff;
+  color: #f4f8fb;
+}
+
 .mapLayerDataHint {
   grid-column: 1 / -1;
   color: #a9b8c4;
@@ -3879,9 +3910,7 @@ button:disabled {
 
   .topBar:not(.mobileHeaderOpen) .localeSelect,
   .topBar:not(.mobileHeaderOpen) .topBarActions > .status,
-  .topBar:not(.mobileHeaderOpen)
-    .topMenuGroup
-    .manageMenu:not(:last-child) {
+  .topBar:not(.mobileHeaderOpen) .topMenuGroup .manageMenu:not(:last-child) {
     display: none;
   }
 

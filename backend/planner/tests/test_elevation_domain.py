@@ -40,6 +40,22 @@ def test_build_elevation_profile_rejects_too_few_samples() -> None:
     assert error.value.code == "too_few_elevation_samples"
 
 
+def test_maximum_gradient_uses_only_complete_windows() -> None:
+    profile = build_elevation_profile(
+        [
+            ElevationSample(0, 500, 7.4, 46.9),
+            ElevationSample(25, 510, 7.41, 46.91),
+            ElevationSample(50, 520, 7.42, 46.92),
+            ElevationSample(75, 620, 7.43, 46.93),
+            ElevationSample(100, 720, 7.44, 46.94),
+        ]
+    )
+
+    assert profile.points[0].gradient_percent == 0
+    assert profile.points[-1].gradient_percent == 0
+    assert profile.points[2].gradient_percent > 0
+
+
 def test_ascent_descent_accumulates_small_real_elevation_changes() -> None:
     ascent, descent = calculate_ascent_descent(
         [500, 500.5, 501, 501.5, 502, 502.5, 503, 503.5, 504]

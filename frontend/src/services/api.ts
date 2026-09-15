@@ -19,6 +19,7 @@ import type {
   SharedTourResponse,
   SearchResponse,
   SearchResultDto,
+  ToiletsFeatureCollection,
   TrailsResponse,
 } from "../types/api";
 
@@ -337,7 +338,10 @@ export async function getDrinkingWater(
     bbox: bbox.map((value) => value.toFixed(7)).join(","),
     zoom: String(Math.round(zoom)),
   });
-  const response = await fetch(`${API_BASE_URL}/api/v1/drinking-water?${params}`, { signal });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/drinking-water?${params}`,
+    { signal },
+  );
   const payload: unknown = await response.json();
   if (!response.ok || !isDrinkingWaterFeatureCollection(payload)) {
     throw new Error("Drinking water loading failed.");
@@ -345,7 +349,28 @@ export async function getDrinkingWater(
   return payload;
 }
 
-export async function getSacHuts(signal?: AbortSignal): Promise<SacHutsFeatureCollection> {
+export async function getToilets(
+  bbox: [number, number, number, number],
+  zoom: number,
+  signal?: AbortSignal,
+): Promise<ToiletsFeatureCollection> {
+  const params = new URLSearchParams({
+    bbox: bbox.map((value) => value.toFixed(7)).join(","),
+    zoom: String(Math.round(zoom)),
+  });
+  const response = await fetch(`${API_BASE_URL}/api/v1/toilets?${params}`, {
+    signal,
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok || !isToiletsFeatureCollection(payload)) {
+    throw new Error("Toilets loading failed.");
+  }
+  return payload;
+}
+
+export async function getSacHuts(
+  signal?: AbortSignal,
+): Promise<SacHutsFeatureCollection> {
   const response = await fetch(`${API_BASE_URL}/api/v1/sac-huts`, { signal });
   const payload: unknown = await response.json();
   if (!response.ok || !isSacHutsFeatureCollection(payload)) {
@@ -653,13 +678,22 @@ function isDrinkingWaterFeatureCollection(
   payload: unknown,
 ): payload is DrinkingWaterFeatureCollection {
   return (
-    typeof payload === "object" && payload !== null &&
+    typeof payload === "object" &&
+    payload !== null &&
     (payload as { type?: unknown }).type === "FeatureCollection" &&
     Array.isArray((payload as { features?: unknown }).features)
   );
 }
 
-function isSacHutsFeatureCollection(payload: unknown): payload is SacHutsFeatureCollection {
+function isSacHutsFeatureCollection(
+  payload: unknown,
+): payload is SacHutsFeatureCollection {
+  return isDrinkingWaterFeatureCollection(payload);
+}
+
+function isToiletsFeatureCollection(
+  payload: unknown,
+): payload is ToiletsFeatureCollection {
   return isDrinkingWaterFeatureCollection(payload);
 }
 

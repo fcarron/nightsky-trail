@@ -111,8 +111,28 @@ const drinkingWaterMarkerStyle = new Style({
   }),
 });
 const sacHutMarkerStyle = new Style({
-  image: new Circle({ radius: 8, fill: new Fill({ color: "rgba(255,255,255,.92)" }), stroke: new Stroke({ color: "#7b4b20", width: 1.5 }) }),
-  text: new Text({ text: "⌂", font: "700 15px sans-serif", fill: new Fill({ color: "#7b4b20" }) }),
+  image: new Circle({
+    radius: 8,
+    fill: new Fill({ color: "rgba(255,255,255,.92)" }),
+    stroke: new Stroke({ color: "#7b4b20", width: 1.5 }),
+  }),
+  text: new Text({
+    text: "⌂",
+    font: "700 15px sans-serif",
+    fill: new Fill({ color: "#7b4b20" }),
+  }),
+});
+const toiletMarkerStyle = new Style({
+  image: new Circle({
+    radius: 8,
+    fill: new Fill({ color: "rgba(255, 255, 255, 0.92)" }),
+    stroke: new Stroke({ color: "#425466", width: 1.5 }),
+  }),
+  text: new Text({
+    text: "WC",
+    font: "700 9px sans-serif",
+    fill: new Fill({ color: "#425466" }),
+  }),
 });
 
 const elevationHoverMarkerStyle = new Style({
@@ -221,7 +241,13 @@ export function drinkingWaterStyle(): Style {
   return drinkingWaterMarkerStyle;
 }
 
-export function sacHutStyle(): Style { return sacHutMarkerStyle; }
+export function sacHutStyle(): Style {
+  return sacHutMarkerStyle;
+}
+
+export function toiletStyle(): Style {
+  return toiletMarkerStyle;
+}
 
 export function graphhopperDebugStyle(feature: FeatureLike): Style {
   if (feature.get("debugKind") === "graphhopper-point") {

@@ -182,6 +182,10 @@ class DrinkingWaterQuerySerializer(serializers.Serializer):
         return TrailsQuerySerializer().validate_bbox(value)
 
 
+class ToiletsQuerySerializer(DrinkingWaterQuerySerializer):
+    """Toilet and drinking-water overlays use the same viewport limits."""
+
+
 class SearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(min_length=2, max_length=120, trim_whitespace=True)
     limit = serializers.IntegerField(min_value=1, max_value=12, default=8)

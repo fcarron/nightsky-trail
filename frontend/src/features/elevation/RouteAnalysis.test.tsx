@@ -157,4 +157,60 @@ describe("RouteAnalysis", () => {
       screen.getByText(/Unbekannt bedeutet: keine nutzbare OSM-Angabe/),
     ).toBeInTheDocument();
   });
+
+  it("does not present missing OSM difficulty as a 100 percent rating", () => {
+    render(
+      <RouteAnalysis
+        activeTab="route"
+        climbs={[]}
+        difficultyBreakdown={[
+          {
+            color: "#d4dbe3",
+            distanceMeters: 1_000,
+            id: "?",
+            label: "?",
+          },
+        ]}
+        gradientDistribution={[]}
+        onRangeChange={vi.fn()}
+        onTabChange={vi.fn()}
+        routeDistanceMeters={1_000}
+        splits={[]}
+        surfaceBreakdown={[]}
+        sustainedGradients={[]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Für diese Route liegen keine OSM-Schwierigkeitsangaben vor.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("100 % · 1.00 km")).not.toBeInTheDocument();
+  });
+
+  it("rounds displayed shares to their common total", () => {
+    render(
+      <RouteAnalysis
+        activeTab="route"
+        climbs={[]}
+        difficultyBreakdown={[]}
+        gradientDistribution={[]}
+        onRangeChange={vi.fn()}
+        onTabChange={vi.fn()}
+        routeDistanceMeters={10_000}
+        splits={[]}
+        surfaceBreakdown={[
+          { color: "#aaa", distanceMeters: 469, id: "a", label: "A" },
+          { color: "#bbb", distanceMeters: 1_578, id: "b", label: "B" },
+          { color: "#ccc", distanceMeters: 7_953, id: "c", label: "C" },
+        ]}
+        sustainedGradients={[]}
+      />,
+    );
+
+    expect(screen.getByText("5 % · 469 m")).toBeInTheDocument();
+    expect(screen.getByText("16 % · 1.58 km")).toBeInTheDocument();
+    expect(screen.getByText("79 % · 7.95 km")).toBeInTheDocument();
+  });
 });
