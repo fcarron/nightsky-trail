@@ -3,10 +3,9 @@ import type { FormEvent, MutableRefObject } from "react";
 
 import { ElevationPanel } from "../features/elevation/ElevationPanel";
 import {
-  DEFAULT_PERSONAL_RUNNING_TIME_MODEL,
-  estimatePersonalRunningMinutes,
   calculateKilometreSplits,
   detectClimbs,
+  estimatePersonalRunningMinutes,
   formatDurationMinutes,
   toElevationProfile,
   toElevationProfileRequest,
@@ -15,10 +14,7 @@ import type {
   AnalysisTab,
   RouteBreakdownItem,
 } from "../features/elevation/RouteAnalysis";
-import type {
-  ElevationProfile,
-  PersonalRunningTimeModel,
-} from "../features/elevation/elevationModel";
+import type { ElevationProfile } from "../features/elevation/elevationModel";
 import type {
   ElevationPanelSize,
   ElevationSurfaceSegment,
@@ -173,8 +169,7 @@ const SEARCH_DEBOUNCE_MS = 250;
 const BASE_PACE_STORAGE_KEY = "swiss-route-planner.base-pace-min-per-km.v1";
 const CALIBRATED_TIME_STORAGE_KEY =
   "swiss-route-planner.calibrated-time-enabled.v1";
-const RUNNING_TIME_MODEL_STORAGE_KEY =
-  "swiss-route-planner.running-time-model.v1";
+const VISIBLE_PERSONAL_RUNNING_TIME_MODEL = "gap_hybrid" as const;
 const SURFACE_CATEGORY_ORDER: SurfaceCategory[] = [
   "paved",
   "gravel",
@@ -363,8 +358,6 @@ function PlannerApp() {
   const [calibratedTimeEnabled, setCalibratedTimeEnabled] = useState(
     loadCalibratedTimeEnabled,
   );
-  const [runningTimeModel, setRunningTimeModel] =
-    useState<PersonalRunningTimeModel>(loadRunningTimeModel);
   const [effortInfoOpen, setEffortInfoOpen] = useState(false);
   const [pauseMinutes, setPauseMinutes] = useState(0);
   const [drawingMode, setDrawingMode] = useState<SegmentMode>("routed");
@@ -456,7 +449,7 @@ function PlannerApp() {
     ? estimatePersonalRunningMinutes(
         elevationState.profile,
         basePaceMinPerKm,
-        runningTimeModel,
+        VISIBLE_PERSONAL_RUNNING_TIME_MODEL,
       )
     : null;
   const displayedDurationMinutes = elevationState.profile
@@ -465,7 +458,7 @@ function PlannerApp() {
       : elevationState.profile.hikingTime.durationMinutes
     : null;
   const durationLabel = calibratedTimeEnabled
-    ? `${tx("Laufzeit")} · ${runningTimeModelLabel(runningTimeModel)}`
+    ? `${tx("Laufzeit")} · GAP Hybrid`
     : t("hikingTime");
   const graphhopperDebugSummary = useMemo(
     () => summarizeGraphhopperDebug(effectiveComputedRoute),
@@ -513,15 +506,10 @@ function PlannerApp() {
         ? calculateKilometreSplits(
             elevationState.profile,
             calibratedTimeEnabled ? basePaceMinPerKm : undefined,
-            runningTimeModel,
+            VISIBLE_PERSONAL_RUNNING_TIME_MODEL,
           )
         : [],
-    [
-      basePaceMinPerKm,
-      calibratedTimeEnabled,
-      elevationState.profile,
-      runningTimeModel,
-    ],
+    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
   );
   const climbs = useMemo(
     () =>
@@ -530,15 +518,10 @@ function PlannerApp() {
             elevationState.profile,
             calibratedTimeEnabled ? basePaceMinPerKm : undefined,
             undefined,
-            runningTimeModel,
+            VISIBLE_PERSONAL_RUNNING_TIME_MODEL,
           )
         : [],
-    [
-      basePaceMinPerKm,
-      calibratedTimeEnabled,
-      elevationState.profile,
-      runningTimeModel,
-    ],
+    [basePaceMinPerKm, calibratedTimeEnabled, elevationState.profile],
   );
   const analysisRangeGeometry = useMemo(() => {
     if (!analysisHighlightRange || !elevationState.profile) {
@@ -682,13 +665,6 @@ function PlannerApp() {
       calibratedTimeEnabled ? "true" : "false",
     );
   }, [calibratedTimeEnabled]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      RUNNING_TIME_MODEL_STORAGE_KEY,
-      runningTimeModel,
-    );
-  }, [runningTimeModel]);
 
   useEffect(
     () => () => {
@@ -1368,7 +1344,7 @@ function PlannerApp() {
         { label: t("descent"), value: formatMeters(profile.descentMeters) },
         {
           label: calibratedTimeEnabled
-            ? `${tx("Meine Pace")} · ${runningTimeModelLabel(runningTimeModel)}`
+            ? `${tx("Meine Pace")} · GAP Hybrid`
             : t("hikingTime"),
           value:
             displayedDurationMinutes === null
@@ -2651,42 +2627,6 @@ function PlannerApp() {
                       </button>
                     </div>
                     {calibratedTimeEnabled ? (
-                      <div
-                        className="paceModelToggle"
-                        role="group"
-                        aria-label={tx("Laufzeitmodell")}
-                      >
-                        <button
-                          type="button"
-                          aria-pressed={runningTimeModel === "swiss"}
-                          onClick={() => setRunningTimeModel("swiss")}
-                        >
-                          Swiss
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={runningTimeModel === "gap"}
-                          onClick={() => setRunningTimeModel("gap")}
-                        >
-                          GAP
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={runningTimeModel === "gap_strava"}
-                          onClick={() => setRunningTimeModel("gap_strava")}
-                        >
-                          GAP Strava
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={runningTimeModel === "gap_hybrid"}
-                          onClick={() => setRunningTimeModel("gap_hybrid")}
-                        >
-                          GAP Hybrid
-                        </button>
-                      </div>
-                    ) : null}
-                    {calibratedTimeEnabled ? (
                       <>
                         <label htmlFor="base-pace-input">Pace</label>
                         <button
@@ -2723,13 +2663,12 @@ function PlannerApp() {
                           </summary>
                           <p>
                             {tx(
-                              runningTimeModel === "gap"
-                                ? "GAP hält die Leistung deiner flachen Pace anhand von Minetti-Steigungskosten und der geschwindigkeitsabhängigen Laufökonomie nach Black et al. konstant. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
-                                : runningTimeModel === "gap_strava"
-                                  ? "GAP Strava verwendet eine veröffentlichte Näherung der Strava-GAP-Kurve. Es ist keine offizielle Strava-Formel. Ermüdung, Höhe und Wegbeschaffenheit sind nicht berücksichtigt."
-                                  : runningTimeModel === "gap_hybrid"
-                                    ? "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet."
-                                    : "Das Swiss-Modell leitet die Steigungsanpassung aus der Schweizer Wanderzeitkurve ab. Meine Pace sollte deine nachhaltig mögliche flache Pace für eine ähnlich lange Route sein.",
+                              "GAP Hybrid teilt das geglättete Höhenprofil in kurze Abschnitte, berechnet für jeden Abschnitt eine Pace und summiert deren Zeiten. Bergauf verwendet es das RunningWritings-GAP. Bergab nimmt es die langsamere Pace aus RunningWritings-GAP und einer veröffentlichten Strava-GAP-Näherung. Auf flachen Abschnitten gilt deine Basispace.",
+                            )}
+                          </p>
+                          <p>
+                            {tx(
+                              "Untergrund, technische Schwierigkeit, Höhe, Wetter, Ermüdung und Pausen werden nicht eingerechnet. Die Schätzung ist eine Orientierung, keine Zielzeit.",
                             )}
                           </p>
                         </details>
@@ -3895,17 +3834,6 @@ function loadCalibratedTimeEnabled(): boolean {
   return window.localStorage.getItem(CALIBRATED_TIME_STORAGE_KEY) === "true";
 }
 
-function loadRunningTimeModel(): PersonalRunningTimeModel {
-  const storedValue = window.localStorage.getItem(
-    RUNNING_TIME_MODEL_STORAGE_KEY,
-  );
-  return storedValue === "gap" ||
-    storedValue === "gap_strava" ||
-    storedValue === "gap_hybrid"
-    ? storedValue
-    : DEFAULT_PERSONAL_RUNNING_TIME_MODEL;
-}
-
 function clampPaceMinutes(value: number): number {
   return Math.min(20, Math.max(2, roundToNearestTenSeconds(value)));
 }
@@ -3936,16 +3864,6 @@ function formatPaceInput(minPerKm: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function runningTimeModelLabel(model: PersonalRunningTimeModel): string {
-  const labels: Record<PersonalRunningTimeModel, string> = {
-    gap: "GAP",
-    gap_hybrid: "GAP Hybrid",
-    gap_strava: "GAP Strava",
-    swiss: "Swiss",
-  };
-  return labels[model];
 }
 
 function formatSpeedKmh(minPerKm: number): string {

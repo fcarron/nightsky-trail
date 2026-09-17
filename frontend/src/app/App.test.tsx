@@ -687,7 +687,7 @@ describe("App", () => {
     expect(screen.getByText("71 Hm+/km · bergig")).toBeInTheDocument();
   });
 
-  it("keeps Swiss as the default and persists the selected running-time model", async () => {
+  it("uses GAP Hybrid as the fixed personal running-time estimate", async () => {
     const user = userEvent.setup();
     storeRouteWithTwoWaypoints();
     vi.stubGlobal("fetch", createFetchMock());
@@ -697,33 +697,15 @@ describe("App", () => {
     await user.click(await screen.findByLabelText("Zeit-Schätzung einstellen"));
     await user.click(screen.getByRole("button", { name: "Meine Pace" }));
 
-    const modelSelector = screen.getByRole("group", {
-      name: "Laufzeitmodell",
-    });
+    expect(screen.getByText("Laufzeit · GAP Hybrid")).toBeInTheDocument();
     expect(
-      within(modelSelector).getByRole("button", { name: "Swiss" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      screen.queryByRole("group", { name: "Laufzeitmodell" }),
+    ).not.toBeInTheDocument();
 
-    await user.click(
-      within(modelSelector).getByRole("button", { name: "GAP" }),
-    );
+    await user.click(screen.getByLabelText("Zeitberechnung erklären"));
     expect(
-      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
-    ).toBe("gap");
-
-    await user.click(
-      within(modelSelector).getByRole("button", { name: "GAP Strava" }),
-    );
-    expect(
-      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
-    ).toBe("gap_strava");
-
-    await user.click(
-      within(modelSelector).getByRole("button", { name: "GAP Hybrid" }),
-    );
-    expect(
-      window.localStorage.getItem("swiss-route-planner.running-time-model.v1"),
-    ).toBe("gap_hybrid");
+      screen.getByText(/teilt das geglättete Höhenprofil in kurze Abschnitte/),
+    ).toBeInTheDocument();
   });
 
   it("shows hiking time without an inactive personal pace field", async () => {
@@ -743,7 +725,7 @@ describe("App", () => {
     expect(screen.getByText("+ 15 min Pause")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Meine Pace" }));
-    expect(screen.getByText("Laufzeit · Swiss")).toBeInTheDocument();
+    expect(screen.getByText("Laufzeit · GAP Hybrid")).toBeInTheDocument();
     expect(screen.getByLabelText("Pace")).toBeInTheDocument();
   });
 

@@ -1,11 +1,13 @@
 # Personal running-time model
 
-Technical note describing the two gradient-dependent personal running-time
-estimates available in NightSky Trail. The Swiss model remains the default.
+Technical note describing the gradient-dependent personal running-time
+estimates retained in NightSky Trail. The interface uses `gap_hybrid` whenever
+the user selects **Meine Pace**; the other models remain available internally
+for comparison and testing.
 
-The model uses the Swiss hiking-time function as a terrain-response curve
-and scales it to a user's flat running pace, with an additional provisional
-uphill correction.
+The legacy Swiss model uses the Swiss hiking-time function as a terrain-response
+curve and scales it to a user's flat running pace, with an additional
+provisional uphill correction.
 
 The optional GAP model treats the configured flat pace as a reference
 performance. For every existing elevation segment it combines Minetti's
@@ -22,10 +24,13 @@ published Strava GAP curve directly to the same flat reference pace for every
 segment. It is not an official Strava formula and receives no additional
 correction factors.
 
-The `gap_hybrid` comparison keeps the RunningWritings result for flat and
-uphill segments. On downhill segments it uses the slower pace from
-RunningWritings GAP and the Strava approximation, limiting the energetic
-model's optimistic downhill speed without applying another correction.
+The `gap_hybrid` model uses the smoothed elevation profile and splits it into
+the fixed distance segments supplied by the profile (currently 50 metres). It
+calculates an unrounded pace for each segment and sums the segment times. It
+keeps the RunningWritings result for flat and uphill segments. On downhill
+segments it uses the slower pace from RunningWritings GAP and the Strava
+approximation, limiting the energetic model's optimistic downhill speed without
+applying another correction.
 
 The estimate assumes constant personal performance capacity and does not
 attempt to predict fatigue, weather, altitude effects, or race-day performance.

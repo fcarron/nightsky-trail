@@ -445,6 +445,10 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "GAP Strava uses a published approximation of the Strava GAP curve. It is not an official Strava formula. Fatigue, altitude and surface are not included.",
     "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
       "GAP Hybrid uses RunningWritings GAP uphill and the slower pace from RunningWritings and the Strava approximation downhill. No further corrections are applied.",
+    "GAP Hybrid teilt das geglättete Höhenprofil in kurze Abschnitte, berechnet für jeden Abschnitt eine Pace und summiert deren Zeiten. Bergauf verwendet es das RunningWritings-GAP. Bergab nimmt es die langsamere Pace aus RunningWritings-GAP und einer veröffentlichten Strava-GAP-Näherung. Auf flachen Abschnitten gilt deine Basispace.":
+      "GAP Hybrid divides the smoothed elevation profile into short sections, calculates a pace for each one and sums their times. Uphill it uses RunningWritings GAP. Downhill it uses the slower pace from RunningWritings GAP and a published Strava GAP approximation. Your base pace applies on flat sections.",
+    "Untergrund, technische Schwierigkeit, Höhe, Wetter, Ermüdung und Pausen werden nicht eingerechnet. Die Schätzung ist eine Orientierung, keine Zielzeit.":
+      "Surface, technical difficulty, altitude, weather, fatigue and breaks are not included. This estimate is a guide, not a target time.",
     "Schnelle Routenaktionen": "Quick route actions",
     "Weitere Aktionen": "More actions",
     "Ausgewählter Wegpunkt": "Selected waypoint",
@@ -692,6 +696,10 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "GAP Strava utilise une approximation publiée de la courbe GAP de Strava. Il ne s'agit pas d'une formule officielle de Strava. La fatigue, l'altitude et le revêtement ne sont pas pris en compte.",
     "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
       "GAP Hybrid utilise le GAP de RunningWritings en montée et l'allure la plus lente entre RunningWritings et l'approximation Strava en descente. Aucune autre correction n'est appliquée.",
+    "GAP Hybrid teilt das geglättete Höhenprofil in kurze Abschnitte, berechnet für jeden Abschnitt eine Pace und summiert deren Zeiten. Bergauf verwendet es das RunningWritings-GAP. Bergab nimmt es die langsamere Pace aus RunningWritings-GAP und einer veröffentlichten Strava-GAP-Näherung. Auf flachen Abschnitten gilt deine Basispace.":
+      "GAP Hybrid divise le profil d'altitude lissé en courts segments, calcule une allure pour chacun et additionne leurs temps. En montée, il utilise le GAP de RunningWritings. En descente, il retient l'allure la plus lente entre le GAP de RunningWritings et une approximation publiée du GAP Strava. Votre allure de base s'applique sur le plat.",
+    "Untergrund, technische Schwierigkeit, Höhe, Wetter, Ermüdung und Pausen werden nicht eingerechnet. Die Schätzung ist eine Orientierung, keine Zielzeit.":
+      "Le revêtement, la difficulté technique, l'altitude, la météo, la fatigue et les pauses ne sont pas pris en compte. Cette estimation est un repère, pas un objectif de temps.",
     Zeichnen: "Dessiner",
     Routing: "Itinéraire",
     "Neue Abschnitte": "Nouvelles sections",
@@ -948,6 +956,10 @@ const phraseTranslations: Record<Locale, Record<string, string>> = {
       "GAP Strava usa un'approssimazione pubblicata della curva GAP di Strava. Non è una formula ufficiale di Strava. Fatica, quota e fondo non sono inclusi.",
     "GAP Hybrid verwendet bergauf das RunningWritings-GAP und bergab die langsamere Pace aus RunningWritings und der Strava-Näherung. Weitere Korrekturen werden nicht angewendet.":
       "GAP Hybrid usa il GAP di RunningWritings in salita e il ritmo più lento tra RunningWritings e l'approssimazione Strava in discesa. Non vengono applicate altre correzioni.",
+    "GAP Hybrid teilt das geglättete Höhenprofil in kurze Abschnitte, berechnet für jeden Abschnitt eine Pace und summiert deren Zeiten. Bergauf verwendet es das RunningWritings-GAP. Bergab nimmt es die langsamere Pace aus RunningWritings-GAP und einer veröffentlichten Strava-GAP-Näherung. Auf flachen Abschnitten gilt deine Basispace.":
+      "GAP Hybrid suddivide il profilo altimetrico smussato in brevi segmenti, calcola un ritmo per ciascuno e ne somma i tempi. In salita usa il GAP di RunningWritings. In discesa usa il ritmo più lento tra il GAP di RunningWritings e un'approssimazione pubblicata del GAP di Strava. Il ritmo base vale in piano.",
+    "Untergrund, technische Schwierigkeit, Höhe, Wetter, Ermüdung und Pausen werden nicht eingerechnet. Die Schätzung ist eine Orientierung, keine Zielzeit.":
+      "Fondo, difficoltà tecnica, quota, meteo, fatica e pause non sono inclusi. La stima è un orientamento, non un tempo-obiettivo.",
     Zeichnen: "Disegna",
     Routing: "Percorso",
     "Neue Abschnitte": "Nuovi tratti",
