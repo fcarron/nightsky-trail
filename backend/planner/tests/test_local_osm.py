@@ -9,7 +9,9 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from planner.integrations.local_osm import (
+    SCHEMA_VERSION,
     DrinkingWaterPlace,
+    ToiletIndexUpgradeHandler,
     ToiletPlace,
     TrailIndexWriter,
     coordinate_bounds,
@@ -17,7 +19,9 @@ from planner.integrations.local_osm import (
     is_confirmed_drinking_water,
     is_public_toilet,
     is_relevant_tags,
+    legacy_index_can_be_upgraded,
     row_to_osm_way,
+    upgrade_legacy_index_with_toilets,
 )
 
 
@@ -100,6 +104,44 @@ def test_toilet_writer_deduplicates_osm_objects(tmp_path: Path) -> None:
 
     with sqlite3.connect(db_path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM toilets").fetchone() == (1,)
+
+
+def test_legacy_index_is_upgraded_in_place_with_toilets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pbf_path = tmp_path / "switzerland.osm.pbf"
+    pbf_path.touch()
+    db_path = tmp_path / "trails.sqlite3"
+    stat = pbf_path.stat()
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute("CREATE TABLE trail_ways (osm_id INTEGER PRIMARY KEY)")
+        connection.execute("CREATE TABLE drinking_water (osm_id INTEGER PRIMARY KEY)")
+        connection.executemany(
+            "INSERT INTO metadata VALUES (?, ?)",
+            {
+                "schema_version": "3",
+                "pbf_size": str(stat.st_size),
+                "pbf_mtime_ns": str(stat.st_mtime_ns),
+            }.items(),
+        )
+
+    def add_fixture_toilet(self: ToiletIndexUpgradeHandler, _path: str, **_kwargs: object) -> None:
+        self._add_toilet("node", 123, 7.4, 46.9, {"name": "WC"})
+
+    monkeypatch.setattr(ToiletIndexUpgradeHandler, "apply_file", add_fixture_toilet)
+
+    assert legacy_index_can_be_upgraded(pbf_path, db_path)
+    upgrade_legacy_index_with_toilets(pbf_path, db_path, None)
+
+    with sqlite3.connect(db_path) as connection:
+        assert dict(connection.execute("SELECT key, value FROM metadata"))["schema_version"] == str(
+            SCHEMA_VERSION
+        )
+        assert connection.execute("SELECT osm_type, osm_id FROM toilets").fetchone() == (
+            "node",
+            123,
+        )
 
 
 def test_drinking_water_query_deduplicates_matching_node_and_way() -> None:

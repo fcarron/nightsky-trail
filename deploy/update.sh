@@ -29,6 +29,9 @@ echo "Collecting static files..."
 echo "Starting updated services..."
 "${compose[@]}" up -d --wait --wait-timeout 180
 
+echo "Updating local OSM index..."
+"${compose[@]}" exec -T nightsky_backend python manage.py build_osm_index
+
 echo "Checking Django configuration..."
 "${compose[@]}" exec -T nightsky_backend python manage.py check
 "${compose[@]}" ps

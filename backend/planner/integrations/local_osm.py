@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 import threading
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +18,8 @@ SCHEMA_VERSION = 5
 MAX_TRAIL_RESULTS = 5000
 MAX_DRINKING_WATER_RESULTS = 1000
 MAX_TOILET_RESULTS = 1000
+LEGACY_SCHEMA_VERSION = 3
+PROGRESS_INTERVAL = 500_000
 
 _INDEX_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
@@ -150,6 +152,7 @@ class TrailWayHandler(osmium.SimpleHandler):
         self,
         writer: TrailIndexWriter,
         drinking_water_relations: Iterable[DrinkingWaterRelation] = (),
+        progress: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__()
         self.writer = writer
@@ -157,6 +160,9 @@ class TrailWayHandler(osmium.SimpleHandler):
         self.relation_ways: dict[int, list[DrinkingWaterRelation]] = {}
         self.relation_coordinates: dict[int, list[list[float]]] = {}
         self.relations_by_id: dict[int, DrinkingWaterRelation] = {}
+        self.progress = progress
+        self.node_count = 0
+        self.way_count = 0
         for relation in drinking_water_relations:
             self.relations_by_id[relation.osm_id] = relation
             self.relation_coordinates[relation.osm_id] = []
@@ -166,24 +172,35 @@ class TrailWayHandler(osmium.SimpleHandler):
                 self.relation_ways.setdefault(way_id, []).append(relation)
 
     def way(self, way: object) -> None:
+        self.way_count += 1
+        self._report_progress("ways", self.way_count)
         tags = {str(tag.k): str(tag.v) for tag in way.tags}
+        relevant_trail = is_relevant_tags(tags)
+        drinking_water = is_confirmed_drinking_water(tags)
+        public_toilet = is_public_toilet(tags)
+        related_water = self.relation_ways.get(int(way.id), [])
+        if not (relevant_trail or drinking_water or public_toilet or related_water):
+            return
+
         coordinates = way_coordinates(way.nodes)
-        if is_relevant_tags(tags) and len(coordinates) >= 2:
+        if relevant_trail and len(coordinates) >= 2:
             normalized_tags = {key: value for key, value in tags.items() if key in OVERPASS_TAGS}
             self.writer.add_way(int(way.id), coordinates, normalized_tags)
 
-        if is_confirmed_drinking_water(tags) and coordinates:
+        if drinking_water and coordinates:
             longitude = sum(point[0] for point in coordinates) / len(coordinates)
             latitude = sum(point[1] for point in coordinates) / len(coordinates)
             self.writer.add_drinking_water("way", int(way.id), longitude, latitude, tags)
-        if is_public_toilet(tags) and coordinates:
+        if public_toilet and coordinates:
             longitude = sum(point[0] for point in coordinates) / len(coordinates)
             latitude = sum(point[1] for point in coordinates) / len(coordinates)
             self.writer.add_toilet("way", int(way.id), longitude, latitude, tags)
-        for relation in self.relation_ways.get(int(way.id), []):
+        for relation in related_water:
             self.relation_coordinates[relation.osm_id].extend(coordinates)
 
     def node(self, node: object) -> None:
+        self.node_count += 1
+        self._report_progress("nodes", self.node_count)
         tags = {str(tag.k): str(tag.v) for tag in node.tags}
         if not node.location.valid():
             return
@@ -210,6 +227,64 @@ class TrailWayHandler(osmium.SimpleHandler):
             self.writer.add_drinking_water(
                 "relation", relation_id, longitude, latitude, relation.tags
             )
+
+    def _report_progress(self, object_type: str, count: int) -> None:
+        if self.progress is not None and count % PROGRESS_INTERVAL == 0:
+            self.progress(f"Processed {count:,} OSM {object_type}…")
+
+
+class ToiletIndexUpgradeHandler(osmium.SimpleHandler):
+    """Add public toilets to an existing index without rewriting trails or water."""
+
+    def __init__(
+        self, connection: sqlite3.Connection, progress: Callable[[str], None] | None
+    ) -> None:
+        super().__init__()
+        self.connection = connection
+        self.progress = progress
+        self.node_count = 0
+        self.way_count = 0
+
+    def node(self, node: object) -> None:
+        self.node_count += 1
+        self._report_progress("nodes", self.node_count)
+        tags = {str(tag.k): str(tag.v) for tag in node.tags}
+        if not node.location.valid() or not is_public_toilet(tags):
+            return
+        self._add_toilet(
+            "node", int(node.id), float(node.location.lon), float(node.location.lat), tags
+        )
+
+    def way(self, way: object) -> None:
+        self.way_count += 1
+        self._report_progress("ways", self.way_count)
+        tags = {str(tag.k): str(tag.v) for tag in way.tags}
+        if not is_public_toilet(tags):
+            return
+        coordinates = way_coordinates(way.nodes)
+        if not coordinates:
+            return
+        longitude = sum(point[0] for point in coordinates) / len(coordinates)
+        latitude = sum(point[1] for point in coordinates) / len(coordinates)
+        self._add_toilet("way", int(way.id), longitude, latitude, tags)
+
+    def _add_toilet(
+        self, osm_type: str, osm_id: int, longitude: float, latitude: float, tags: dict[str, str]
+    ) -> None:
+        self.connection.execute(
+            "INSERT OR REPLACE INTO toilets VALUES (?, ?, ?, ?, ?)",
+            (
+                osm_type,
+                osm_id,
+                round(longitude, 7),
+                round(latitude, 7),
+                json.dumps(compact_toilet_tags(tags), separators=(",", ":"), sort_keys=True),
+            ),
+        )
+
+    def _report_progress(self, object_type: str, count: int) -> None:
+        if self.progress is not None and count % PROGRESS_INTERVAL == 0:
+            self.progress(f"Processed {count:,} OSM {object_type}…")
 
 
 class TrailIndexWriter:
@@ -372,7 +447,11 @@ class TrailIndexWriter:
         return self.connection
 
 
-def ensure_index(pbf_path: Path, db_path: Path) -> None:
+def ensure_index(
+    pbf_path: Path,
+    db_path: Path,
+    progress: Callable[[str], None] | None = None,
+) -> None:
     if not pbf_path.exists():
         raise LocalOsmUnavailableError(
             "The local OSM extract is not available.",
@@ -383,15 +462,22 @@ def ensure_index(pbf_path: Path, db_path: Path) -> None:
         if index_is_current(pbf_path, db_path):
             return
 
+        if legacy_index_can_be_upgraded(pbf_path, db_path):
+            report_progress(progress, "Upgrading the existing OSM index with public toilets…")
+            upgrade_legacy_index_with_toilets(pbf_path, db_path, progress)
+            return
+
         temporary_path = db_path.with_suffix(".tmp.sqlite3")
         if temporary_path.exists():
             temporary_path.unlink()
 
         try:
             with TrailIndexWriter(temporary_path, pbf_path) as writer:
+                report_progress(progress, "Reading OSM relations for drinking-water places…")
                 relation_handler = DrinkingWaterRelationHandler()
                 relation_handler.apply_file(str(pbf_path))
-                handler = TrailWayHandler(writer, relation_handler.relations)
+                report_progress(progress, "Building the local trail, water and toilet index…")
+                handler = TrailWayHandler(writer, relation_handler.relations, progress)
                 handler.apply_file(str(pbf_path), locations=True)
                 handler.write_drinking_water_relations()
         except Exception as error:
@@ -403,6 +489,43 @@ def ensure_index(pbf_path: Path, db_path: Path) -> None:
             ) from error
 
         temporary_path.replace(db_path)
+
+
+def upgrade_legacy_index_with_toilets(
+    pbf_path: Path,
+    db_path: Path,
+    progress: Callable[[str], None] | None,
+) -> None:
+    """Upgrade schema 3 in place, preserving the large trail and water tables."""
+
+    with sqlite3.connect(db_path) as connection:
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                CREATE TABLE toilets (
+                  osm_type TEXT NOT NULL,
+                  osm_id INTEGER NOT NULL,
+                  longitude REAL NOT NULL,
+                  latitude REAL NOT NULL,
+                  tags_json TEXT NOT NULL,
+                  PRIMARY KEY (osm_type, osm_id)
+                )
+                """
+            )
+            connection.execute("CREATE INDEX toilets_point ON toilets (longitude, latitude)")
+            report_progress(progress, "Scanning the Swiss OSM extract for public toilets…")
+            ToiletIndexUpgradeHandler(connection, progress).apply_file(
+                str(pbf_path), locations=True
+            )
+            connection.execute(
+                "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
+                (str(SCHEMA_VERSION),),
+            )
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
 
 
 def require_current_index(pbf_path: Path, db_path: Path) -> None:
@@ -434,6 +557,41 @@ def index_is_current(pbf_path: Path, db_path: Path) -> bool:
         "pbf_size": str(stat.st_size),
         "pbf_mtime_ns": str(stat.st_mtime_ns),
     }
+
+
+def legacy_index_can_be_upgraded(pbf_path: Path, db_path: Path) -> bool:
+    """Only schema 3 has the same trail/water layout but lacks public toilets."""
+
+    if not db_path.exists():
+        return False
+    try:
+        stat = pbf_path.stat()
+        with sqlite3.connect(db_path) as connection:
+            metadata = dict(connection.execute("SELECT key, value FROM metadata").fetchall())
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+    except (OSError, sqlite3.Error):
+        return False
+
+    return (
+        metadata
+        == {
+            "schema_version": str(LEGACY_SCHEMA_VERSION),
+            "pbf_size": str(stat.st_size),
+            "pbf_mtime_ns": str(stat.st_mtime_ns),
+        }
+        and {"metadata", "trail_ways", "drinking_water"}.issubset(tables)
+        and "toilets" not in tables
+    )
+
+
+def report_progress(progress: Callable[[str], None] | None, message: str) -> None:
+    if progress is not None:
+        progress(message)
 
 
 def is_relevant_tags(tags: dict[str, str]) -> bool:

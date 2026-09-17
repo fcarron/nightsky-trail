@@ -11,7 +11,11 @@ class Command(BaseCommand):
 
     def handle(self, *args: object, **options: object) -> None:
         try:
-            ensure_index(settings.OSM_PBF_PATH, settings.OSM_TRAIL_INDEX_PATH)
+            ensure_index(
+                settings.OSM_PBF_PATH,
+                settings.OSM_TRAIL_INDEX_PATH,
+                progress=self.stdout.write,
+            )
         except LocalOsmUnavailableError as error:
             raise CommandError(error.message) from error
         self.stdout.write(self.style.SUCCESS("Local OSM index is ready."))
