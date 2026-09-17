@@ -1768,7 +1768,7 @@ export function MapPanel({
       >
         <summary>
           {tx("Karte")}
-          <span>{baseLayerLabel(baseLayerId)}</span>
+          <span>{baseLayerLabel(baseLayerId, tx)}</span>
         </summary>
         <div className="mapLayerContent">
           <label htmlFor="base-layer-select">{tx("Basiskarte")}</label>
@@ -1780,9 +1780,9 @@ export function MapPanel({
               setMapLayerMenuOpen(false);
             }}
           >
-            <option value="light">swisstopo Light</option>
-            <option value="standard">swisstopo Standard</option>
-            <option value="satellite">swisstopo Satellit</option>
+            <option value="light">{tx("swisstopo Light")}</option>
+            <option value="standard">{tx("swisstopo Standard")}</option>
+            <option value="satellite">{tx("swisstopo Satellit")}</option>
             <option value="osm-topo">OSM Topo</option>
           </select>
           <label className="mapOverlayToggle">
@@ -1810,7 +1810,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            Wanderland
+            {tx("Wanderland")}
           </label>
           <label className="mapOverlayToggle">
             <input
@@ -1849,7 +1849,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            Veloland
+            {tx("Veloland")}
           </label>
           <label className="mapOverlayToggle">
             <input
@@ -1879,12 +1879,12 @@ export function MapPanel({
                   setMapLayerMenuOpen(false);
                 }}
               />
-              Wasser &amp; WCs
+              {tx("Wasser & WCs")}
             </label>
             <button
               type="button"
               className="mapPoiInfoButton"
-              aria-label="Informationen zu Wasser- und WC-Daten"
+              aria-label={tx("Informationen zu Wasser- und WC-Daten")}
               aria-expanded={poiInfoOpen}
               aria-controls="poi-layer-info"
               onClick={() => setPoiInfoOpen((open) => !open)}
@@ -1894,9 +1894,9 @@ export function MapPanel({
           </div>
           {poiInfoOpen ? (
             <small id="poi-layer-info" className="mapLayerDataHint">
-              Trinkwasserstellen und WCs stammen aus OpenStreetMap. Die Daten
-              werden von der Community gepflegt und können fehlen, veraltet oder
-              falsch sein. Prüfe die Situation vor Ort.
+              {tx(
+                "Trinkwasserstellen und WCs stammen aus OpenStreetMap. Die Daten werden von der Community gepflegt und können fehlen, veraltet oder falsch sein. Prüfe die Situation vor Ort.",
+              )}
             </small>
           ) : null}
           <label className="mapOverlayToggle">
@@ -1912,7 +1912,7 @@ export function MapPanel({
                 setMapLayerMenuOpen(false);
               }}
             />
-            SAC-Hütten
+            {tx("SAC-Hütten")}
           </label>
           {ENABLE_DEV_TOOLS ? (
             <label className="mapOverlayToggle">
@@ -1933,16 +1933,16 @@ export function MapPanel({
       sacHutsVisible &&
       selectedSacHut &&
       interactionMode === "explore" ? (
-        <aside className="mapFeaturePanel" aria-label="SAC-Hütte Details">
+        <aside className="mapFeaturePanel" aria-label={tx("SAC-Hütte Details")}>
           <div className="mapFeaturePanelHeader">
             <div>
-              <span>⌂ SAC-Hütte</span>
+              <span>⌂ {tx("SAC-Hütte")}</span>
               <strong>{selectedSacHut.name}</strong>
             </div>
             <button
               type="button"
               onClick={() => setSelectedSacHut(null)}
-              aria-label="Schliessen"
+              aria-label={tx("Schliessen")}
             >
               ×
             </button>
@@ -1961,24 +1961,27 @@ export function MapPanel({
       drinkingWaterVisible &&
       selectedDrinkingWater &&
       interactionMode === "explore" ? (
-        <aside className="mapFeaturePanel" aria-label="Trinkwasser Details">
+        <aside
+          className="mapFeaturePanel"
+          aria-label={tx("Trinkwasser Details")}
+        >
           <div className="mapFeaturePanelHeader">
             <div>
-              <span>💧 Trinkwasser</span>
-              <strong>{selectedDrinkingWater.name ?? "Trinkwasser"}</strong>
+              <span>💧 {tx("Trinkwasser")}</span>
+              <strong>{selectedDrinkingWater.name ?? tx("Trinkwasser")}</strong>
             </div>
             <button
               type="button"
               onClick={() => setSelectedDrinkingWater(null)}
-              aria-label="Schliessen"
+              aria-label={tx("Schliessen")}
             >
               ×
             </button>
           </div>
           <p>
             {selectedDrinkingWater.seasonal
-              ? "Saisonal verfügbar"
-              : "Ganzjährig"}
+              ? tx("Saisonal verfügbar")
+              : tx("Ganzjährig")}
           </p>
           <a
             href={`https://www.openstreetmap.org/${selectedDrinkingWater.osmType}/${selectedDrinkingWater.osmId}`}
@@ -1993,23 +1996,25 @@ export function MapPanel({
       toiletsVisible &&
       selectedToilet &&
       interactionMode === "explore" ? (
-        <aside className="mapFeaturePanel" aria-label="WC Details">
+        <aside className="mapFeaturePanel" aria-label={tx("WC Details")}>
           <div className="mapFeaturePanelHeader">
             <div>
               <span>WC</span>
-              <strong>{selectedToilet.name ?? "Öffentliches WC"}</strong>
+              <strong>{selectedToilet.name ?? tx("Öffentliches WC")}</strong>
             </div>
             <button
               type="button"
               onClick={() => setSelectedToilet(null)}
-              aria-label="Schliessen"
+              aria-label={tx("Schliessen")}
             >
               ×
             </button>
           </div>
-          <p>Öffentlich zugänglich (laut OSM)</p>
-          {selectedToilet.wheelchair === "yes" ? <p>Rollstuhlgängig</p> : null}
-          {selectedToilet.fee === true ? <p>Kostenpflichtig</p> : null}
+          <p>{tx("Öffentlich zugänglich (laut OSM)")}</p>
+          {selectedToilet.wheelchair === "yes" ? (
+            <p>{tx("Rollstuhlgängig")}</p>
+          ) : null}
+          {selectedToilet.fee === true ? <p>{tx("Kostenpflichtig")}</p> : null}
           <a
             href={`https://www.openstreetmap.org/${selectedToilet.osmType}/${selectedToilet.osmId}`}
             target="_blank"
@@ -2088,8 +2093,8 @@ function MapFeaturePanel({
             {feature.kind === "closure"
               ? tx("Sperrung")
               : feature.kind === "veloland"
-                ? "Veloland"
-                : "Wanderland"}
+                ? tx("Veloland")
+                : tx("Wanderland")}
           </span>
           <strong>{feature.title}</strong>
         </div>
@@ -2321,17 +2326,20 @@ function toBaseLayerId(value: string): BaseLayerId {
   return value === "standard" ? "standard" : "light";
 }
 
-function baseLayerLabel(value: BaseLayerId): string {
+function baseLayerLabel(
+  value: BaseLayerId,
+  translate: (text: string) => string,
+): string {
   if (value === "standard") {
-    return "Standard";
+    return translate("swisstopo Standard");
   }
   if (value === "osm-topo") {
     return "OSM Topo";
   }
   if (value === "satellite") {
-    return "Satellit";
+    return translate("swisstopo Satellit");
   }
-  return "Light";
+  return translate("swisstopo Light");
 }
 
 function isComputedRouteSegment(
