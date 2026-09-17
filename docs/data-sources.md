@@ -61,13 +61,16 @@ Selectable hiking trail overlay:
 ch.swisstopo.swisstlm3d-wanderwege
 ```
 
-Selectable Wanderland route overlay through geo.admin WMS:
+Selectable Wanderland route overlay through geo.admin WMTS. Route details are
+looked up through the fixed backend WMS adapter because the browser-facing WMS
+endpoint does not provide CORS headers:
 
 ```text
 ch.astra.wanderland
 ```
 
-Selectable cycling route overlay through geo.admin WMS:
+Selectable cycling route overlay through geo.admin WMTS; its route details use
+the same backend WMS adapter:
 
 ```text
 ch.astra.veloland

@@ -9,6 +9,7 @@ import type {
   ElevationProfileResponse,
   HealthResponse,
   LineStringGeometryDto,
+  MapFeatureInfoResponse,
   OfficialTrailSegmentDto,
   OsmWayDto,
   RouteComputeRequest,
@@ -379,6 +380,29 @@ export async function getSacHuts(
   return payload;
 }
 
+export async function getMapFeatureInfo(
+  layer: "wanderland" | "veloland",
+  coordinate: [number, number],
+  resolution: number,
+  signal?: AbortSignal,
+): Promise<MapFeatureInfoResponse> {
+  const params = new URLSearchParams({
+    layer,
+    resolution: resolution.toFixed(6),
+    x: coordinate[0].toFixed(6),
+    y: coordinate[1].toFixed(6),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/map/feature-info?${params}`,
+    { signal },
+  );
+  const payload: unknown = await response.json();
+  if (!response.ok || !isMapFeatureInfoResponse(payload)) {
+    throw new Error("Map feature details loading failed.");
+  }
+  return payload;
+}
+
 export async function searchLocations(
   query: string,
   signal?: AbortSignal,
@@ -689,6 +713,34 @@ function isSacHutsFeatureCollection(
   payload: unknown,
 ): payload is SacHutsFeatureCollection {
   return isDrinkingWaterFeatureCollection(payload);
+}
+
+function isMapFeatureInfoResponse(
+  payload: unknown,
+): payload is MapFeatureInfoResponse {
+  return (
+    isRecord(payload) &&
+    (payload.feature === null || isMapRouteFeatureInfo(payload.feature))
+  );
+}
+
+function isMapRouteFeatureInfo(
+  payload: unknown,
+): payload is NonNullable<MapFeatureInfoResponse["feature"]> {
+  return (
+    isRecord(payload) &&
+    (payload.kind === "wanderland" || payload.kind === "veloland") &&
+    typeof payload.title === "string" &&
+    typeof payload.schweizMobilUrl === "string" &&
+    Array.isArray(payload.details) &&
+    payload.details.every(
+      (detail) =>
+        Array.isArray(detail) &&
+        detail.length === 2 &&
+        typeof detail[0] === "string" &&
+        typeof detail[1] === "string",
+    )
+  );
 }
 
 function isToiletsFeatureCollection(

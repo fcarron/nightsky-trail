@@ -186,6 +186,13 @@ class ToiletsQuerySerializer(DrinkingWaterQuerySerializer):
     """Toilet and drinking-water overlays use the same viewport limits."""
 
 
+class MapFeatureInfoQuerySerializer(serializers.Serializer):
+    layer = serializers.ChoiceField(choices=["wanderland", "veloland"])
+    x = serializers.FloatField(min_value=450_000, max_value=1_300_000)
+    y = serializers.FloatField(min_value=5_600_000, max_value=6_200_000)
+    resolution = serializers.FloatField(min_value=0.05, max_value=2_000)
+
+
 class SearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(min_length=2, max_length=120, trim_whitespace=True)
     limit = serializers.IntegerField(min_value=1, max_value=12, default=8)

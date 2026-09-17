@@ -24,6 +24,7 @@ import { ENABLE_DEV_TOOLS } from "../../app/config";
 import { useI18n } from "../../app/i18n";
 import {
   getDrinkingWater,
+  getMapFeatureInfo,
   getSacHuts,
   getTrailDifficultyWays,
   getToilets,
@@ -774,6 +775,9 @@ export function MapPanel({
           closuresLayer: hikingClosuresLayerRef.current,
           closuresVisible:
             hikingClosuresLayerRef.current?.getVisible() === true,
+          cyclingRoutesVisible:
+            cyclingRoutesLayerRef.current?.getVisible() === true,
+          routesVisible: hikingRoutesLayerRef.current?.getVisible() === true,
         }).then((featureInfo) => {
           if (requestId !== mapFeatureRequestIdRef.current) {
             return;
@@ -822,7 +826,10 @@ export function MapPanel({
         difficultyFeatures.some((feature) =>
           isCombinedTrailSegmentRecord(feature.get("combinedSegment")),
         );
-      const hasWmsInfo = hasVisibleLayerPixel(hikingClosuresLayer, event.pixel);
+      const hasWmsInfo =
+        hasVisibleLayerPixel(hikingClosuresLayer, event.pixel) ||
+        hasVisibleLayerPixel(hikingRoutesLayer, event.pixel) ||
+        hasVisibleLayerPixel(cyclingRoutesLayer, event.pixel);
 
       target.style.cursor = hasDifficultyInfo || hasWmsInfo ? "help" : "";
     });
@@ -2120,11 +2127,15 @@ async function inspectVisibleWmsFeatures({
   resolution,
   closuresLayer,
   closuresVisible,
+  routesVisible,
+  cyclingRoutesVisible,
 }: {
   coordinate: number[];
   resolution: number;
   closuresLayer: TileLayer<TileWMS> | null;
   closuresVisible: boolean;
+  routesVisible: boolean;
+  cyclingRoutesVisible: boolean;
 }): Promise<MapFeatureInfo | null> {
   if (closuresVisible) {
     const closure = await getWmsFeatureInfo(
@@ -2134,6 +2145,26 @@ async function inspectVisibleWmsFeatures({
     );
     if (closure) {
       return closure;
+    }
+  }
+
+  // Wanderland and Veloland use CORS-safe WMTS tiles. Their details are
+  // fetched through Django's fixed swisstopo adapter, not directly from WMS.
+  for (const layer of [
+    ...(cyclingRoutesVisible ? (["veloland"] as const) : []),
+    ...(routesVisible ? (["wanderland"] as const) : []),
+  ]) {
+    try {
+      const response = await getMapFeatureInfo(
+        layer,
+        [coordinate[0], coordinate[1]],
+        resolution,
+      );
+      if (response.feature) {
+        return response.feature;
+      }
+    } catch {
+      // Map details are supplementary; the WMTS route overlay remains usable.
     }
   }
 
@@ -2226,7 +2257,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 function hasVisibleLayerPixel(
-  layer: TileLayer<TileWMS>,
+  layer: TileLayer<TileWMS> | TileLayer<XYZ>,
   pixel: number[],
 ): boolean {
   if (!layer.getVisible()) {

@@ -30,6 +30,7 @@ from planner.api.serializers import (
     DrinkingWaterQuerySerializer,
     ElevationProfileRequestSerializer,
     EmailTokenSerializer,
+    MapFeatureInfoQuerySerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RouteComputeRequestSerializer,
@@ -57,6 +58,8 @@ from planner.integrations.overpass import (
 )
 from planner.integrations.swisstopo import (
     SwisstopoClient,
+    SwisstopoMapClient,
+    SwisstopoMapUnavailableError,
     SwisstopoSearchUnavailableError,
     SwisstopoUnavailableError,
 )
@@ -779,6 +782,52 @@ class TrailsView(APIView):
             )
         except OverpassUnavailableError as error:
             raise UnprocessableEntity(error.code, error.message, error.details) from error
+
+
+class MapFeatureInfoView(APIView):
+    """Serve normalized Wanderland and Veloland details without browser CORS calls."""
+
+    authentication_classes: list[type[object]] = []
+    permission_classes: list[type[object]] = []
+
+    @extend_schema(operation_id="map_feature_info", responses={200: OpenApiTypes.OBJECT})
+    def get(self, request: object) -> Response:
+        serializer = MapFeatureInfoQuerySerializer(
+            data=getattr(request, "query_params", {}),
+        )
+        if not serializer.is_valid():
+            raise UnprocessableEntity(
+                "invalid_map_feature_request",
+                "Map feature request validation failed.",
+                {"fields": serializer.errors},
+            )
+
+        query = serializer.validated_data
+        try:
+            feature = SwisstopoMapClient(
+                settings.SWISSTOPO_WMS_URL,
+                timeout_seconds=settings.SWISSTOPO_TIMEOUT_SECONDS,
+            ).feature_info(
+                query["layer"],
+                x=query["x"],
+                y=query["y"],
+                resolution=query["resolution"],
+            )
+        except SwisstopoMapUnavailableError as error:
+            raise ServiceUnavailable(error.code, error.message) from error
+
+        if feature is None:
+            return Response({"feature": None})
+        return Response(
+            {
+                "feature": {
+                    "details": [list(detail) for detail in feature.details],
+                    "kind": feature.kind,
+                    "schweizMobilUrl": feature.schweiz_mobil_url,
+                    "title": feature.title,
+                }
+            }
+        )
 
 
 class DrinkingWaterView(APIView):

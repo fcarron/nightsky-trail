@@ -54,6 +54,17 @@ export interface SearchResultDto {
   zoom: number;
 }
 
+export interface MapFeatureInfoResponse {
+  feature: MapRouteFeatureInfo | null;
+}
+
+export interface MapRouteFeatureInfo {
+  kind: "wanderland" | "veloland";
+  title: string;
+  details: Array<[string, string]>;
+  schweizMobilUrl: string;
+}
+
 export interface RouteComputeRequest {
   waypoints: RouteWaypointDto[];
   segments: RouteSegmentRequestDto[];

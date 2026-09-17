@@ -188,6 +188,7 @@ GRAPHHOPPER_PROFILE = os.environ.get("GRAPHHOPPER_PROFILE", "hike")
 GRAPHHOPPER_TIMEOUT_SECONDS = float(os.environ.get("GRAPHHOPPER_TIMEOUT_SECONDS", "10"))
 SWISSTOPO_BASE_URL = os.environ.get("SWISSTOPO_BASE_URL", "https://api3.geo.admin.ch")
 SWISSTOPO_TIMEOUT_SECONDS = float(os.environ.get("SWISSTOPO_TIMEOUT_SECONDS", "10"))
+SWISSTOPO_WMS_URL = os.environ.get("SWISSTOPO_WMS_URL", "https://wms.geo.admin.ch")
 OVERPASS_BASE_URL = os.environ.get("OVERPASS_BASE_URL", "https://overpass-api.de/api")
 OVERPASS_TIMEOUT_SECONDS = float(os.environ.get("OVERPASS_TIMEOUT_SECONDS", "12"))
 OSM_PBF_PATH = Path(

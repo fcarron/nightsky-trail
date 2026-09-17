@@ -33,6 +33,16 @@ class SwisstopoSearchUnavailableError(RuntimeError):
         self.message = message
 
 
+class SwisstopoMapUnavailableError(RuntimeError):
+    """Raised when the fixed swisstopo WMS map endpoint is unavailable."""
+
+    code = "map_feature_unavailable"
+
+    def __init__(self, message: str = "Map details are currently unavailable.") -> None:
+        super().__init__(message)
+        self.message = message
+
+
 @dataclass(frozen=True)
 class LineStringGeometry:
     coordinates: list[list[float]]
@@ -46,6 +56,14 @@ class SearchResult:
     longitude: float
     latitude: float
     zoom: int
+
+
+@dataclass(frozen=True)
+class MapFeatureInfo:
+    kind: str
+    title: str
+    details: list[tuple[str, str]]
+    schweiz_mobil_url: str
 
 
 class SwisstopoClient:
@@ -104,6 +122,65 @@ class SwisstopoClient:
             raise SwisstopoSearchUnavailableError() from error
 
         return parse_search_response(response)
+
+
+class SwisstopoMapClient:
+    """Fetch route details from whitelisted swisstopo WMS layers."""
+
+    _layers = {
+        "wanderland": "ch.astra.wanderland",
+        "veloland": "ch.astra.veloland",
+    }
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.timeout = httpx.Timeout(timeout_seconds)
+
+    def feature_info(
+        self,
+        kind: str,
+        *,
+        x: float,
+        y: float,
+        resolution: float,
+    ) -> MapFeatureInfo | None:
+        layer = self._layers.get(kind)
+        if layer is None:
+            raise ValueError(f"Unsupported map feature layer: {kind}")
+
+        half_size = resolution * 128
+        bbox = ",".join(
+            f"{value:.6f}" for value in (x - half_size, y - half_size, x + half_size, y + half_size)
+        )
+        try:
+            response = httpx.get(
+                self.base_url,
+                params={
+                    "BBOX": bbox,
+                    "CRS": "EPSG:3857",
+                    "FEATURE_COUNT": "1",
+                    "I": "128",
+                    "INFO_FORMAT": "application/json",
+                    "J": "128",
+                    "LAYERS": layer,
+                    "QUERY_LAYERS": layer,
+                    "REQUEST": "GetFeatureInfo",
+                    "SERVICE": "WMS",
+                    "VERSION": "1.3.0",
+                    "WIDTH": "256",
+                    "HEIGHT": "256",
+                },
+                timeout=self.timeout,
+            )
+        except httpx.HTTPError as error:
+            raise SwisstopoMapUnavailableError() from error
+
+        return parse_map_feature_info_response(response, kind)
 
 
 def parse_profile_response(response: httpx.Response) -> list[ElevationSample]:
@@ -194,6 +271,93 @@ def parse_search_response(response: httpx.Response) -> list[SearchResult]:
         )
 
     return results
+
+
+def parse_map_feature_info_response(
+    response: httpx.Response,
+    kind: str,
+) -> MapFeatureInfo | None:
+    if response.status_code >= 400:
+        raise SwisstopoMapUnavailableError()
+
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise SwisstopoMapUnavailableError("Map details returned invalid JSON.") from error
+
+    if not isinstance(payload, dict) or not isinstance(payload.get("features"), list):
+        raise SwisstopoMapUnavailableError("Map details returned an invalid response.")
+    if not payload["features"]:
+        return None
+
+    first_feature = payload["features"][0]
+    if not isinstance(first_feature, dict) or not isinstance(first_feature.get("properties"), dict):
+        raise SwisstopoMapUnavailableError("Map details returned an invalid feature.")
+    properties = first_feature["properties"]
+    title = first_text_property(
+        properties,
+        ["chmobil_title", "name", "bezeichnung", "titel", "route_name", "routenname"],
+    )
+    route_number = first_text_property(
+        properties,
+        ["chmobil_route_number", "nummer", "route_nr", "routennummer", "number"],
+    )
+    segment_id = first_text_property(properties, ["id"])
+    return MapFeatureInfo(
+        kind=kind,
+        title=title or (f"Route {route_number}" if route_number else f"{kind.title()}-Route"),
+        details=map_feature_details(kind, properties, route_number),
+        schweiz_mobil_url=schweiz_mobil_route_url(kind, route_number, segment_id),
+    )
+
+
+def first_text_property(properties: dict[object, object], keys: list[str]) -> str | None:
+    for key in keys:
+        value = properties.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, int | float):
+            return str(value)
+    return None
+
+
+def map_feature_details(
+    kind: str,
+    properties: dict[object, object],
+    route_number: str | None,
+) -> list[tuple[str, str]]:
+    details: list[tuple[str, str]] = []
+    if route_number:
+        details.append(("Routennummer", route_number))
+    details.append(("Netz", "Veloland Schweiz" if kind == "veloland" else "Wanderland Schweiz"))
+    segment_id = first_text_property(properties, ["id"])
+    if segment_id:
+        details.append(("Abschnitt", segment_id))
+        stage = route_stage_number(segment_id, route_number)
+        if stage:
+            details.append(("Etappe", stage))
+    return details
+
+
+def schweiz_mobil_route_url(
+    kind: str,
+    route_number: str | None,
+    segment_id: str | None,
+) -> str:
+    network = "veloland" if kind == "veloland" else "wanderland"
+    if not route_number or not route_number.isdecimal():
+        return f"https://schweizmobil.ch/de/{network}"
+    stage = route_stage_number(segment_id, route_number) if segment_id else None
+    if stage:
+        return f"https://schweizmobil.ch/de/{network}/route-{route_number}/etappe-{stage}"
+    return f"https://schweizmobil.ch/de/{network}/route-{route_number}"
+
+
+def route_stage_number(segment_id: str, route_number: str | None) -> str | None:
+    match = re.fullmatch(r"(\d+)\.(\d+)", segment_id.strip())
+    if not match or (route_number and match.group(1) != route_number):
+        return None
+    return str(int(match.group(2)))
 
 
 def clean_search_label(value: object) -> str:

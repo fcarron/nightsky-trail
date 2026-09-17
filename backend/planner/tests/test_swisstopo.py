@@ -7,8 +7,10 @@ import pytest
 
 from planner.integrations.swisstopo import (
     LineStringGeometry,
+    MapFeatureInfo,
     SearchResult,
     SwisstopoClient,
+    SwisstopoMapClient,
     SwisstopoSearchUnavailableError,
     SwisstopoUnavailableError,
     parse_profile_response,
@@ -181,3 +183,67 @@ def test_parse_search_response_rejects_invalid_payload() -> None:
 
     with pytest.raises(SwisstopoSearchUnavailableError):
         parse_search_response(response)
+
+
+def test_swisstopo_map_client_normalizes_wanderland_feature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def fake_get(
+        url: str,
+        params: dict[str, str],
+        timeout: httpx.Timeout,
+    ) -> httpx.Response:
+        requests.append({"url": url, "params": params, "timeout": timeout})
+        return httpx.Response(
+            200,
+            json={
+                "features": [
+                    {
+                        "properties": {
+                            "chmobil_route_number": "1",
+                            "chmobil_title": "ViaJacobi",
+                            "id": "1.3",
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr("planner.integrations.swisstopo.httpx.get", fake_get)
+
+    feature = SwisstopoMapClient("https://wms.geo.admin.ch/").feature_info(
+        "wanderland",
+        x=830_000,
+        y=5_900_000,
+        resolution=2,
+    )
+
+    assert feature == MapFeatureInfo(
+        kind="wanderland",
+        title="ViaJacobi",
+        details=[
+            ("Routennummer", "1"),
+            ("Netz", "Wanderland Schweiz"),
+            ("Abschnitt", "1.3"),
+            ("Etappe", "3"),
+        ],
+        schweiz_mobil_url="https://schweizmobil.ch/de/wanderland/route-1/etappe-3",
+    )
+    assert requests[0]["url"] == "https://wms.geo.admin.ch"
+    assert requests[0]["params"] == {
+        "BBOX": "829744.000000,5899744.000000,830256.000000,5900256.000000",
+        "CRS": "EPSG:3857",
+        "FEATURE_COUNT": "1",
+        "I": "128",
+        "INFO_FORMAT": "application/json",
+        "J": "128",
+        "LAYERS": "ch.astra.wanderland",
+        "QUERY_LAYERS": "ch.astra.wanderland",
+        "REQUEST": "GetFeatureInfo",
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "WIDTH": "256",
+        "HEIGHT": "256",
+    }
