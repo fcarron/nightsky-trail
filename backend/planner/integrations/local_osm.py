@@ -244,6 +244,7 @@ class ToiletIndexUpgradeHandler(osmium.SimpleHandler):
         self.progress = progress
         self.node_count = 0
         self.way_count = 0
+        self.toilet_ways: dict[int, tuple[tuple[int, ...], dict[str, str]]] = {}
 
     def node(self, node: object) -> None:
         self.node_count += 1
@@ -261,12 +262,29 @@ class ToiletIndexUpgradeHandler(osmium.SimpleHandler):
         tags = {str(tag.k): str(tag.v) for tag in way.tags}
         if not is_public_toilet(tags):
             return
-        coordinates = way_coordinates(way.nodes)
-        if not coordinates:
+        node_ids = tuple(int(node.ref) for node in way.nodes)
+        if node_ids:
+            self.toilet_ways[int(way.id)] = (node_ids, tags)
+
+    def write_toilet_ways(self, pbf_path: Path) -> None:
+        if not self.toilet_ways:
             return
-        longitude = sum(point[0] for point in coordinates) / len(coordinates)
-        latitude = sum(point[1] for point in coordinates) / len(coordinates)
-        self._add_toilet("way", int(way.id), longitude, latitude, tags)
+        node_ids = {
+            node_id for node_ids, _tags in self.toilet_ways.values() for node_id in node_ids
+        }
+        locations_handler = ToiletWayLocationHandler(node_ids, self.progress)
+        locations_handler.apply_file(str(pbf_path))
+        for osm_id, (way_node_ids, tags) in self.toilet_ways.items():
+            coordinates = [
+                locations_handler.locations[node_id]
+                for node_id in way_node_ids
+                if node_id in locations_handler.locations
+            ]
+            if not coordinates:
+                continue
+            longitude = sum(point[0] for point in coordinates) / len(coordinates)
+            latitude = sum(point[1] for point in coordinates) / len(coordinates)
+            self._add_toilet("way", osm_id, longitude, latitude, tags)
 
     def _add_toilet(
         self, osm_type: str, osm_id: int, longitude: float, latitude: float, tags: dict[str, str]
@@ -285,6 +303,26 @@ class ToiletIndexUpgradeHandler(osmium.SimpleHandler):
     def _report_progress(self, object_type: str, count: int) -> None:
         if self.progress is not None and count % PROGRESS_INTERVAL == 0:
             self.progress(f"Processed {count:,} OSM {object_type}…")
+
+
+class ToiletWayLocationHandler(osmium.SimpleHandler):
+    """Resolve only the node IDs used by the few public toilet areas."""
+
+    def __init__(self, node_ids: set[int], progress: Callable[[str], None] | None) -> None:
+        super().__init__()
+        self.node_ids = node_ids
+        self.progress = progress
+        self.node_count = 0
+        self.locations: dict[int, list[float]] = {}
+
+    def node(self, node: object) -> None:
+        self.node_count += 1
+        if self.progress is not None and self.node_count % PROGRESS_INTERVAL == 0:
+            self.progress(f"Resolved {self.node_count:,} OSM nodes for toilet areas…")
+        node_id = int(node.id)
+        if node_id not in self.node_ids or not node.location.valid():
+            return
+        self.locations[node_id] = [float(node.location.lon), float(node.location.lat)]
 
 
 class TrailIndexWriter:
@@ -515,9 +553,10 @@ def upgrade_legacy_index_with_toilets(
             )
             connection.execute("CREATE INDEX toilets_point ON toilets (longitude, latitude)")
             report_progress(progress, "Scanning the Swiss OSM extract for public toilets…")
-            ToiletIndexUpgradeHandler(connection, progress).apply_file(
-                str(pbf_path), locations=True
-            )
+            handler = ToiletIndexUpgradeHandler(connection, progress)
+            handler.apply_file(str(pbf_path))
+            report_progress(progress, "Resolving public toilet areas…")
+            handler.write_toilet_ways(pbf_path)
             connection.execute(
                 "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
                 (str(SCHEMA_VERSION),),
